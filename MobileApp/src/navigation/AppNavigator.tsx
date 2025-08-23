@@ -3,10 +3,12 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 
 import SplashScreen from '../screens/SplashScreen';
+import OnboardingScreen from '../screens/OnboardingScreen';
 import TaskListScreen from '../screens/TaskListScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
+  Onboarding: undefined;
   TaskList: undefined;
 };
 
@@ -14,9 +16,14 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 const AppNavigator: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(true);
 
   const handleSplashFinish = () => {
     setIsLoading(false);
+  };
+
+  const handleOnboardingFinish = () => {
+    setShowOnboarding(false);
   };
 
   return (
@@ -32,6 +39,12 @@ const AppNavigator: React.FC = () => {
           <Stack.Screen name="Splash">
             {props => (
               <SplashScreen {...props} onFinish={handleSplashFinish} />
+            )}
+          </Stack.Screen>
+        ) : showOnboarding ? (
+          <Stack.Screen name="Onboarding">
+            {props => (
+              <OnboardingScreen {...props} onFinish={handleOnboardingFinish} />
             )}
           </Stack.Screen>
         ) : (

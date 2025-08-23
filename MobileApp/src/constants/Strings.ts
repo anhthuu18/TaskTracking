@@ -51,6 +51,17 @@ export const Strings = {
   // Splash Screen
   splashLoading: 'Đang khởi động...',
   
+  // Onboarding
+  onboardingTitle1: 'Chào mừng !!!',
+  onboardingSubtitle1: 'Bạn có muốn hoàn thành task siêu nhanh với Mane?',
+  onboardingTitle2: 'Sắp xếp công việc dễ dàng',
+  onboardingSubtitle2: 'Dễ dàng sắp xếp thứ tự công việc để bạn quản lý. Nhiều chức năng để lựa chọn.',
+  onboardingTitle3: 'Hoàn thành task dễ dàng hơn',
+  onboardingSubtitle3: 'Nó đã trở nên dễ dàng hơn để hoàn thành các task. Bắt đầu với chúng tôi!',
+  skip: 'Bỏ qua',
+  next: 'Tiếp theo',
+  getStarted: 'Bắt đầu',
+  
   // Errors
   errorGeneral: 'Đã xảy ra lỗi',
   errorNetwork: 'Lỗi kết nối mạng',
