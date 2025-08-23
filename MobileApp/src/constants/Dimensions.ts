@@ -25,16 +25,42 @@ export const BorderRadius = {
   round: 999,
 };
 
-// Font sizes
+// Typography System - SF Pro Text (based on Figma Design System)
+
+// Font sizes (for backward compatibility)
 export const FontSize = {
+  caption: 12,
+  body: 14,
+  header1: 18,
+  header2: 16,
+  header3: 16,
+  title: 24,
+  
+  // Legacy sizes
   xs: 12,
   sm: 14,
   md: 16,
   lg: 18,
   xl: 20,
   xxl: 24,
-  title: 28,
   header: 32,
+};
+
+// Font weights
+export const FontWeight = {
+  regular: '400' as const,
+  medium: '500' as const,
+  semibold: '600' as const,
+  bold: '700' as const,
+};
+
+// Line heights
+export const LineHeight = {
+  tight: 16,
+  normal: 20,
+  relaxed: 24,
+  loose: 28,
+  extraLoose: 36,
 };
 
 // Common heights
@@ -53,3 +79,43 @@ export const ZIndex = {
   tooltip: 997,
   fab: 996,
 };
+
+export const Typography = {
+    title: {
+      fontSize: FontSize.title,
+      lineHeight: LineHeight.extraLoose,
+      fontWeight: FontWeight.bold,
+      fontFamily: 'SF Pro Text',
+    },
+    header1: {
+      fontSize: FontSize.header1,
+      lineHeight: LineHeight.relaxed,
+      fontWeight: FontWeight.bold,
+      fontFamily: 'SF Pro Text',
+    },
+    header2: {
+      fontSize: FontSize.header2,
+      lineHeight: LineHeight.relaxed,
+      fontWeight: FontWeight.bold,
+      fontFamily: 'SF Pro Text',
+    },
+    header3: {
+      fontSize: FontSize.header3,
+      lineHeight: LineHeight.relaxed,
+      fontWeight: FontWeight.medium,
+      fontFamily: 'SF Pro Text',
+    },
+    body: {
+      fontSize: FontSize.body,
+      lineHeight: LineHeight.relaxed,
+      fontWeight: FontWeight.medium,
+      fontFamily: 'SF Pro Text',
+    },
+    caption: {
+      fontSize: FontSize.caption,
+      lineHeight: LineHeight.relaxed,
+      fontWeight: FontWeight.medium,
+      fontFamily: 'SF Pro Text',
+    },
+  };
+  

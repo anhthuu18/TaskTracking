@@ -13,7 +13,7 @@ import {
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Strings } from '../constants/Strings';
 import { Colors } from '../constants/Colors';
-import { FontSize, Spacing, BorderRadius } from '../constants/Dimensions';
+import { FontSize, Spacing, BorderRadius, Typography } from '../constants/Dimensions';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -103,7 +103,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onFinish }) => {
           key={index}
           style={[
             styles.dot,
-            { backgroundColor: index === currentIndex ? '#7B61FF' : '#E0E0E0' },
+            { backgroundColor: index === currentIndex ? Colors.primary : Colors.neutral.light },
           ]}
         />
       ))}
@@ -164,7 +164,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onFinish }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.background,
     paddingTop: 48,
   },
   header: {
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
   },
   skipButtonText: {
-    fontSize: FontSize.md,
+    fontSize: FontSize.body,
     color: Colors.textSecondary,
   },
   slide: {
@@ -207,22 +207,21 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     width: 300,
     height: 300,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
     borderStyle: 'dashed',
   },
   placeholderText: {
-    fontSize: FontSize.lg,
+    ...Typography.header2,
     color: Colors.textSecondary,
-    fontWeight: '600',
     marginBottom: Spacing.sm,
   },
   placeholderSubtext: {
-    fontSize: FontSize.sm,
+    ...Typography.caption,
     color: Colors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: Spacing.lg,
@@ -232,18 +231,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontSize: FontSize.title,
-    fontWeight: 'bold',
+    ...Typography.title,
     color: Colors.text,
     textAlign: 'center',
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
   },
   subtitle: {
-    fontSize: FontSize.md,
+    ...Typography.body,
     color: Colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
     paddingHorizontal: Spacing.lg,
   },
   bottomContainer: {
@@ -265,7 +262,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   actionButton: {
-    backgroundColor: '#7B61FF',
+    backgroundColor: Colors.primary,
     paddingVertical: 18,
     paddingHorizontal: Spacing.xxl,
     borderRadius: BorderRadius.xl,
@@ -273,7 +270,7 @@ const styles = StyleSheet.create({
     minHeight: 54,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7B61FF',
+    shadowColor: Colors.primary,
     shadowOffset: {
       width: 0,
       height: 4,
@@ -283,9 +280,8 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   actionButtonText: {
-    color: Colors.surface,
-    fontSize: FontSize.md,
-    fontWeight: '600',
+    ...Typography.body,
+    color: Colors.neutral.white,
   },
 });
 
