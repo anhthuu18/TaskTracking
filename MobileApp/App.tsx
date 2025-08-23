@@ -9,8 +9,9 @@ import React, { JSX } from 'react';
 import { StatusBar, StyleSheet, useColorScheme } from 'react-native';
 import { PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import 'react-native-gesture-handler';
 
-import TaskListScreen from './src/screens/TaskListScreen';
+import AppNavigator from './src/navigation/AppNavigator';
 
 // Custom theme colors
 const lightTheme = {
@@ -45,7 +46,7 @@ function App(): JSX.Element {
           barStyle={isDarkMode ? 'light-content' : 'dark-content'}
           backgroundColor={isDarkMode ? darkTheme.colors.surface : lightTheme.colors.surface}
         />
-        <TaskListScreen />
+        <AppNavigator />
       </PaperProvider>
     </SafeAreaProvider>
   );
