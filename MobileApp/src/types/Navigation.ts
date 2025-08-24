@@ -1,5 +1,8 @@
 export type RootStackParamList = {
   Splash: undefined;
+  Onboarding: undefined;
+  SignUp: undefined;
+  SignIn: undefined;
   TaskList: undefined;
   TaskDetail?: {
     taskId: string;

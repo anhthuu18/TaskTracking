@@ -21,7 +21,8 @@ interface OnboardingItem {
   id: string;
   title: string;
   subtitle: string;
-  image?: any; // Will be added later when images are available
+  image?: any;
+  placeholderText?: string;
 }
 
 interface OnboardingScreenProps {
@@ -32,24 +33,46 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onFinish }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
+  // Helper function to safely require images with fallback
+  const safeRequireImage = (imagePath: string) => {
+    try {
+      switch (imagePath) {
+        case 'onboarding1':
+          return require('../assets/images/onboarding1.png');
+        case 'onboarding2':
+          return require('../assets/images/onboarding2.png');
+        case 'onboarding3':
+          return require('../assets/images/onboarding3.png');
+        default:
+          return null;
+      }
+    } catch (error) {
+      console.warn(`Image not found: ${imagePath}`, error);
+      return null;
+    }
+  };
+
   const onboardingData: OnboardingItem[] = [
     {
       id: '1',
       title: Strings.onboardingTitle1,
       subtitle: Strings.onboardingSubtitle1,
-      // image: require('../assets/images/onboarding1.png'), // To be added later
+      image: safeRequireImage('onboarding1'),
+      placeholderText: '📋',
     },
     {
       id: '2',
       title: Strings.onboardingTitle2,
       subtitle: Strings.onboardingSubtitle2,
-      // image: require('../assets/images/onboarding2.png'), // To be added later
+      image: safeRequireImage('onboarding2'),
+      placeholderText: '⚡',
     },
     {
       id: '3',
       title: Strings.onboardingTitle3,
       subtitle: Strings.onboardingSubtitle3,
-      // image: require('../assets/images/onboarding3.png'), // To be added later
+      image: safeRequireImage('onboarding3'),
+      placeholderText: '🎯',
     },
   ];
 
@@ -78,15 +101,21 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onFinish }) => {
   const renderOnboardingItem = ({ item }: { item: OnboardingItem }) => (
     <View style={styles.slide}>
       <View style={styles.imageContainer}>
-        {/* Placeholder for illustration */}
-        <View style={styles.imagePlaceholder}>
-          <Text style={styles.placeholderText}>Illustration</Text>
-          <Text style={styles.placeholderSubtext}>
-            {item.id === '1' && 'Person with task board'}
-            {item.id === '2' && 'Person with charts & analytics'}
-            {item.id === '3' && 'Person with analytics dashboard'}
-          </Text>
-        </View>
+        {item.image ? (
+          // Show actual image if available
+          <Image source={item.image} style={styles.image} resizeMode="contain" />
+        ) : (
+          // Show placeholder if no image
+          <View style={styles.imagePlaceholder}>
+            <Text style={styles.placeholderEmoji}>{item.placeholderText}</Text>
+            <Text style={styles.placeholderText}>Đang tải ảnh</Text>
+            <Text style={styles.placeholderSubtext}>
+              {item.id === '1' && 'Quản lý công việc hiệu quả'}
+              {item.id === '2' && 'Theo dõi tiến độ thông minh'}
+              {item.id === '3' && 'Phân tích hiệu suất chi tiết'}
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.contentContainer}>
@@ -204,9 +233,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.lg,
   },
+  image: {
+    width: screenWidth * 0.85, // 85% of screen width for better balance
+    height: screenWidth * 0.85,
+    borderRadius: BorderRadius.lg,
+  },
   imagePlaceholder: {
-    width: 300,
-    height: 300,
+    width: screenWidth * 0.85,
+    height: screenWidth * 0.85,
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     justifyContent: 'center',
@@ -214,6 +248,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.border,
     borderStyle: 'dashed',
+  },
+  placeholderEmoji: {
+    fontSize: 80,
+    marginBottom: Spacing.lg,
   },
   placeholderText: {
     ...Typography.header2,

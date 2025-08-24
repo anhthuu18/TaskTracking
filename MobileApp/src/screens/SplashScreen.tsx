@@ -10,6 +10,7 @@ import {
   Text,
   ActivityIndicator,
 } from 'react-native-paper';
+import { Colors } from '../constants/Colors';
 
 interface SplashScreenProps {
   onFinish: () => void;
@@ -31,7 +32,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
     <View style={styles.container}>
       <StatusBar
         barStyle="light-content"
-        backgroundColor="#2196F3"
+        backgroundColor={Colors.primary}
         translucent={false}
       />
       
@@ -69,7 +70,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#2196F3',
+    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -79,8 +80,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#2196F3',
-    opacity: 0.9,
+    backgroundColor: Colors.primaryContainer,
+    opacity: 0.8,
   },
   logoContainer: {
     flex: 1,

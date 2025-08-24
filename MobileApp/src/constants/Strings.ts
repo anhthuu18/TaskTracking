@@ -62,7 +62,31 @@ export const Strings = {
   next: 'Tiếp theo',
   getStarted: 'Bắt đầu',
   
-  // Errors
+  // Authentication
+  signUp: 'Đăng ký',
+  signIn: 'Đăng nhập',
+  username: 'Tên người dùng',
+  password: 'Mật khẩu',
+  confirmPassword: 'Xác nhận mật khẩu',
+  forgotPassword: 'Quên mật khẩu?',
+  orSignUpWith: 'Hoặc đăng ký với',
+  orSignInWith: 'Hoặc đăng nhập với',
+  alreadyHaveAccount: 'Đã có tài khoản?',
+  dontHaveAccount: 'Chưa có tài khoản?',
+  
+  // Validation Errors
+  errorRequired: 'Trường này là bắt buộc',
+  errorUsernameRequired: 'Tên người dùng là bắt buộc',
+  errorUsernameMinLength: 'Tên người dùng phải có ít nhất 3 ký tự',
+  errorUsernameInvalid: 'Tên người dùng chỉ được chứa chữ cái, số và dấu gạch dưới',
+  errorPasswordRequired: 'Mật khẩu là bắt buộc',
+  errorPasswordMinLength: 'Mật khẩu phải có ít nhất 6 ký tự',
+  errorPasswordWeak: 'Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số',
+  errorConfirmPasswordRequired: 'Xác nhận mật khẩu là bắt buộc',
+  errorPasswordMismatch: 'Mật khẩu xác nhận không khớp',
+  errorEmailInvalid: 'Email không hợp lệ',
+  
+  // General Errors
   errorGeneral: 'Đã xảy ra lỗi',
   errorNetwork: 'Lỗi kết nối mạng',
   errorNotFound: 'Không tìm thấy',
