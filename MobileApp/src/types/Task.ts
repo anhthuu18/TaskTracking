@@ -34,7 +34,7 @@ export interface TaskFilter {
   searchQuery?: string;
 }
 
-export interface User {
+export interface TaskAssignee {
   id: string;
   name: string;
   email: string;
