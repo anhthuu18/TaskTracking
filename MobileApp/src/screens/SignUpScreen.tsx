@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Image,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
 // @ts-ignore
@@ -32,6 +33,16 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const [touched, setTouched] = useState<{[key: string]: boolean}>({});
   const [isLoading, setIsLoading] = useState(false);
   const { toast, showSuccess, showError, hideToast } = useToast();
+
+  // Helper function to safely require Google image only
+  const getGoogleImage = () => {
+    try {
+      return require('../assets/images/google-logo.png');
+    } catch (error) {
+      console.warn('Google image not found:', error);
+      return null;
+    }
+  };
 
   const handleSignUp = async () => {
     // Validate form before submission
@@ -309,16 +320,17 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
           
           <TouchableOpacity 
             style={styles.socialButton}
-            onPress={() => handleSocialLogin('instagram')}
+            onPress={() => handleSocialLogin('google')}
           >
-            <MaterialIcons name="camera-alt" size={24} color="#E4405F" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.socialButton}
-            onPress={() => handleSocialLogin('email')}
-          >
-            <MaterialIcons name="mail" size={24} color={Colors.neutral.medium} />
+            {getGoogleImage() ? (
+              <Image 
+                source={getGoogleImage()} 
+                style={styles.googleImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <MaterialIcons name="search" size={24} color="#4285F4" />
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -434,6 +446,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutral.light,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  googleImage: {
+    width: 21,
+    height: 21,
   },
   footer: {
     paddingHorizontal: 20,
