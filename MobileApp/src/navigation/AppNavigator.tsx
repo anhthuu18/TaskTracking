@@ -6,6 +6,9 @@ import SplashScreen from '../screens/SplashScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import SignInScreen from '../screens/SignInScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import EnterOTPScreen from '../screens/EnterOTPScreen';
+import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import TaskListScreen from '../screens/TaskListScreen';
 
 export type RootStackParamList = {
@@ -13,6 +16,9 @@ export type RootStackParamList = {
   Onboarding: undefined;
   SignUp: undefined;
   SignIn: undefined;
+  ForgotPassword: undefined;
+  EnterOTP: { phoneNumber: string };
+  ResetPassword: { phoneNumber: string; otp: string };
   TaskList: undefined;
 };
 
@@ -77,6 +83,27 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen
               name="SignUp"
               component={SignUpScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="ForgotPassword"
+              component={ForgotPasswordScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="EnterOTP"
+              component={EnterOTPScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="ResetPassword"
+              component={ResetPasswordScreen}
               options={{
                 headerShown: false,
               }}

@@ -124,8 +124,8 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
   };
 
   const handleForgotPassword = () => {
-    // Handle forgot password
-    console.log('Forgot password clicked');
+    // Navigate to forgot password screen
+    navigation.navigate('ForgotPassword');
   };
 
   const navigateToSignUp = () => {

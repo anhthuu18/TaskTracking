@@ -109,6 +109,23 @@ export const validateEmail = (email: string): ValidationResult => {
   return { isValid: true };
 };
 
+// Phone number validation for Vietnamese phone numbers
+export const validatePhoneNumber = (phoneNumber: string): boolean => {
+  if (!phoneNumber || phoneNumber.trim() === '') {
+    return false;
+  }
+
+  // Remove all non-digit characters
+  const cleanPhone = phoneNumber.replace(/\D/g, '');
+  
+  // Vietnamese phone number patterns:
+  // - 03x, 05x, 07x, 08x, 09x (10 digits)
+  // - 84 + 3x, 84 + 5x, 84 + 7x, 84 + 8x, 84 + 9x (11 digits)
+  const vietnamesePhoneRegex = /^(84|0)?(3[2-9]|5[689]|7[06-9]|8[1-689]|9[0-46-9])[0-9]{7}$/;
+  
+  return vietnamesePhoneRegex.test(cleanPhone);
+};
+
 // Validate all signup fields
 export const validateSignUpForm = (
   username: string,
