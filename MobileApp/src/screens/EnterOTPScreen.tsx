@@ -48,6 +48,14 @@ const EnterOTPScreen: React.FC<EnterOTPScreenProps> = ({ navigation, route }) =>
     return () => clearInterval(interval);
   }, [resendTimer]);
 
+  // Auto focus first input when screen loads
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      inputRefs.current[0]?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleOtpChange = (value: string, index: number) => {
     const newOtp = [...otp];
     newOtp[index] = value;
@@ -55,14 +63,18 @@ const EnterOTPScreen: React.FC<EnterOTPScreenProps> = ({ navigation, route }) =>
 
     // Auto focus next input
     if (value && index < 3) {
-      inputRefs.current[index + 1]?.focus();
+      setTimeout(() => {
+        inputRefs.current[index + 1]?.focus();
+      }, 50);
     }
   };
 
   const handleKeyPress = (e: any, index: number) => {
     // Handle backspace to go to previous input
     if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
+      setTimeout(() => {
+        inputRefs.current[index - 1]?.focus();
+      }, 50);
     }
   };
 
@@ -147,7 +159,7 @@ const EnterOTPScreen: React.FC<EnterOTPScreenProps> = ({ navigation, route }) =>
         {/* Illustration */}
         <View style={styles.illustrationContainer}>
           <Image
-            source={require('../assets/images/enter-otp-illustration.png')}
+            source={require('../assets/images/enter-otp.png')}
             style={styles.illustration}
             resizeMode="contain"
           />
@@ -181,6 +193,12 @@ const EnterOTPScreen: React.FC<EnterOTPScreenProps> = ({ navigation, route }) =>
               maxLength={1}
               textAlign="center"
               placeholder=""
+              autoFocus={index === 0}
+              blurOnSubmit={false}
+              editable={true}
+              selectTextOnFocus={true}
+              contextMenuHidden={true}
+              caretHidden={false}
             />
           ))}
         </View>
@@ -260,8 +278,8 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   illustration: {
-    width: 200,
-    height: 200,
+    width: 220,
+    height: 220,
   },
   titleContainer: {
     alignItems: 'center',
@@ -298,6 +316,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.primary,
     backgroundColor: Colors.background,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
   resendContainer: {
     alignItems: 'center',

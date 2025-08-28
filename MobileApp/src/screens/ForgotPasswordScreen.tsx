@@ -91,7 +91,7 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
         {/* Illustration */}
         <View style={styles.illustrationContainer}>
           <Image
-            source={require('../assets/images/forgot-password-illustration.png')}
+            source={require('../assets/images/forgot-password.png')}
             style={styles.illustration}
             resizeMode="contain"
           />
@@ -152,11 +152,11 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
           {isLoading ? (
             <View style={styles.loadingContainer}>
               <MaterialIcons name="hourglass-empty" size={20} color={Colors.neutral.white} />
-                          <Text style={[styles.sendOTPButtonText, {marginLeft: 8}]}>{Strings.sendingOTP}</Text>
-          </View>
-        ) : (
-          <Text style={styles.sendOTPButtonText}>{Strings.sendOTP}</Text>
-        )}
+              <Text style={[styles.sendOTPButtonText, {marginLeft: 8}]}>{Strings.sendingOTP}</Text>
+            </View>
+          ) : (
+            <Text style={styles.sendOTPButtonText}>{Strings.sendOTP}</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -198,8 +198,8 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   illustration: {
-    width: 200,
-    height: 200,
+    width: 240,
+    height: 240,
   },
   titleContainer: {
     alignItems: 'center',

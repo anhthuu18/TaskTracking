@@ -117,7 +117,7 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ navigation, r
         {/* Illustration */}
         <View style={styles.illustrationContainer}>
           <Image
-            source={require('../assets/images/reset-password-illustration.png')}
+            source={require('../assets/images/reset-password.png')}
             style={styles.illustration}
             resizeMode="contain"
           />
