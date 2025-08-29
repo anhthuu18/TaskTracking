@@ -8,6 +8,9 @@ import {
   StatusBar,
   Image,
   TextInput as RNTextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -95,7 +98,7 @@ const EnterOTPScreen: React.FC<EnterOTPScreenProps> = ({ navigation, route }) =>
       setOtp(['', '', '', '']);
       
     } catch (error) {
-      console.error('❌ Resend OTP error:', error);
+      console.error('Resend OTP error:', error);
       showError('Không thể gửi lại mã OTP. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
@@ -126,7 +129,7 @@ const EnterOTPScreen: React.FC<EnterOTPScreenProps> = ({ navigation, route }) =>
       }, 1000);
       
     } catch (error) {
-      console.error('❌ Verify OTP error:', error);
+      console.error('Verify OTP error:', error);
       showError('Mã OTP không đúng. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
@@ -147,106 +150,118 @@ const EnterOTPScreen: React.FC<EnterOTPScreenProps> = ({ navigation, route }) =>
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <MaterialIcons name="chevron-left" size={24} color={Colors.text} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Content */}
-      <View style={styles.content}>
-        {/* Illustration */}
-        <View style={styles.illustrationContainer}>
-          <Image
-            source={require('../assets/images/enter-otp.png')}
-            style={styles.illustration}
-            resizeMode="contain"
-          />
-        </View>
-
-        {/* Title */}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>Nhập OTP</Text>
-        </View>
-
-        {/* Instructions */}
-        <View style={styles.instructionsContainer}>
-          <Text style={styles.instructions}>
-            Nhập mã OTP chúng tôi vừa gửi đến số điện thoại của bạn để bắt đầu đặt lại mật khẩu mới.
-          </Text>
-        </View>
-
-        {/* OTP Input Fields */}
-        <View style={styles.otpContainer}>
-          {otp.map((digit, index) => (
-            <RNTextInput
-              key={index}
-              ref={(ref) => {
-                if (ref) inputRefs.current[index] = ref;
-              }}
-              style={styles.otpInput}
-              value={digit}
-              onChangeText={(value) => handleOtpChange(value, index)}
-              onKeyPress={(e) => handleKeyPress(e, index)}
-              keyboardType="numeric"
-              maxLength={1}
-              textAlign="center"
-              placeholder=""
-              autoFocus={index === 0}
-              blurOnSubmit={false}
-              editable={true}
-              selectTextOnFocus={true}
-              contextMenuHidden={true}
-              caretHidden={false}
-            />
-          ))}
-        </View>
-
-        {/* Resend OTP Timer */}
-        <View style={styles.resendContainer}>
-          {canResend ? (
-            <TouchableOpacity 
-              onPress={handleResendOTP}
-              disabled={isLoading}
-              style={styles.resendButton}
-            >
-              <Text style={styles.resendText}>Gửi lại OTP</Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={styles.timerText}>
-              Gửi lại OTP trong {formatTime(resendTimer)}s
-            </Text>
-          )}
-        </View>
-
-        {/* Next Button */}
-        <TouchableOpacity 
-          style={[styles.nextButton, isLoading && styles.nextButtonDisabled]} 
-          onPress={handleNext}
-          disabled={isLoading}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <MaterialIcons name="hourglass-empty" size={20} color={Colors.neutral.white} />
-              <Text style={[styles.nextButtonText, {marginLeft: 8}]}>Đang xác thực...</Text>
-            </View>
-          ) : (
-            <View style={styles.nextButtonContent}>
-              <Text style={styles.nextButtonText}>Tiếp theo</Text>
-              <MaterialIcons name="chevron-right" size={20} color={Colors.neutral.white} />
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+              <MaterialIcons name="chevron-left" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
 
-      {/* Toast Notification */}
-      <Toast
-        visible={toast.visible}
-        message={toast.message}
-        type={toast.type}
-        onHide={hideToast}
-      />
+          {/* Content */}
+          <View style={styles.content}>
+            {/* Illustration */}
+            <View style={styles.illustrationContainer}>
+              <Image
+                source={require('../assets/images/enter-otp.png')}
+                style={styles.illustration}
+                resizeMode="contain"
+              />
+            </View>
+
+            {/* Title */}
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>Nhập OTP</Text>
+            </View>
+
+            {/* Instructions */}
+            <View style={styles.instructionsContainer}>
+              <Text style={styles.instructions}>
+                Nhập mã OTP chúng tôi vừa gửi đến số điện thoại của bạn để bắt đầu đặt lại mật khẩu mới.
+              </Text>
+            </View>
+
+            {/* OTP Input Fields */}
+            <View style={styles.otpContainer}>
+              {otp.map((digit, index) => (
+                <RNTextInput
+                  key={index}
+                  ref={(ref) => {
+                    if (ref) inputRefs.current[index] = ref;
+                  }}
+                  style={styles.otpInput}
+                  value={digit}
+                  onChangeText={(value) => handleOtpChange(value, index)}
+                  onKeyPress={(e) => handleKeyPress(e, index)}
+                  keyboardType="numeric"
+                  maxLength={1}
+                  textAlign="center"
+                  placeholder=""
+                  autoFocus={index === 0}
+                  blurOnSubmit={false}
+                  editable={true}
+                  selectTextOnFocus={true}
+                  contextMenuHidden={true}
+                  caretHidden={false}
+                />
+              ))}
+            </View>
+
+            {/* Resend OTP Timer */}
+            <View style={styles.resendContainer}>
+              {canResend ? (
+                <TouchableOpacity 
+                  onPress={handleResendOTP}
+                  disabled={isLoading}
+                  style={styles.resendButton}
+                >
+                  <Text style={styles.resendText}>Gửi lại OTP</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.timerText}>
+                  Gửi lại OTP trong {formatTime(resendTimer)}s
+                </Text>
+              )}
+            </View>
+
+            {/* Next Button */}
+            <TouchableOpacity 
+              style={[styles.nextButton, isLoading && styles.nextButtonDisabled]} 
+              onPress={handleNext}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <View style={styles.loadingContainer}>
+                  <MaterialIcons name="hourglass-empty" size={20} color={Colors.neutral.white} />
+                  <Text style={[styles.nextButtonText, {marginLeft: 8}]}>Đang xác thực...</Text>
+                </View>
+              ) : (
+                <View style={styles.nextButtonContent}>
+                  <Text style={styles.nextButtonText}>Tiếp theo</Text>
+                  <MaterialIcons name="chevron-right" size={20} color={Colors.neutral.white} />
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Toast Notification */}
+          <Toast
+            visible={toast.visible}
+            message={toast.message}
+            type={toast.type}
+            onHide={hideToast}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -256,11 +271,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 24,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 48,
+    paddingTop: 32,
     paddingBottom: 8,
   },
   backButton: {
@@ -271,11 +290,11 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 8,
   },
   illustrationContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 24,
   },
   illustration: {
     width: 220,
@@ -283,7 +302,7 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   title: {
     fontSize: 28,
@@ -292,7 +311,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   instructionsContainer: {
-    marginBottom: 40,
+    marginBottom: 24,
   },
   instructions: {
     fontSize: 16,
@@ -304,7 +323,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 16,
-    marginBottom: 30,
+    marginBottom: 24,
   },
   otpInput: {
     width: 60,
@@ -321,7 +340,7 @@ const styles = StyleSheet.create({
   },
   resendContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
   },
   resendButton: {
     paddingVertical: 8,

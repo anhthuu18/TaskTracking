@@ -38,10 +38,9 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const getGoogleImage = () => {
     try {
       return require('../assets/images/google-logo.png');
-    } catch (error) {
-      console.warn('Google image not found:', error);
-      return null;
-    }
+         } catch (error) {
+       return null;
+     }
   };
 
   const handleSignUp = async () => {
@@ -71,7 +70,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
       
       if (response.success && response.data) {
         // Success - show success message and navigate to signin
-        console.log('✅ Đăng ký thành công:', response.data.user);
+
         
         // Show success toast
         showSuccess(`Tài khoản ${response.data.user.username} đã được tạo thành công!`);
@@ -82,7 +81,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         }, 1500);
       } else {
         // API returned error
-        console.log('❌ Đăng ký thất bại:', response.message);
+
         showError(response.message);
       }
     } catch (error) {
@@ -131,7 +130,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 
   const handleSocialLogin = (platform: string) => {
     // Handle social login
-    console.log(`Login with ${platform}`);
+    
   };
 
   const navigateToSignIn = () => {

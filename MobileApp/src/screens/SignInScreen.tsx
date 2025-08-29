@@ -39,10 +39,9 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
   const getGoogleImage = () => {
     try {
       return require('../assets/images/google-logo.png');
-    } catch (error) {
-      console.warn('❌ Google image not found:', error);
-      return null;
-    }
+         } catch (error) {
+       return null;
+     }
   };
 
   const handleSignIn = async () => {
@@ -66,7 +65,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
       
       if (response.success && response.data) {
         // Success - save user data and navigate
-        console.log('✅ Đăng nhập thành công:', response.data.user);
+
         
         // TODO: Save token to AsyncStorage for persistence
         // await AsyncStorage.setItem('authToken', response.data.token);
@@ -83,7 +82,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
         }, 1000);
       } else {
         // API returned error
-        console.log('❌ Đăng nhập thất bại:', response.message);
+
         showError(response.message);
       }
     } catch (error) {
@@ -120,7 +119,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
 
   const handleSocialLogin = (platform: string) => {
     // Handle social login
-    console.log(`Login with ${platform}`);
+    
   };
 
   const handleForgotPassword = () => {

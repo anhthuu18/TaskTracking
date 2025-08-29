@@ -7,6 +7,9 @@ import {
   SafeAreaView,
   StatusBar,
   Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
 // @ts-ignore
@@ -57,7 +60,7 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
       }, 1000);
       
     } catch (error) {
-      console.error('❌ Send OTP error:', error);
+      console.error('Send OTP error:', error);
       showError('Không thể gửi mã OTP. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
@@ -79,94 +82,106 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <MaterialIcons name="chevron-left" size={24} color={Colors.text} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Content */}
-      <View style={styles.content}>
-        {/* Illustration */}
-        <View style={styles.illustrationContainer}>
-          <Image
-            source={require('../assets/images/forgot-password.png')}
-            style={styles.illustration}
-            resizeMode="contain"
-          />
-        </View>
-
-        {/* Title */}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>{Strings.forgotPasswordTitle}</Text>
-        </View>
-
-        {/* Instructions */}
-        <View style={styles.instructionsContainer}>
-          <Text style={styles.instructions}>
-            {Strings.forgotPasswordInstructions}
-          </Text>
-        </View>
-
-        {/* Phone Number Input */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            mode="outlined"
-            placeholder={Strings.enterPhoneNumber}
-            value={phoneNumber}
-            onChangeText={handlePhoneNumberChange}
-            keyboardType="phone-pad"
-            style={[
-              styles.textInput,
-              error && styles.textInputError
-            ]}
-            outlineStyle={[
-              styles.inputOutline,
-              error && styles.inputOutlineError
-            ]}
-            theme={{
-              colors: {
-                primary: error ? Colors.semantic.error : Colors.primary,
-                outline: error ? Colors.semantic.error : Colors.neutral.light,
-                onSurface: Colors.text,
-              },
-            }}
-            left={
-              <TextInput.Icon 
-                icon={() => <MaterialIcons name="phone" size={20} color={Colors.neutral.medium} />}
-              />
-            }
-          />
-          {error && (
-            <Text style={styles.errorText}>{error}</Text>
-          )}
-        </View>
-
-        {/* Send OTP Button */}
-        <TouchableOpacity 
-          style={[styles.sendOTPButton, isLoading && styles.sendOTPButtonDisabled]} 
-          onPress={handleSendOTP}
-          disabled={isLoading}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <MaterialIcons name="hourglass-empty" size={20} color={Colors.neutral.white} />
-              <Text style={[styles.sendOTPButtonText, {marginLeft: 8}]}>{Strings.sendingOTP}</Text>
-            </View>
-          ) : (
-            <Text style={styles.sendOTPButtonText}>{Strings.sendOTP}</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+              <MaterialIcons name="chevron-left" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
 
-      {/* Toast Notification */}
-      <Toast
-        visible={toast.visible}
-        message={toast.message}
-        type={toast.type}
-        onHide={hideToast}
-      />
+          {/* Content */}
+          <View style={styles.content}>
+            {/* Illustration */}
+            <View style={styles.illustrationContainer}>
+              <Image
+                source={require('../assets/images/forgot-password.png')}
+                style={styles.illustration}
+                resizeMode="contain"
+              />
+            </View>
+
+            {/* Title */}
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>{Strings.forgotPasswordTitle}</Text>
+            </View>
+
+            {/* Instructions */}
+            <View style={styles.instructionsContainer}>
+              <Text style={styles.instructions}>
+                {Strings.forgotPasswordInstructions}
+              </Text>
+            </View>
+
+            {/* Phone Number Input */}
+            <View style={styles.inputContainer}>
+              <TextInput
+                mode="outlined"
+                placeholder={Strings.enterPhoneNumber}
+                value={phoneNumber}
+                onChangeText={handlePhoneNumberChange}
+                keyboardType="phone-pad"
+                style={[
+                  styles.textInput,
+                  error && styles.textInputError
+                ]}
+                outlineStyle={[
+                  styles.inputOutline,
+                  error && styles.inputOutlineError
+                ]}
+                theme={{
+                  colors: {
+                    primary: error ? Colors.semantic.error : Colors.primary,
+                    outline: error ? Colors.semantic.error : Colors.neutral.light,
+                    onSurface: Colors.text,
+                  },
+                }}
+                left={
+                  <TextInput.Icon 
+                    icon={() => <MaterialIcons name="phone" size={20} color={Colors.neutral.medium} />}
+                  />
+                }
+              />
+              {error && (
+                <Text style={styles.errorText}>{error}</Text>
+              )}
+            </View>
+
+            {/* Send OTP Button */}
+            <TouchableOpacity 
+              style={[styles.sendOTPButton, isLoading && styles.sendOTPButtonDisabled]} 
+              onPress={handleSendOTP}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <View style={styles.loadingContainer}>
+                  <MaterialIcons name="hourglass-empty" size={20} color={Colors.neutral.white} />
+                  <Text style={[styles.sendOTPButtonText, {marginLeft: 8}]}>{Strings.sendingOTP}</Text>
+                </View>
+              ) : (
+                <Text style={styles.sendOTPButtonText}>{Strings.sendOTP}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Toast Notification */}
+          <Toast
+            visible={toast.visible}
+            message={toast.message}
+            type={toast.type}
+            onHide={hideToast}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -176,11 +191,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 24,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 48,
+    paddingTop: 32,
     paddingBottom: 8,
   },
   backButton: {
@@ -191,11 +210,11 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 8,
   },
   illustrationContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 24,
   },
   illustration: {
     width: 240,
@@ -203,7 +222,7 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   title: {
     fontSize: 28,
@@ -212,7 +231,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   instructionsContainer: {
-    marginBottom: 40,
+    marginBottom: 24,
   },
   instructions: {
     fontSize: 16,
@@ -221,7 +240,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   inputContainer: {
-    marginBottom: 30,
+    marginBottom: 24,
   },
   textInput: {
     backgroundColor: Colors.background,
@@ -267,3 +286,6 @@ const styles = StyleSheet.create({
 });
 
 export default ForgotPasswordScreen;
+
+
+

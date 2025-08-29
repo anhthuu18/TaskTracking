@@ -7,6 +7,9 @@ import {
   SafeAreaView,
   StatusBar,
   Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
 // @ts-ignore
@@ -76,7 +79,7 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ navigation, r
       }, 1000);
       
     } catch (error) {
-      console.error('❌ Reset password error:', error);
+      console.error('Reset password error:', error);
       showError('Không thể đặt lại mật khẩu. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
@@ -105,145 +108,157 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ navigation, r
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <MaterialIcons name="chevron-left" size={24} color={Colors.text} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Content */}
-      <View style={styles.content}>
-        {/* Illustration */}
-        <View style={styles.illustrationContainer}>
-          <Image
-            source={require('../assets/images/reset-password.png')}
-            style={styles.illustration}
-            resizeMode="contain"
-          />
-        </View>
-
-        {/* Title */}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>Đặt lại mật khẩu mới</Text>
-        </View>
-
-        {/* New Password Input */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            mode="outlined"
-            placeholder="Mật khẩu mới"
-            value={newPassword}
-            onChangeText={handleNewPasswordChange}
-            secureTextEntry={!showNewPassword}
-            style={[
-              styles.textInput,
-              errors.newPassword && styles.textInputError
-            ]}
-            outlineStyle={[
-              styles.inputOutline,
-              errors.newPassword && styles.inputOutlineError
-            ]}
-            theme={{
-              colors: {
-                primary: errors.newPassword ? Colors.semantic.error : Colors.primary,
-                outline: errors.newPassword ? Colors.semantic.error : Colors.neutral.light,
-                onSurface: Colors.text,
-              },
-            }}
-            left={
-              <TextInput.Icon 
-                icon={() => <MaterialIcons name="lock" size={20} color={Colors.neutral.medium} />}
-              />
-            }
-            right={
-              <TextInput.Icon 
-                icon={() => (
-                  <MaterialIcons 
-                    name={showNewPassword ? "visibility-off" : "visibility"} 
-                    size={20} 
-                    color={Colors.neutral.medium} 
-                  />
-                )}
-                onPress={() => setShowNewPassword(!showNewPassword)}
-              />
-            }
-          />
-          {errors.newPassword && (
-            <Text style={styles.errorText}>{errors.newPassword}</Text>
-          )}
-        </View>
-
-        {/* Confirm Password Input */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            mode="outlined"
-            placeholder="Xác nhận mật khẩu mới"
-            value={confirmPassword}
-            onChangeText={handleConfirmPasswordChange}
-            secureTextEntry={!showConfirmPassword}
-            style={[
-              styles.textInput,
-              errors.confirmPassword && styles.textInputError
-            ]}
-            outlineStyle={[
-              styles.inputOutline,
-              errors.confirmPassword && styles.inputOutlineError
-            ]}
-            theme={{
-              colors: {
-                primary: errors.confirmPassword ? Colors.semantic.error : Colors.primary,
-                outline: errors.confirmPassword ? Colors.semantic.error : Colors.neutral.light,
-                onSurface: Colors.text,
-              },
-            }}
-            left={
-              <TextInput.Icon 
-                icon={() => <MaterialIcons name="lock" size={20} color={Colors.neutral.medium} />}
-              />
-            }
-            right={
-              <TextInput.Icon 
-                icon={() => (
-                  <MaterialIcons 
-                    name={showConfirmPassword ? "visibility-off" : "visibility"} 
-                    size={20} 
-                    color={Colors.neutral.medium} 
-                  />
-                )}
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-              />
-            }
-          />
-          {errors.confirmPassword && (
-            <Text style={styles.errorText}>{errors.confirmPassword}</Text>
-          )}
-        </View>
-
-        {/* Save Changes Button */}
-        <TouchableOpacity 
-          style={[styles.saveButton, isLoading && styles.saveButtonDisabled]} 
-          onPress={handleSaveChanges}
-          disabled={isLoading}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <MaterialIcons name="hourglass-empty" size={20} color={Colors.neutral.white} />
-              <Text style={[styles.saveButtonText, {marginLeft: 8}]}>Đang lưu...</Text>
-            </View>
-          ) : (
-            <Text style={styles.saveButtonText}>Lưu thay đổi</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+              <MaterialIcons name="chevron-left" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
 
-      {/* Toast Notification */}
-      <Toast
-        visible={toast.visible}
-        message={toast.message}
-        type={toast.type}
-        onHide={hideToast}
-      />
+          {/* Content */}
+          <View style={styles.content}>
+            {/* Illustration */}
+            <View style={styles.illustrationContainer}>
+              <Image
+                source={require('../assets/images/reset-password.png')}
+                style={styles.illustration}
+                resizeMode="contain"
+              />
+            </View>
+
+            {/* Title */}
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>Đặt lại mật khẩu mới</Text>
+            </View>
+
+            {/* New Password Input */}
+            <View style={styles.inputContainer}>
+              <TextInput
+                mode="outlined"
+                placeholder="Mật khẩu mới"
+                value={newPassword}
+                onChangeText={handleNewPasswordChange}
+                secureTextEntry={!showNewPassword}
+                style={[
+                  styles.textInput,
+                  errors.newPassword && styles.textInputError
+                ]}
+                outlineStyle={[
+                  styles.inputOutline,
+                  errors.newPassword && styles.inputOutlineError
+                ]}
+                theme={{
+                  colors: {
+                    primary: errors.newPassword ? Colors.semantic.error : Colors.primary,
+                    outline: errors.newPassword ? Colors.semantic.error : Colors.neutral.light,
+                    onSurface: Colors.text,
+                  },
+                }}
+                left={
+                  <TextInput.Icon 
+                    icon={() => <MaterialIcons name="lock" size={20} color={Colors.neutral.medium} />}
+                  />
+                }
+                right={
+                  <TextInput.Icon 
+                    icon={() => (
+                      <MaterialIcons 
+                        name={showNewPassword ? "visibility-off" : "visibility"} 
+                        size={20} 
+                        color={Colors.neutral.medium} 
+                      />
+                    )}
+                    onPress={() => setShowNewPassword(!showNewPassword)}
+                  />
+                }
+              />
+              {errors.newPassword && (
+                <Text style={styles.errorText}>{errors.newPassword}</Text>
+              )}
+            </View>
+
+            {/* Confirm Password Input */}
+            <View style={styles.inputContainer}>
+              <TextInput
+                mode="outlined"
+                placeholder="Xác nhận mật khẩu mới"
+                value={confirmPassword}
+                onChangeText={handleConfirmPasswordChange}
+                secureTextEntry={!showConfirmPassword}
+                style={[
+                  styles.textInput,
+                  errors.confirmPassword && styles.textInputError
+                ]}
+                outlineStyle={[
+                  styles.inputOutline,
+                  errors.confirmPassword && styles.inputOutlineError
+                ]}
+                theme={{
+                  colors: {
+                    primary: errors.confirmPassword ? Colors.semantic.error : Colors.primary,
+                    outline: errors.confirmPassword ? Colors.semantic.error : Colors.neutral.light,
+                    onSurface: Colors.text,
+                  },
+                }}
+                left={
+                  <TextInput.Icon 
+                    icon={() => <MaterialIcons name="lock" size={20} color={Colors.neutral.medium} />}
+                  />
+                }
+                right={
+                  <TextInput.Icon 
+                    icon={() => (
+                      <MaterialIcons 
+                        name={showConfirmPassword ? "visibility-off" : "visibility"} 
+                        size={20} 
+                        color={Colors.neutral.medium} 
+                      />
+                    )}
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  />
+                }
+              />
+              {errors.confirmPassword && (
+                <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+              )}
+            </View>
+
+            {/* Save Changes Button */}
+            <TouchableOpacity 
+              style={[styles.saveButton, isLoading && styles.saveButtonDisabled]} 
+              onPress={handleSaveChanges}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <View style={styles.loadingContainer}>
+                  <MaterialIcons name="hourglass-empty" size={20} color={Colors.neutral.white} />
+                  <Text style={[styles.saveButtonText, {marginLeft: 8}]}>Đang lưu...</Text>
+                </View>
+              ) : (
+                <Text style={styles.saveButtonText}>Lưu thay đổi</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Toast Notification */}
+          <Toast
+            visible={toast.visible}
+            message={toast.message}
+            type={toast.type}
+            onHide={hideToast}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -253,11 +268,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 24,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 48,
+    paddingTop: 32,
     paddingBottom: 8,
   },
   backButton: {
@@ -268,19 +287,19 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 8,
   },
   illustrationContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 24,
   },
   illustration: {
-    width: 200,
-    height: 200,
+    width: 240,
+    height: 240,
   },
   titleContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 24,
   },
   title: {
     fontSize: 28,
@@ -289,7 +308,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   textInput: {
     backgroundColor: Colors.background,
@@ -318,7 +337,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 16,
   },
   saveButtonText: {
     color: Colors.neutral.white,

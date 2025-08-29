@@ -34,17 +34,14 @@ const AppNavigator: React.FC = () => {
   };
 
   const handleOnboardingFinish = () => {
-    console.log('🏁 Onboarding finished, navigating to auth...');
     setShowOnboarding(false);
   };
 
   const handleBackToOnboarding = () => {
-    console.log('🔙 Back to onboarding from SignIn...');
     setShowOnboarding(true);
   };
 
   const handleLoginSuccess = () => {
-    console.log('✅ Login successful, setting authenticated...');
     setIsAuthenticated(true);
   };
 
