@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Image,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
 // @ts-ignore
@@ -34,6 +35,15 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
   const [isLoading, setIsLoading] = useState(false);
   const { toast, showSuccess, showError, hideToast } = useToast();
 
+  // Helper function to safely require Google image only
+  const getGoogleImage = () => {
+    try {
+      return require('../assets/images/google-logo.png');
+         } catch (error) {
+       return null;
+     }
+  };
+
   const handleSignIn = async () => {
     // Validate form before submission
     const validation = validateSignInForm(username, password);
@@ -55,7 +65,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
       
       if (response.success && response.data) {
         // Success - save user data and navigate
-        console.log('✅ Đăng nhập thành công:', response.data.user);
+
         
         // TODO: Save token to AsyncStorage for persistence
         // await AsyncStorage.setItem('authToken', response.data.token);
@@ -72,7 +82,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
         }, 1000);
       } else {
         // API returned error
-        console.log('❌ Đăng nhập thất bại:', response.message);
+
         showError(response.message);
       }
     } catch (error) {
@@ -109,12 +119,12 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
 
   const handleSocialLogin = (platform: string) => {
     // Handle social login
-    console.log(`Login with ${platform}`);
+    
   };
 
   const handleForgotPassword = () => {
-    // Handle forgot password
-    console.log('Forgot password clicked');
+    // Navigate to forgot password screen
+    navigation.navigate('ForgotPassword');
   };
 
   const navigateToSignUp = () => {
@@ -266,30 +276,23 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
           
           <TouchableOpacity 
             style={styles.socialButton}
-            onPress={() => handleSocialLogin('instagram')}
+            onPress={() => handleSocialLogin('google')}
           >
-            <MaterialIcons name="camera-alt" size={24} color="#E4405F" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.socialButton}
-            onPress={() => handleSocialLogin('email')}
-          >
-            <MaterialIcons name="mail" size={24} color={Colors.neutral.medium} />
+            {getGoogleImage() ? (
+              <Image 
+                source={getGoogleImage()} 
+                style={styles.googleImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <MaterialIcons name="search" size={24} color="#4285F4" />
+            )}
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Footer */}
       <View style={styles.footer}>
-        {/* Test Credentials Helper */}
-        <View style={styles.testCredentials}>
-          <Text style={styles.testTitle}>🧪 Test Accounts:</Text>
-          <Text style={styles.testText}>testuser / password123</Text>
-          <Text style={styles.testText}>admin / Admin123</Text>
-          <Text style={styles.testText}>demo / Demo123</Text>
-        </View>
-        
         <Text style={styles.footerText}>
           {Strings.dontHaveAccount}{' '}
           <Text style={styles.linkText} onPress={navigateToSignUp}>
@@ -409,31 +412,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  googleImage: {
+    width: 21,
+    height: 21,
+  },
   footer: {
     paddingHorizontal: 20,
     paddingBottom: 40,
     paddingTop: 20,
     alignItems: 'center',
-  },
-  testCredentials: {
-    backgroundColor: Colors.surface,
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 20,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.accent,
-  },
-  testTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: Colors.accent,
-    marginBottom: 4,
-  },
-  testText: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    fontFamily: 'monospace',
   },
   footerText: {
     color: Colors.neutral.medium,

@@ -46,10 +46,9 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onFinish }) => {
         default:
           return null;
       }
-    } catch (error) {
-      console.warn(`Image not found: ${imagePath}`, error);
-      return null;
-    }
+         } catch (error) {
+       return null;
+     }
   };
 
   const onboardingData: OnboardingItem[] = [

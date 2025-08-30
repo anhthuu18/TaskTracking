@@ -74,6 +74,33 @@ export const Strings = {
   alreadyHaveAccount: 'Đã có tài khoản?',
   dontHaveAccount: 'Chưa có tài khoản?',
   
+  // Forgot Password Flow
+  forgotPasswordTitle: 'Quên mật khẩu ?',
+  forgotPasswordInstructions: 'Nhập số điện thoại của bạn, chúng tôi sẽ gửi mã OTP qua SMS để đặt lại mật khẩu mới.',
+  enterPhoneNumber: 'Nhập số điện thoại',
+  sendOTP: 'Gửi OTP',
+  sendingOTP: 'Đang gửi...',
+  otpSentSuccess: 'Mã OTP đã được gửi đến số điện thoại của bạn',
+  
+  // OTP Screen
+  enterOTPTitle: 'Nhập OTP',
+  enterOTPInstructions: 'Nhập mã OTP chúng tôi vừa gửi đến số điện thoại của bạn để bắt đầu đặt lại mật khẩu mới.',
+  resendOTP: 'Gửi lại OTP',
+  resendOTPTimer: 'Gửi lại OTP trong {time}s',
+  nextButton: 'Tiếp theo',
+  verifyingOTP: 'Đang xác thực...',
+  otpVerificationSuccess: 'Xác thực OTP thành công',
+  otpInvalid: 'Mã OTP không đúng. Vui lòng thử lại.',
+  
+  // Reset Password Screen
+  resetPasswordTitle: 'Đặt lại mật khẩu mới',
+  newPassword: 'Mật khẩu mới',
+  confirmNewPassword: 'Xác nhận mật khẩu mới',
+  saveChanges: 'Lưu thay đổi',
+  savingChanges: 'Đang lưu...',
+  resetPasswordSuccess: 'Đặt lại mật khẩu thành công!',
+  resetPasswordError: 'Không thể đặt lại mật khẩu. Vui lòng thử lại.',
+  
   // Validation Errors
   errorRequired: 'Trường này là bắt buộc',
   errorUsernameRequired: 'Tên người dùng là bắt buộc',

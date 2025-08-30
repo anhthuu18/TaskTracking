@@ -115,7 +115,7 @@ const TaskListScreen: React.FC = () => {
       `Tiêu đề: ${task.title}\n\nMô tả: ${task.description}\n\nTrạng thái: ${getStatusText(task.status)}\n\nĐộ ưu tiên: ${getPriorityText(task.priority)}`,
       [
         {text: 'Đóng', style: 'cancel'},
-        {text: 'Chỉnh sửa', onPress: () => console.log('Edit task:', task.id)},
+        {text: 'Chỉnh sửa', onPress: () => {}},
       ]
     );
   };
@@ -210,11 +210,11 @@ const TaskListScreen: React.FC = () => {
           <Appbar.Content title="Quản lý Công việc" />
           <Appbar.Action
             icon="filter-variant"
-            onPress={() => console.log('Filter options')}
+            onPress={() => {}}
           />
           <Appbar.Action
             icon="dots-vertical"
-            onPress={() => console.log('More options')}
+            onPress={() => {}}
           />
         </Appbar.Header>
 
