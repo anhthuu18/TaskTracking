@@ -1,0 +1,87 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Core Authentication & Authorization Schema
+model Users {
+  userID        Int      @id @default(autoincrement()) @map("UserID")
+  username      String   @db.VarChar(20)
+  email         String   @unique @db.VarChar(255)
+  password      String   @db.VarChar(255)
+  dateDeleted   DateTime? @map("DateDeleted")
+  dateModified  DateTime? @updatedAt @map("DateModified")
+  dateCreated   DateTime @default(now()) @map("DateCreated")
+
+  // Relations
+  projectRoles ProjectRoles[]
+
+  @@map("Users")
+}
+
+model Roles {
+  roleID       Int      @id @default(autoincrement()) @map("RoleID")
+  roleName     String   @db.VarChar(20) @map("RoleName")
+  description  String?  @db.VarChar(255)
+  dateCreated  DateTime @default(now()) @map("DateCreated")
+  dateModified DateTime? @updatedAt @map("DateModified")
+
+  // Relations
+  projectRoles ProjectRoles[]
+
+  @@map("Roles")
+}
+
+model Permissions {
+  permissionID   Int      @id @default(autoincrement()) @map("PermissionID")
+  permissionName String   @db.VarChar(100) @map("PermissionName")
+  description    String?  @db.VarChar(255)
+  dateCreated    DateTime @default(now()) @map("DateCreated")
+
+  // Relations
+  projectRolePermissions ProjectRolePermissions[]
+
+  @@map("Permissions")
+}
+
+model ProjectRoles {
+  projectRoleID Int      @id @default(autoincrement()) @map("ProjectRoleID")
+  projectID     Int      @map("ProjectID")
+  roleID        Int      @map("RoleID")
+  userID        Int      @map("UserID")
+  roleName      String?  @db.VarChar(50) @map("RoleName")
+  description   String?  @db.VarChar(200)
+  dateCreated   DateTime @default(now()) @map("DateCreated")
+  dateModified  DateTime? @updatedAt @map("DateModified")
+
+  // Relations
+  role                   Roles @relation(fields: [roleID], references: [roleID])
+  user                   Users @relation(fields: [userID], references: [userID])
+  projectRolePermissions ProjectRolePermissions[]
+
+  @@unique([projectID, userID])
+  @@map("ProjectRoles")
+}
+
+model ProjectRolePermissions {
+  projectRoleID Int @map("ProjectRoleID")
+  permissionID  Int @map("PermissionID")
+
+  // Relations
+  projectRole ProjectRoles @relation(fields: [projectRoleID], references: [projectRoleID])
+  permission  Permissions @relation(fields: [permissionID], references: [permissionID])
+
+  @@id([projectRoleID, permissionID])
+  @@map("ProjectRolePermissions")
+}
