@@ -10,6 +10,7 @@ import {
   Text,
   ActivityIndicator,
 } from 'react-native-paper';
+import LinearGradient from 'react-native-linear-gradient';
 import { Colors } from '../constants/Colors';
 
 interface SplashScreenProps {
@@ -29,20 +30,26 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
   }, [onFinish]);
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={[Colors.primary, '#8B5CF6', '#A855F7', Colors.accent]}
+      style={styles.container}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+    >
       <StatusBar
         barStyle="light-content"
         backgroundColor={Colors.primary}
         translucent={false}
       />
       
-      {/* Background gradient effect */}
-      <View style={styles.backgroundGradient} />
-      
       {/* Logo and app name */}
       <View style={styles.logoContainer}>
         <View style={styles.logoPlaceholder}>
-          <Text style={styles.logoText}>📋</Text>
+          <Image 
+            source={require('../../android/app/src/main/res/drawable/app_logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </View>
         <Text style={styles.appName}>AI Task Tracking</Text>
         <Text style={styles.appSlogan}>Quản lý công việc thông minh</Text>
@@ -63,25 +70,15 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
         <Text style={styles.footerText}>Version 1.0.0</Text>
         <Text style={styles.copyrightText}>© 2024 AI Task Tracking</Text>
       </View>
-    </View>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  backgroundGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: Colors.primaryContainer,
-    opacity: 0.8,
   },
   logoContainer: {
     flex: 1,
@@ -90,9 +87,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   logoPlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -100,11 +97,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  logoText: {
-    fontSize: 48,
-    color: '#FFFFFF',
+  logoImage: {
+    width: 100,
+    height: 100,
   },
-  appName: {
+  appName: {  
     fontSize: 28,
     fontWeight: 'bold',
     color: '#FFFFFF',
