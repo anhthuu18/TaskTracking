@@ -3,6 +3,7 @@ export interface UserModel {
     username: string;
     email: string;
     password: string;
+    phone?: string;
     dateDeleted?: Date;
     dateModified: Date;
     dateCreated: Date;
@@ -11,6 +12,7 @@ export interface UserResponse {
     id: number;
     username: string;
     email: string;
+    phone?: string;
     dateCreated: Date;
     dateModified: Date;
     dateDeleted?: Date;

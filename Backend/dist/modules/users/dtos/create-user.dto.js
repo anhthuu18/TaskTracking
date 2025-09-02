@@ -30,4 +30,17 @@ __decorate([
     (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", String)
 ], CreateUserDTO.prototype, "password", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(6),
+    (0, class_validator_1.MaxLength)(255),
+    __metadata("design:type", String)
+], CreateUserDTO.prototype, "confirmPassword", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(/^(\+84|84|0)[3|5|7|8|9][0-9]{8}$/, {
+        message: 'Số điện thoại không hợp lệ.'
+    }),
+    __metadata("design:type", String)
+], CreateUserDTO.prototype, "phone", void 0);
 //# sourceMappingURL=create-user.dto.js.map

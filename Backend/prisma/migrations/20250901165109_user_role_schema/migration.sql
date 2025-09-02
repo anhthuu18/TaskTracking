@@ -6,7 +6,7 @@ CREATE TABLE "public"."Users" (
     "Password" VARCHAR(255) NOT NULL,
     "DateDeleted" TIMESTAMP(3),
     "DateModified" TIMESTAMP(3) NOT NULL,
-    "DateCreated" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "DateCreated" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
 
     CONSTRAINT "Users_pkey" PRIMARY KEY ("UserID")
 );
@@ -17,7 +17,7 @@ CREATE TABLE "public"."Roles" (
     "RoleName" VARCHAR(20) NOT NULL,
     "Description" TEXT,
     "PermissionID" JSONB,
-    "DateCreated" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "DateCreated" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
     "DateModified" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Roles_pkey" PRIMARY KEY ("RoleID")

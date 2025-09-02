@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { CreateUserDTO } from '../dtos/create-user.dto';
+import { CreateUserDTO, CreateUserData } from '../dtos/create-user.dto';
 import { UpdateUserDTO } from '../dtos/update-user.dto';
 import { UserResponse } from '../model/user.model';
 
@@ -17,6 +17,7 @@ export class UsersService {
         id: true,
         username: true,
         email: true,
+        phone: true,
         dateCreated: true,
         dateModified: true,
         dateDeleted: true
@@ -34,6 +35,7 @@ export class UsersService {
         id: true,
         username: true,
         email: true,
+        phone: true,
         dateCreated: true,
         dateModified: true,
         dateDeleted: true
@@ -47,13 +49,14 @@ export class UsersService {
     return user;
   }
 
-  async create(createUserDto: CreateUserDTO): Promise<UserResponse> {
+  async create(createUserDto: CreateUserData): Promise<UserResponse> {
     return this.prisma.user.create({
       data: createUserDto,
       select: {
         id: true,
         username: true,
         email: true,
+        phone: true,
         dateCreated: true,
         dateModified: true,
         dateDeleted: true
@@ -71,6 +74,7 @@ export class UsersService {
         id: true,
         username: true,
         email: true,
+        phone: true,
         dateCreated: true,
         dateModified: true,
         dateDeleted: true
@@ -85,6 +89,15 @@ export class UsersService {
       where: { id },
       data: {
         dateDeleted: new Date()
+      }
+    });
+  }
+
+  async findByUsername(username: string): Promise<any> {
+    return this.prisma.user.findFirst({
+      where: {
+        username,
+        dateDeleted: null
       }
     });
   }
