@@ -27,6 +27,8 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -45,11 +47,11 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 
   const handleSignUp = async () => {
     // Validate form before submission
-    const validation = validateSignUpForm(username, password, confirmPassword);
+    const validation = validateSignUpForm(username, password, confirmPassword, email, phone);
     
     if (!validation.isValid) {
       setErrors(validation.errors);
-      setTouched({ username: true, password: true, confirmPassword: true });
+      setTouched({ username: true, password: true, confirmPassword: true, email: true, phone: true });
       return;
     }
 
@@ -63,8 +65,8 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         username, 
         password, 
         confirmPassword,
-        email: `${username}@example.com`, // Auto-generate email for demo
-        fullName: username // Use username as fullName for demo
+        email,
+        phone,
       };
       const response: AuthResponse = await authService.signUp(signUpData);
       
@@ -85,7 +87,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         showError(response.message);
       }
     } catch (error) {
-      console.error('❌ Sign up error:', error);
+      console.error('Sign up error:', error);
       showError('Đã xảy ra lỗi không mong muốn. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
@@ -96,14 +98,14 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
     setTouched(prev => ({ ...prev, [field]: true }));
     
     // Validate the specific field on blur
-    const validation = validateSignUpForm(username, password, confirmPassword);
+    const validation = validateSignUpForm(username, password, confirmPassword, email, phone);
     setErrors(validation.errors);
   };
 
   const handleUsernameChange = (value: string) => {
     setUsername(value);
     if (touched.username) {
-      const validation = validateSignUpForm(value, password, confirmPassword);
+      const validation = validateSignUpForm(value, password, confirmPassword, email, phone);
       setErrors(prev => ({ ...prev, username: validation.errors.username }));
     }
   };
@@ -111,7 +113,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const handlePasswordChange = (value: string) => {
     setPassword(value);
     if (touched.password || touched.confirmPassword) {
-      const validation = validateSignUpForm(username, value, confirmPassword);
+      const validation = validateSignUpForm(username, value, confirmPassword, email, phone);
       setErrors(prev => ({ 
         ...prev, 
         password: validation.errors.password,
@@ -123,8 +125,24 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const handleConfirmPasswordChange = (value: string) => {
     setConfirmPassword(value);
     if (touched.confirmPassword) {
-      const validation = validateSignUpForm(username, password, value);
+      const validation = validateSignUpForm(username, password, value, email, phone);
       setErrors(prev => ({ ...prev, confirmPassword: validation.errors.confirmPassword }));
+    }
+  };
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (touched.email) {
+      const validation = validateSignUpForm(username, password, confirmPassword, value, phone);
+      setErrors(prev => ({ ...prev, email: validation.errors.email }));
+    }
+  };
+
+  const handlePhoneChange = (value: string) => {
+    setPhone(value);
+    if (touched.phone) {
+      const validation = validateSignUpForm(username, password, confirmPassword, email, value);
+      setErrors(prev => ({ ...prev, phone: validation.errors.phone }));
     }
   };
 
@@ -193,6 +211,77 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
           />
           {errors.username && touched.username && (
             <Text style={styles.errorText}>{errors.username}</Text>
+          )}
+        </View>
+
+        {/* Email Input */}
+        <View style={styles.inputContainer}>
+          <TextInput
+            mode="outlined"
+            placeholder={Strings.email}
+            value={email}
+            onChangeText={handleEmailChange}
+            onBlur={() => handleFieldBlur('email')}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={[
+              styles.textInput,
+              errors.email && touched.email && styles.textInputError
+            ]}
+            outlineStyle={[
+              styles.inputOutline,
+              errors.email && touched.email && styles.inputOutlineError
+            ]}
+            theme={{
+              colors: {
+                primary: errors.email && touched.email ? Colors.semantic.error : Colors.primary,
+                outline: errors.email && touched.email ? Colors.semantic.error : Colors.neutral.light,
+                onSurface: Colors.text,
+              },
+            }}
+            left={
+              <TextInput.Icon 
+                icon={() => <MaterialIcons name="email" size={20} color={Colors.neutral.medium} />}
+              />
+            }
+          />
+          {errors.email && touched.email && (
+            <Text style={styles.errorText}>{errors.email}</Text>
+          )}
+        </View>
+
+        {/* Phone Input */}
+        <View style={styles.inputContainer}>
+          <TextInput
+            mode="outlined"
+            placeholder={Strings.phone}
+            value={phone}
+            onChangeText={handlePhoneChange}
+            onBlur={() => handleFieldBlur('phone')}
+            keyboardType="phone-pad"
+            style={[
+              styles.textInput,
+              errors.phone && touched.phone && styles.textInputError
+            ]}
+            outlineStyle={[
+              styles.inputOutline,
+              errors.phone && touched.phone && styles.inputOutlineError
+            ]}
+            theme={{
+              colors: {
+                primary: errors.phone && touched.phone ? Colors.semantic.error : Colors.primary,
+                outline: errors.phone && touched.phone ? Colors.semantic.error : Colors.neutral.light,
+                onSurface: Colors.text,
+              },
+            }}
+            left={
+              <TextInput.Icon 
+                icon={() => <MaterialIcons name="phone" size={20} color={Colors.neutral.medium} />}
+              />
+            }
+          />
+          {errors.phone && touched.phone && (
+            <Text style={styles.errorText}>{errors.phone}</Text>
           )}
         </View>
 

@@ -2,21 +2,21 @@
 
 Ứng dụng React Native cho quản lý công việc và theo dõi tiến độ task với giao diện thân thiện người dùng.
 
-## 🚀 Tính năng chính
+## Tính năng chính
 
-- ✅ **Quản lý Task**: Tạo, chỉnh sửa, xóa và cập nhật trạng thái công việc
-- 🔍 **Tìm kiếm & Lọc**: Tìm kiếm task theo tiêu đề, mô tả, assignee hoặc tags
-- 📊 **Phân loại trạng thái**: Todo, In Progress, Done, Cancelled
-- ⚡ **Độ ưu tiên**: Low, Medium, High, Urgent với màu sắc phân biệt
-- 🎨 **Material Design**: Giao diện đẹp mắt với React Native Paper
-- 🌙 **Dark/Light Theme**: Tự động theo hệ thống
-- 📱 **Responsive**: Tương thích với nhiều kích thước màn hình
+- **Quản lý Task**: Tạo, chỉnh sửa, xóa và cập nhật trạng thái công việc
+- **Tìm kiếm & Lọc**: Tìm kiếm task theo tiêu đề, mô tả, assignee hoặc tags
+- **Phân loại trạng thái**: Todo, In Progress, Done, Cancelled
+- **Độ ưu tiên**: Low, Medium, High, Urgent với màu sắc phân biệt
+- **Material Design**: Giao diện đẹp mắt với React Native Paper
+- **Dark/Light Theme**: Tự động theo hệ thống
+- **Responsive**: Tương thích với nhiều kích thước màn hình
 
-## 📱 Screenshots
+## Screenshots
 
 *Screenshots sẽ được thêm sau khi ứng dụng hoàn thiện*
 
-## 🛠️ Công nghệ sử dụng
+## Công nghệ sử dụng
 
 - **React Native** 0.81.0 - Framework phát triển mobile cross-platform
 - **TypeScript** - Type safety và developer experience tốt hơn
@@ -25,7 +25,7 @@
 - **React Native Vector Icons** - Icon library phong phú
 - **AsyncStorage** - Local storage cho dữ liệu offline
 
-## 📋 Yêu cầu hệ thống
+## Yêu cầu hệ thống
 
 ### Windows Development:
 - Node.js 18+ 
@@ -42,7 +42,7 @@ java -version         # JDK 17
 npx react-native doctor  # Kiểm tra setup React Native
 ```
 
-## 🚀 Cài đặt và chạy
+## Cài đặt và chạy
 
 ### 1. Clone repository
 ```bash
@@ -76,13 +76,13 @@ npm start
 npm run android
 ```
 
-## 📚 Hướng dẫn chi tiết
+## Hướng dẫn chi tiết
 
-- 📖 [Android Setup Guide](./ANDROID_SETUP_GUIDE.md) - Hướng dẫn setup môi trường Android development
-- 🔧 [Build and Run Guide](./BUILD_AND_RUN_GUIDE.md) - Hướng dẫn build và chạy ứng dụng
-- 🐛 [Troubleshooting](./BUILD_AND_RUN_GUIDE.md#bước-8-troubleshooting) - Giải quyết các lỗi thường gặp
+-  [Android Setup Guide](./ANDROID_SETUP_GUIDE.md) - Hướng dẫn setup môi trường Android development
+-  [Build and Run Guide](./BUILD_AND_RUN_GUIDE.md) - Hướng dẫn build và chạy ứng dụng
+-  [Troubleshooting](./BUILD_AND_RUN_GUIDE.md#bước-8-troubleshooting) - Giải quyết các lỗi thường gặp
 
-## 📁 Cấu trúc dự án
+## Cấu trúc dự án
 
 ```
 AITaskTrackingMobile/
@@ -102,7 +102,7 @@ AITaskTrackingMobile/
 └── README.md            # Documentation
 ```
 
-## 🎯 Roadmap
+## Roadmap
 
 ### Phase 1 - MVP (Hiện tại)
 - [x] Giao diện danh sách task
@@ -143,7 +143,7 @@ npm test              # Chạy tests
 npm run clean         # Clean React Native cache
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Lỗi "Unable to load script"
 ```bash
@@ -167,7 +167,7 @@ npm run android
 
 Xem thêm các lỗi thường gặp và cách khắc phục trong [Build and Run Guide](./BUILD_AND_RUN_GUIDE.md).
 
-## 📊 Performance
+## Performance
 
 ### Metrics mục tiêu:
 - **App startup time**: < 3 giây
@@ -181,7 +181,7 @@ Xem thêm các lỗi thường gặp và cách khắc phục trong [Build and Ru
 - Bundle size analysis
 - Memory profiling
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork repository
 2. Tạo feature branch (`git checkout -b feature/AmazingFeature`)
@@ -195,7 +195,7 @@ Xem thêm các lỗi thường gặp và cách khắc phục trong [Build and Ru
 - Conventional commits
 - Component-based architecture
 
-## 📝 License
+## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
@@ -206,15 +206,13 @@ Distributed under the MIT License. See `LICENSE` for more information.
 - **UI/UX**: Design system và user experience
 - **DevOps**: CI/CD và deployment automation
 
-## 📞 Support
+## Support
 
-- 📧 Email: support@aitasktracking.com
-- 📱 Mobile: +84 xxx xxx xxx
-- 💬 Slack: #ai-task-tracking
-- 🐛 Issues: [GitHub Issues](https://github.com/your-org/ai-task-tracking-mobile/issues)
+- Email: support@aitasktracking.com
+- Mobile: +84 xxx xxx xxx
+- Slack: #ai-task-tracking
+- Issues: [GitHub Issues](https://github.com/your-org/ai-task-tracking-mobile/issues)
 
 ---
 
 ⭐ **Star this repo if you find it helpful!**
-
-Made with ❤️ in Vietnam 🇻🇳

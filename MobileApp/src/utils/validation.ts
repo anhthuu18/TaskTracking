@@ -9,6 +9,8 @@ export interface FormErrors {
   username?: string;
   password?: string;
   confirmPassword?: string;
+  email?: string;
+  phone?: string;
 }
 
 // Username validation
@@ -110,27 +112,34 @@ export const validateEmail = (email: string): ValidationResult => {
 };
 
 // Phone number validation for Vietnamese phone numbers
-export const validatePhoneNumber = (phoneNumber: string): boolean => {
+export const validatePhoneNumber = (phoneNumber: string): ValidationResult => {
   if (!phoneNumber || phoneNumber.trim() === '') {
-    return false;
+    return {
+      isValid: false,
+      error: Strings.errorRequired,
+    };
   }
 
-  // Remove all non-digit characters
   const cleanPhone = phoneNumber.replace(/\D/g, '');
-  
-  // Vietnamese phone number patterns:
-  // - 03x, 05x, 07x, 08x, 09x (10 digits)
-  // - 84 + 3x, 84 + 5x, 84 + 7x, 84 + 8x, 84 + 9x (11 digits)
   const vietnamesePhoneRegex = /^(84|0)?(3[2-9]|5[689]|7[06-9]|8[1-689]|9[0-46-9])[0-9]{7}$/;
-  
-  return vietnamesePhoneRegex.test(cleanPhone);
+
+  if (!vietnamesePhoneRegex.test(cleanPhone)) {
+    return {
+      isValid: false,
+      error: Strings.errorPhoneInvalid,
+    };
+  }
+
+  return { isValid: true };
 };
 
 // Validate all signup fields
 export const validateSignUpForm = (
   username: string,
   password: string,
-  confirmPassword: string
+  confirmPassword: string,
+  email?: string,
+  phone?: string
 ): { isValid: boolean; errors: FormErrors } => {
   const errors: FormErrors = {};
   let isValid = true;
@@ -154,6 +163,22 @@ export const validateSignUpForm = (
   if (!confirmPasswordValidation.isValid) {
     errors.confirmPassword = confirmPasswordValidation.error;
     isValid = false;
+  }
+
+  if (email !== undefined) {
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
+      errors.email = emailValidation.error;
+      isValid = false;
+    }
+  }
+
+  if (phone !== undefined) {
+    const phoneValidation = validatePhoneNumber(phone);
+    if (!phoneValidation.isValid) {
+      errors.phone = phoneValidation.error;
+      isValid = false;
+    }
   }
 
   return { isValid, errors };
