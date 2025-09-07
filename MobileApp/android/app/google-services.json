@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "17409044459",
+    "project_id": "tasktracking-470916",
+    "storage_bucket": "tasktracking-470916.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:17409044459:android:35f07111eff6b465eaf3ae",
+        "android_client_info": {
+          "package_name": "com.aitasktrackingmobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "17409044459-p96ef1cp5ijo4hseo3a64e80m18kg8n3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aitasktrackingmobile",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "17409044459-ubrnlg83ueqhhcnq7a7bfv8fp2g9jjcq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCRdoa0QM16I3CXLWvdSyRQ1rYT5uK1QsU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "17409044459-ubrnlg83ueqhhcnq7a7bfv8fp2g9jjcq.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

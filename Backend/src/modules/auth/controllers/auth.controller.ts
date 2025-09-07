@@ -3,6 +3,7 @@ import { AuthService } from '../services/auth.service';
 import { CreateUserDTO } from '../../users/dtos/create-user.dto';
 import { LoginDTO } from '../dtos/login.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { GoogleLoginDTO } from '../dtos/google-login.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -25,5 +26,30 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async logout(@Request() req) {
     return this.authService.logout(req.user);
+  }
+
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  async googleLogin(@Body() googleLoginDto: GoogleLoginDTO) {
+    return this.authService.loginWithGoogle(googleLoginDto);
+  }
+
+  @Post('google/web')
+  @HttpCode(HttpStatus.OK)
+  async googleWebLogin(@Body() googleLoginDto: GoogleLoginDTO) {
+    return this.authService.loginWithGoogleWeb(googleLoginDto);
+  }
+
+  @Post('google/test')
+  @HttpCode(HttpStatus.OK)
+  async googleLoginTest() {
+    // Test endpoint để demo mà không cần Google ID Token thật
+    return {
+      success: true,
+      message: 'Test Google Login endpoint hoạt động',
+      data: {
+        note: 'Đây là endpoint test. Để test thật, sử dụng /auth/google với Google ID Token hợp lệ'
+      }
+    };
   }
 }

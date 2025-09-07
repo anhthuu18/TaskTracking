@@ -14,6 +14,7 @@ export const API_CONFIG = {
         SIGNUP: '/auth/signup',
         REFRESH: '/auth/refresh',
         LOGOUT: '/auth/logout',
+        GOOGLE: '/auth/google',
       },
       USER: {
         PROFILE: '/user/profile',
@@ -32,6 +33,8 @@ export const API_CONFIG = {
         SIGNUP: '/auth/register',
         REFRESH: '/auth/refresh',
         LOGOUT: '/auth/logout',
+        GOOGLE: '/auth/google', // Android
+        GOOGLE_WEB: '/auth/google/web', // Web admin
       },
       USER: {
         PROFILE: '/user/profile',

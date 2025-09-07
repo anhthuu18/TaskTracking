@@ -101,4 +101,13 @@ export class UsersService {
       }
     });
   }
+
+  async findByEmail(email: string): Promise<any> {
+    return this.prisma.user.findFirst({
+      where: {
+        email,
+        dateDeleted: null
+      }
+    });
+  }
 }

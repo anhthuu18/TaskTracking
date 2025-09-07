@@ -100,6 +100,14 @@ let UsersService = class UsersService {
             }
         });
     }
+    async findByEmail(email) {
+        return this.prisma.user.findFirst({
+            where: {
+                email,
+                dateDeleted: null
+            }
+        });
+    }
 };
 exports.UsersService = UsersService;
 exports.UsersService = UsersService = __decorate([

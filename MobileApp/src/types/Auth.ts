@@ -11,8 +11,12 @@ export interface AuthResponse {
   data?: {
     token: string;
     user: {
+      id?: string | number;
       username: string;
       email?: string;
+      phone?: string;
+      fullName?: string;
+      dateCreated?: string;
     };
   };
 }

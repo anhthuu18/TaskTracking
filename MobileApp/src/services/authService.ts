@@ -125,6 +125,39 @@ export const authService = {
     return new Promise((resolve) => setTimeout(() => resolve({ success: true, message: 'Đăng xuất thành công' }), 500));
   },
 
+  // Google Sign-In
+  signInWithGoogle: async (idToken: string): Promise<AuthResponse> => {
+    if (!API_CONFIG.USE_MOCK_API) {
+      return request(buildApiUrl(getCurrentApiConfig().ENDPOINTS.AUTH.GOOGLE), {
+        method: 'POST',
+        body: JSON.stringify({ idToken }),
+      });
+    }
+    console.log("📡 Mock API Google Sign-In gọi với:", { idToken });
+
+    // Giả lập thời gian chờ API
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Mock Google user data
+        const mockGoogleUser = {
+          id: "google_123456",
+          username: "googleuser",
+          email: "googleuser@gmail.com",
+          fullName: "Google User",
+        };
+
+        resolve({
+          success: true,
+          message: "Đăng nhập Google thành công",
+          data: {
+            token: `fake-google-jwt-token-${Date.now()}`,
+            user: mockGoogleUser,
+          },
+        });
+      }, 1000); // Giả lập API delay 1s
+    });
+  },
+
   // Helper method để get test accounts
   getTestAccounts: () => {
     return [

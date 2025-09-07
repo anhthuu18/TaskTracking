@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 import { TextInput } from 'react-native-paper';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { Colors } from '../constants/Colors';
 import { Strings } from '../constants/Strings';
 import { validateSignUpForm, FormErrors } from '../utils/validation';
@@ -34,7 +35,18 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<{[key: string]: boolean}>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const { toast, showSuccess, showError, hideToast } = useToast();
+
+  // Configure Google Sign-In
+  useEffect(() => {
+    GoogleSignin.configure({
+      // Web client ID - phải khớp với google-services.json
+      webClientId: '17409044459-ubrnlg83ueqhhcnq7a7bfv8fp2g9jjcq.apps.googleusercontent.com',
+      offlineAccess: true,
+      forceCodeForRefreshToken: true, // Force hiển thị account picker
+    });
+  }, []);
 
   // Helper function to safely require Google image only
   const getGoogleImage = () => {
@@ -74,13 +86,13 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         // Success - show success message and navigate to signin
 
         
-        // Show success toast
-        showSuccess(`Tài khoản ${response.data.user.username} đã được tạo thành công!`);
-        
-        // Navigate to SignIn after a short delay for toast to show
-        setTimeout(() => {
-          navigation.navigate('SignIn');
-        }, 1500);
+          // Show success toast with short duration
+          showSuccess(`Tài khoản ${response.data.user.username} đã được tạo thành công!`);
+          
+          // Navigate to main screen (TaskList) after very short delay
+          setTimeout(() => {
+            navigation.navigate('TaskList');
+          }, 800);
       } else {
         // API returned error
 
@@ -146,9 +158,66 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
     }
   };
 
-  const handleSocialLogin = (platform: string) => {
-    // Handle social login
-    
+  const handleSocialLogin = async (platform: string) => {
+    if (platform === 'google') {
+      await handleGoogleSignUp();
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    try {
+      setIsGoogleLoading(true);
+      
+      // Check if your device supports Google Play
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      
+      // Sign out first to clear cached account and show account picker
+      try {
+        await GoogleSignin.signOut();
+      } catch (error) {
+        // Ignore sign out errors (user might not be signed in)
+      }
+      
+      // Get the users ID token
+      const signInResult = await GoogleSignin.signIn();
+      const idToken = signInResult.data?.idToken;
+      
+      
+      if (idToken) {
+        // Call your backend API with the ID token
+        const response: AuthResponse = await authService.signInWithGoogle(idToken);
+        
+        if (response.success && response.data) {
+          // Success - save user data and navigate
+          // TODO: Save token to AsyncStorage for persistence
+          // await AsyncStorage.setItem('authToken', response.data.token);
+          // await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+          
+          // Navigate directly to main screen (TaskList)
+          navigation.navigate('TaskList');
+        } else {
+          showError(response.message || 'Đăng ký Google thất bại');
+        }
+      }
+    } catch (error: any) {
+      console.error('Google Sign-Up error:', error);
+      
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        // User cancelled the login flow
+        console.log('User cancelled Google Sign-Up');
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        // Operation (e.g. sign in) is in progress already
+        console.log('Google Sign-Up in progress');
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        // Play services not available or outdated
+        showError('Google Play Services không khả dụng');
+      } else {
+        // Some other error happened
+        showError('Đã xảy ra lỗi khi đăng ký Google. Vui lòng thử lại.');
+      }
+    } finally {
+      setIsGoogleLoading(false);
+    }
   };
 
   const navigateToSignIn = () => {
@@ -407,10 +476,13 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.socialButton}
+            style={[styles.socialButton, isGoogleLoading && styles.socialButtonDisabled]}
             onPress={() => handleSocialLogin('google')}
+            disabled={isGoogleLoading}
           >
-            {getGoogleImage() ? (
+            {isGoogleLoading ? (
+              <MaterialIcons name="hourglass-empty" size={20} color="#4285F4" />
+            ) : getGoogleImage() ? (
               <Image 
                 source={getGoogleImage()} 
                 style={styles.googleImage}
@@ -534,6 +606,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutral.light,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  socialButtonDisabled: {
+    opacity: 0.6,
   },
   googleImage: {
     width: 21,
