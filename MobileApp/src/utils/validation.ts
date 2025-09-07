@@ -50,19 +50,20 @@ export const validatePassword = (password: string): ValidationResult => {
     };
   }
 
-  if (password.length < 6) {
-    return {
-      isValid: false,
-      error: Strings.errorPasswordMinLength,
-    };
-  }
-
-  // Check for at least one uppercase letter, one lowercase letter, and one number
+  // Check for at least one uppercase letter, one lowercase letter, and one number FIRST
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
   if (!passwordRegex.test(password)) {
     return {
       isValid: false,
       error: Strings.errorPasswordWeak,
+    };
+  }
+
+  // Then check length
+  if (password.length < 6) {
+    return {
+      isValid: false,
+      error: Strings.errorPasswordMinLength,
     };
   }
 

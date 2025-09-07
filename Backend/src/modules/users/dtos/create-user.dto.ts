@@ -10,12 +10,18 @@ export class CreateUserDTO {
   email: string;
 
   @IsString()
-  @MinLength(6)
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, { 
+    message: 'Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số' 
+  })
+  @MinLength(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự' })
   @MaxLength(255)
   password: string;
 
   @IsString()
-  @MinLength(6)
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, { 
+    message: 'Mật khẩu xác nhận phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số' 
+  })
+  @MinLength(6, { message: 'Mật khẩu xác nhận phải có ít nhất 6 ký tự' })
   @MaxLength(255)
   confirmPassword: string;
 

@@ -39,17 +39,4 @@ export class AuthController {
   async googleWebLogin(@Body() googleLoginDto: GoogleLoginDTO) {
     return this.authService.loginWithGoogleWeb(googleLoginDto);
   }
-
-  @Post('google/test')
-  @HttpCode(HttpStatus.OK)
-  async googleLoginTest() {
-    // Test endpoint để demo mà không cần Google ID Token thật
-    return {
-      success: true,
-      message: 'Test Google Login endpoint hoạt động',
-      data: {
-        note: 'Đây là endpoint test. Để test thật, sử dụng /auth/google với Google ID Token hợp lệ'
-      }
-    };
-  }
 }
