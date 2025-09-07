@@ -1,8 +1,36 @@
 // services/authService.ts
 import { SignInCredentials, AuthResponse, SignUpCredentials } from "../types/Auth";
+import { API_CONFIG, buildApiUrl, getCurrentApiConfig } from "../config/api";
+
+const request = async (url: string, options: RequestInit): Promise<AuthResponse> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal, headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    }});
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { success: false, message: json.message || `HTTP ${res.status}` };
+    }
+    return json as AuthResponse;
+  } catch (err: any) {
+    const isAbort = err?.name === 'AbortError';
+    return { success: false, message: isAbort ? 'Timeout request' : (err?.message || 'Network error') };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
 
 export const authService = {
   signIn: async (credentials: SignInCredentials): Promise<AuthResponse> => {
+    if (!API_CONFIG.USE_MOCK_API) {
+      return request(buildApiUrl(getCurrentApiConfig().ENDPOINTS.AUTH.SIGNIN), {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      });
+    }
     console.log("📡 Mock API gọi với:", credentials);
 
     // Giả lập thời gian chờ API
@@ -44,7 +72,13 @@ export const authService = {
   },
 
   signUp: async (credentials: SignUpCredentials): Promise<AuthResponse> => {
-    console.log("📡 Mock API SignUp gọi với:", credentials.username);
+    if (!API_CONFIG.USE_MOCK_API) {
+      return request(buildApiUrl(getCurrentApiConfig().ENDPOINTS.AUTH.SIGNUP), {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      });
+    }
+    console.log("📡 Mock API SignUp gọi với:", credentials);
 
     // Giả lập thời gian chờ API
     return new Promise((resolve) => {
@@ -64,8 +98,8 @@ export const authService = {
         // Tạo user mới thành công
         const newUser = {
           username: credentials.username,
-          fullName: credentials.fullName || credentials.username,
           email: credentials.email || `${credentials.username}@example.com`,
+          phone: credentials.phone,
         };
 
         resolve({
@@ -74,6 +108,50 @@ export const authService = {
           data: {
             token: `fake-jwt-token-${Date.now()}`,
             user: newUser,
+          },
+        });
+      }, 1000); // Giả lập API delay 1s
+    });
+  },
+
+  logout: async (token?: string): Promise<AuthResponse> => {
+    if (!API_CONFIG.USE_MOCK_API) {
+      return request(buildApiUrl(getCurrentApiConfig().ENDPOINTS.AUTH.LOGOUT), {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+    }
+    // Mock logout success
+    return new Promise((resolve) => setTimeout(() => resolve({ success: true, message: 'Đăng xuất thành công' }), 500));
+  },
+
+  // Google Sign-In
+  signInWithGoogle: async (idToken: string): Promise<AuthResponse> => {
+    if (!API_CONFIG.USE_MOCK_API) {
+      return request(buildApiUrl(getCurrentApiConfig().ENDPOINTS.AUTH.GOOGLE), {
+        method: 'POST',
+        body: JSON.stringify({ idToken }),
+      });
+    }
+    console.log("📡 Mock API Google Sign-In gọi với:", { idToken });
+
+    // Giả lập thời gian chờ API
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Mock Google user data
+        const mockGoogleUser = {
+          id: "google_123456",
+          username: "googleuser",
+          email: "googleuser@gmail.com",
+          fullName: "Google User",
+        };
+
+        resolve({
+          success: true,
+          message: "Đăng nhập Google thành công",
+          data: {
+            token: `fake-google-jwt-token-${Date.now()}`,
+            user: mockGoogleUser,
           },
         });
       }, 1000); // Giả lập API delay 1s

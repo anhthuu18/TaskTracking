@@ -11,9 +11,12 @@ export interface AuthResponse {
   data?: {
     token: string;
     user: {
+      id?: string | number;
       username: string;
-      fullName?: string;
       email?: string;
+      phone?: string;
+      fullName?: string;
+      dateCreated?: string;
     };
   };
 }
@@ -22,6 +25,6 @@ export interface SignUpCredentials {
   username: string;
   password: string;
   confirmPassword: string;
-  fullName?: string;
   email?: string;
+  phone?: string;
 }

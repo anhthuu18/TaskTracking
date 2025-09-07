@@ -25,6 +25,7 @@ let UsersService = class UsersService {
                 id: true,
                 username: true,
                 email: true,
+                phone: true,
                 dateCreated: true,
                 dateModified: true,
                 dateDeleted: true
@@ -41,6 +42,7 @@ let UsersService = class UsersService {
                 id: true,
                 username: true,
                 email: true,
+                phone: true,
                 dateCreated: true,
                 dateModified: true,
                 dateDeleted: true
@@ -58,6 +60,7 @@ let UsersService = class UsersService {
                 id: true,
                 username: true,
                 email: true,
+                phone: true,
                 dateCreated: true,
                 dateModified: true,
                 dateDeleted: true
@@ -73,6 +76,7 @@ let UsersService = class UsersService {
                 id: true,
                 username: true,
                 email: true,
+                phone: true,
                 dateCreated: true,
                 dateModified: true,
                 dateDeleted: true
@@ -85,6 +89,22 @@ let UsersService = class UsersService {
             where: { id },
             data: {
                 dateDeleted: new Date()
+            }
+        });
+    }
+    async findByUsername(username) {
+        return this.prisma.user.findFirst({
+            where: {
+                username,
+                dateDeleted: null
+            }
+        });
+    }
+    async findByEmail(email) {
+        return this.prisma.user.findFirst({
+            where: {
+                email,
+                dateDeleted: null
             }
         });
     }

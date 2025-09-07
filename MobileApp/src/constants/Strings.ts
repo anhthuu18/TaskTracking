@@ -68,6 +68,8 @@ export const Strings = {
   username: 'Tên người dùng',
   password: 'Mật khẩu',
   confirmPassword: 'Xác nhận mật khẩu',
+  email: 'Email',
+  phone: 'Số điện thoại',
   forgotPassword: 'Quên mật khẩu?',
   orSignUpWith: 'Hoặc đăng ký với',
   orSignInWith: 'Hoặc đăng nhập với',
@@ -112,6 +114,7 @@ export const Strings = {
   errorConfirmPasswordRequired: 'Xác nhận mật khẩu là bắt buộc',
   errorPasswordMismatch: 'Mật khẩu xác nhận không khớp',
   errorEmailInvalid: 'Email không hợp lệ',
+  errorPhoneInvalid: 'Số điện thoại không hợp lệ',
   
   // General Errors
   errorGeneral: 'Đã xảy ra lỗi',

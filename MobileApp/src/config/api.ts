@@ -3,7 +3,7 @@
 
 export const API_CONFIG = {
   // Set USE_MOCK_API = false khi muốn sử dụng real API
-  USE_MOCK_API: true,
+  USE_MOCK_API: false,
   
   // Mock API endpoints (sẽ được simulate bằng setTimeout)
   MOCK_API: {
@@ -14,6 +14,7 @@ export const API_CONFIG = {
         SIGNUP: '/auth/signup',
         REFRESH: '/auth/refresh',
         LOGOUT: '/auth/logout',
+        GOOGLE: '/auth/google',
       },
       USER: {
         PROFILE: '/user/profile',
@@ -24,13 +25,16 @@ export const API_CONFIG = {
   
   // Real API endpoints (sẽ được sử dụng khi USE_MOCK_API = false)
   REAL_API: {
-    BASE_URL: 'https://your-backend-url.com/api/v1', // Thay đổi URL này khi có backend
+    // Gợi ý: Android emulator dùng 10.0.2.2, iOS simulator dùng localhost
+    BASE_URL: 'http://10.0.2.2:3000',
     ENDPOINTS: {
       AUTH: {
-        SIGNIN: '/auth/signin',
-        SIGNUP: '/auth/signup',
+        SIGNIN: '/auth/login',
+        SIGNUP: '/auth/register',
         REFRESH: '/auth/refresh',
         LOGOUT: '/auth/logout',
+        GOOGLE: '/auth/google', // Android
+        GOOGLE_WEB: '/auth/google/web', // Web admin
       },
       USER: {
         PROFILE: '/user/profile',

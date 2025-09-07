@@ -26,8 +26,27 @@ __decorate([
 ], CreateUserDTO.prototype, "email", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MinLength)(6),
+    (0, class_validator_1.Matches)(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
+        message: 'Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số'
+    }),
+    (0, class_validator_1.MinLength)(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự' }),
     (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", String)
 ], CreateUserDTO.prototype, "password", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
+        message: 'Mật khẩu xác nhận phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số'
+    }),
+    (0, class_validator_1.MinLength)(6, { message: 'Mật khẩu xác nhận phải có ít nhất 6 ký tự' }),
+    (0, class_validator_1.MaxLength)(255),
+    __metadata("design:type", String)
+], CreateUserDTO.prototype, "confirmPassword", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(/^(\+84|84|0)[3|5|7|8|9][0-9]{8}$/, {
+        message: 'Số điện thoại không hợp lệ.'
+    }),
+    __metadata("design:type", String)
+], CreateUserDTO.prototype, "phone", void 0);
 //# sourceMappingURL=create-user.dto.js.map
