@@ -36,3 +36,16 @@ model Role {
 
   @@map("Roles")
 }
+
+model OtpCode {
+  id          Int      @id @default(autoincrement()) @map("OtpID")
+  phone       String   @db.VarChar(15) @map("Phone")
+  otpCode     String   @db.VarChar(6) @map("OtpCode")
+  isUsed      Boolean  @default(false) @map("IsUsed")    // Đánh dấu OTP đã được sử dụng thành công
+  attempts    Int      @default(0) @map("Attempts")      // Số lần nhập sai (bảo mật chống brute force)
+  expiresAt   DateTime @map("ExpiresAt")                 // Thời gian hết hạn OTP
+  dateCreated DateTime @default(now()) @map("DateCreated")
+
+  @@map("OtpCodes")
+  @@index([phone])
+}

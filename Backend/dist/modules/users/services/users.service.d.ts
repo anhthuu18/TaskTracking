@@ -12,4 +12,6 @@ export declare class UsersService {
     remove(id: number): Promise<void>;
     findByUsername(username: string): Promise<any>;
     findByEmail(email: string): Promise<any>;
+    findByPhone(phone: string): Promise<any>;
+    updatePassword(id: number, hashedPassword: string): Promise<void>;
 }

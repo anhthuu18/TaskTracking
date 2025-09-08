@@ -4,6 +4,7 @@ import { CreateUserDTO } from '../../users/dtos/create-user.dto';
 import { LoginDTO } from '../dtos/login.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { GoogleLoginDTO } from '../dtos/google-login.dto';
+import { ForgotPasswordDTO, VerifyOtpDTO, ResetPasswordDTO } from '../dtos/forgot-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -51,5 +52,25 @@ export class AuthController {
         note: 'Đây là endpoint test. Để test thật, sử dụng /auth/google với Google ID Token hợp lệ'
       }
     };
+  }
+
+  // Forgot Password Endpoints
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDTO) {
+    return this.authService.sendForgotPasswordOtp(forgotPasswordDto);
+  }
+
+  @Post('verify-otp')
+  @HttpCode(HttpStatus.OK)
+  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDTO) {
+    return this.authService.verifyForgotPasswordOtp(verifyOtpDto);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDTO) {
+    return this.authService.resetPassword(resetPasswordDto);
   }
 }

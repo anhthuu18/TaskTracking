@@ -65,22 +65,35 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ navigation, r
 
     setIsLoading(true);
     try {
-      // TODO: Call API to reset password
-      // const response = await authService.resetPassword(phoneNumber, otp, newPassword);
-      
-      // Simulate API call
-      await new Promise<void>(resolve => setTimeout(resolve, 1000));
-      
-      showSuccess('Đặt lại mật khẩu thành công!');
-      
-      // Navigate back to sign in screen after a short delay
-      setTimeout(() => {
-        navigation.navigate('SignIn');
-      }, 1000);
+      // Call API to reset password
+      const response = await fetch('http://10.0.2.2:3000/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: phoneNumber,
+          newPassword: newPassword,
+          confirmPassword: confirmPassword
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        showSuccess('Đặt lại mật khẩu thành công!');
+        
+        // Navigate back to sign in screen after a short delay
+        setTimeout(() => {
+          navigation.navigate('SignIn');
+        }, 1000);
+      } else {
+        showError(data.message || 'Không thể đặt lại mật khẩu. Vui lòng thử lại.');
+      }
       
     } catch (error) {
       console.error('Reset password error:', error);
-      showError('Không thể đặt lại mật khẩu. Vui lòng thử lại.');
+      showError('Lỗi kết nối. Vui lòng kiểm tra internet và thử lại.');
     } finally {
       setIsLoading(false);
     }
