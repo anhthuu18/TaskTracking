@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { FirebaseService } from './firebase.service';
+import { TwilioService } from './twilio.service';
 
 export interface OtpConfig {
   length: number;
@@ -18,7 +18,7 @@ export class OtpService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly firebaseService: FirebaseService,
+    private readonly twilioService: TwilioService,
   ) {}
 
   /**
@@ -122,15 +122,15 @@ export class OtpService {
   }
 
   /**
-   * Gửi SMS OTP qua Firebase
+   * Gửi SMS OTP qua Twilio
    */
   async sendSms(phone: string, message: string): Promise<boolean> {
     try {
-      // Sử dụng Firebase service để gửi SMS
-      const result = await this.firebaseService.sendSmsOtp(phone, message);
+      // Sử dụng Twilio service để gửi SMS
+      const result = await this.twilioService.sendSMS(phone, message);
       return result;
     } catch (error) {
-      console.error('Firebase SMS Error:', error);
+      console.error('Twilio SMS Error:', error);
       return false;
     }
   }
@@ -144,10 +144,12 @@ export class OtpService {
   ): Promise<{ success: boolean; message: string; expiresAt?: Date }> {
     try {
       const { otpCode, expiresAt } = await this.createOtp(phone, config);
+      const finalConfig = { ...this.defaultConfig, ...config };
+      // Tạo message bằng Twilio template
+      const message = this.twilioService.createOTPMessage(otpCode, finalConfig.expiryMinutes);
       
-      const smsMessage = `Mã xác thực của bạn là: ${otpCode}. Mã có hiệu lực trong ${config.expiryMinutes || this.defaultConfig.expiryMinutes} phút.`;
-      
-      const smsSent = await this.sendSms(phone, smsMessage);
+      // Gửi SMS
+      const smsSent = await this.sendSms(phone, message);
       
       if (!smsSent) {
         throw new BadRequestException('Không thể gửi SMS');

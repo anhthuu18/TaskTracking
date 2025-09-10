@@ -7,7 +7,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UsersModule } from '../users/user.module';
 import { OtpService } from '../../services/otp.service';
-import { FirebaseService } from '../../services/firebase.service';
+import { TwilioService } from '../../services/twilio.service';
 
 @Module({
   imports: [
@@ -19,7 +19,7 @@ import { FirebaseService } from '../../services/firebase.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard, OtpService, FirebaseService],
+  providers: [AuthService, JwtStrategy, JwtAuthGuard, OtpService, TwilioService],
   exports: [AuthService, JwtAuthGuard],
 })
 export class AuthModule {}

@@ -36,6 +36,7 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ navigation, r
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [touched, setTouched] = useState<{[key: string]: boolean}>({});
   const [isLoading, setIsLoading] = useState(false);
   const { toast, showSuccess, showError, hideToast } = useToast();
 
@@ -59,6 +60,9 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ navigation, r
   };
 
   const handleSaveChanges = async () => {
+    // Mark all fields as touched to show validation errors
+    setTouched({ newPassword: true, confirmPassword: true });
+    
     if (!validateForm()) {
       return;
     }
@@ -103,17 +107,65 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ navigation, r
     navigation.goBack();
   };
 
+  const handleFieldBlur = (field: string) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    
+    // Validate the specific field on blur
+    const newErrors: {[key: string]: string} = {};
+    
+    if (field === 'newPassword' || touched.newPassword) {
+      const passwordValidation = validatePassword(newPassword);
+      if (!passwordValidation.isValid) {
+        newErrors.newPassword = passwordValidation.error || '';
+      }
+    }
+    
+    if (field === 'confirmPassword' || touched.confirmPassword) {
+      const confirmPasswordValidation = validateConfirmPassword(newPassword, confirmPassword);
+      if (!confirmPasswordValidation.isValid) {
+        newErrors.confirmPassword = confirmPasswordValidation.error || '';
+      }
+    }
+    
+    setErrors(prev => ({ ...prev, ...newErrors }));
+  };
+
   const handleNewPasswordChange = (value: string) => {
     setNewPassword(value);
-    if (errors.newPassword) {
-      setErrors(prev => ({ ...prev, newPassword: '' }));
+    if (touched.newPassword || touched.confirmPassword) {
+      const newErrors: {[key: string]: string} = {};
+      
+      // Validate new password
+      const passwordValidation = validatePassword(value);
+      if (!passwordValidation.isValid) {
+        newErrors.newPassword = passwordValidation.error || '';
+      } else {
+        newErrors.newPassword = '';
+      }
+      
+      // Re-validate confirm password if it's been touched
+      if (touched.confirmPassword) {
+        const confirmPasswordValidation = validateConfirmPassword(value, confirmPassword);
+        if (!confirmPasswordValidation.isValid) {
+          newErrors.confirmPassword = confirmPasswordValidation.error || '';
+        } else {
+          newErrors.confirmPassword = '';
+        }
+      }
+      
+      setErrors(prev => ({ ...prev, ...newErrors }));
     }
   };
 
   const handleConfirmPasswordChange = (value: string) => {
     setConfirmPassword(value);
-    if (errors.confirmPassword) {
-      setErrors(prev => ({ ...prev, confirmPassword: '' }));
+    if (touched.confirmPassword) {
+      const confirmPasswordValidation = validateConfirmPassword(newPassword, value);
+      if (!confirmPasswordValidation.isValid) {
+        setErrors(prev => ({ ...prev, confirmPassword: confirmPasswordValidation.error || '' }));
+      } else {
+        setErrors(prev => ({ ...prev, confirmPassword: '' }));
+      }
     }
   };
 
@@ -161,19 +213,20 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ navigation, r
                 placeholder="Mật khẩu mới"
                 value={newPassword}
                 onChangeText={handleNewPasswordChange}
+                onBlur={() => handleFieldBlur('newPassword')}
                 secureTextEntry={!showNewPassword}
                 style={[
                   styles.textInput,
-                  errors.newPassword && styles.textInputError
+                  errors.newPassword && touched.newPassword && styles.textInputError
                 ]}
                 outlineStyle={[
                   styles.inputOutline,
-                  errors.newPassword && styles.inputOutlineError
+                  errors.newPassword && touched.newPassword && styles.inputOutlineError
                 ]}
                 theme={{
                   colors: {
-                    primary: errors.newPassword ? Colors.semantic.error : Colors.primary,
-                    outline: errors.newPassword ? Colors.semantic.error : Colors.neutral.light,
+                    primary: errors.newPassword && touched.newPassword ? Colors.semantic.error : Colors.primary,
+                    outline: errors.newPassword && touched.newPassword ? Colors.semantic.error : Colors.neutral.light,
                     onSurface: Colors.text,
                   },
                 }}
@@ -195,7 +248,7 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ navigation, r
                   />
                 }
               />
-              {errors.newPassword && (
+              {errors.newPassword && touched.newPassword && (
                 <Text style={styles.errorText}>{errors.newPassword}</Text>
               )}
             </View>
@@ -207,19 +260,20 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ navigation, r
                 placeholder="Xác nhận mật khẩu mới"
                 value={confirmPassword}
                 onChangeText={handleConfirmPasswordChange}
+                onBlur={() => handleFieldBlur('confirmPassword')}
                 secureTextEntry={!showConfirmPassword}
                 style={[
                   styles.textInput,
-                  errors.confirmPassword && styles.textInputError
+                  errors.confirmPassword && touched.confirmPassword && styles.textInputError
                 ]}
                 outlineStyle={[
                   styles.inputOutline,
-                  errors.confirmPassword && styles.inputOutlineError
+                  errors.confirmPassword && touched.confirmPassword && styles.inputOutlineError
                 ]}
                 theme={{
                   colors: {
-                    primary: errors.confirmPassword ? Colors.semantic.error : Colors.primary,
-                    outline: errors.confirmPassword ? Colors.semantic.error : Colors.neutral.light,
+                    primary: errors.confirmPassword && touched.confirmPassword ? Colors.semantic.error : Colors.primary,
+                    outline: errors.confirmPassword && touched.confirmPassword ? Colors.semantic.error : Colors.neutral.light,
                     onSurface: Colors.text,
                   },
                 }}
@@ -241,7 +295,7 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ navigation, r
                   />
                 }
               />
-              {errors.confirmPassword && (
+              {errors.confirmPassword && touched.confirmPassword && (
                 <Text style={styles.errorText}>{errors.confirmPassword}</Text>
               )}
             </View>

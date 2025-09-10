@@ -25,21 +25,23 @@ __decorate([
     __metadata("design:type", String)
 ], CreateUserDTO.prototype, "email", void 0);
 __decorate([
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MinLength)(6),
-    (0, class_validator_1.MaxLength)(255),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Mật khẩu không được để trống' }),
+    (0, class_validator_1.IsString)({ message: 'Mật khẩu phải là chuỗi' }),
+    (0, class_validator_1.Matches)(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+        message: 'Mật khẩu phải chứa ít nhất 1 chữ thường, 1 chữ hoa và 1 số',
+    }),
+    (0, class_validator_1.Length)(6, 50, { message: 'Mật khẩu phải có 6-50 ký tự' }),
     __metadata("design:type", String)
 ], CreateUserDTO.prototype, "password", void 0);
 __decorate([
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MinLength)(6),
-    (0, class_validator_1.MaxLength)(255),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Xác nhận mật khẩu không được để trống' }),
+    (0, class_validator_1.IsString)({ message: 'Xác nhận mật khẩu phải là chuỗi' }),
     __metadata("design:type", String)
 ], CreateUserDTO.prototype, "confirmPassword", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.Matches)(/^(\+84|84|0)[3|5|7|8|9][0-9]{8}$/, {
-        message: 'Số điện thoại không hợp lệ.'
+    (0, class_validator_1.Matches)(/^(\+84|84|0)(3|5|7|8|9)[0-9]{8}$/, {
+        message: 'Số điện thoại không hợp lệ (VD: 0987654321, +84987654321)'
     }),
     __metadata("design:type", String)
 ], CreateUserDTO.prototype, "phone", void 0);
