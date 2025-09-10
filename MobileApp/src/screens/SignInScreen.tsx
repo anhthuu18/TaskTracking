@@ -86,11 +86,9 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
         // Show success toast
         showSuccess('Đăng nhập thành công!');
         
-        // Set authenticated state after a short delay for toast to show
+        // Navigate to workspace selection after a short delay for toast to show
         setTimeout(() => {
-          if (onLoginSuccess) {
-            onLoginSuccess();
-          }
+          navigation.navigate('WorkspaceSelection');
         }, 1000);
       } else {
         // API returned error
@@ -167,9 +165,9 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
           // Show success toast with short duration
           showSuccess('Đăng nhập Google thành công!');
           
-          // Navigate to main screen (TaskList) after very short delay
+          // Navigate to workspace selection after very short delay
           setTimeout(() => {
-            navigation.navigate('TaskList');
+            navigation.navigate('WorkspaceSelection');
           }, 800);
         } else {
           showError(response.message || 'Đăng nhập Google thất bại');
