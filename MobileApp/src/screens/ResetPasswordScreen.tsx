@@ -15,6 +15,7 @@ import { TextInput } from 'react-native-paper';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
+import { ScreenLayout } from '../constants/Dimensions';
 import { validatePassword, validateConfirmPassword } from '../utils/validation';
 import Toast from '../components/Toast';
 import { useToast } from '../hooks';
@@ -342,8 +343,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 32,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
+    paddingTop: ScreenLayout.headerTopSpacing,
     paddingBottom: 8,
   },
   backButton: {
@@ -353,7 +354,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
     paddingTop: 8,
   },
   illustrationContainer: {

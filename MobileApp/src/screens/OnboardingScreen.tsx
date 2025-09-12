@@ -13,7 +13,7 @@ import {
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Strings } from '../constants/Strings';
 import { Colors } from '../constants/Colors';
-import { FontSize, Spacing, BorderRadius, Typography } from '../constants/Dimensions';
+import { FontSize, Spacing, BorderRadius, Typography, ScreenLayout } from '../constants/Dimensions';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    paddingTop: 48,
+    paddingTop: ScreenLayout.safeAreaTopPadding,
   },
   header: {
     flexDirection: 'row',
@@ -281,8 +281,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   bottomContainer: {
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: 30,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
+    paddingBottom: ScreenLayout.footerBottomSpacing,
     paddingTop: Spacing.lg,
     alignItems: 'center',
   },

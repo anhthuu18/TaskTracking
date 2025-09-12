@@ -7,11 +7,13 @@ import {
   SafeAreaView,
   StatusBar,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
+import { ScreenLayout, ButtonStyles, Typography } from '../constants/Dimensions';
 
 interface CreateWorkspaceScreenProps {
   navigation: any;
@@ -21,7 +23,8 @@ interface CreateWorkspaceScreenProps {
 const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigation }) => {
   const [workspaceName, setWorkspaceName] = useState('');
   const [description, setDescription] = useState('');
-  const [workspaceType, setWorkspaceType] = useState<'personal' | 'group'>('personal');
+  const [workspaceType, setWorkspaceType] = useState<'personal' | 'group'>('group');
+  const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
 
   const handleBack = () => {
@@ -64,7 +67,7 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color={Colors.text} />
+          <MaterialIcons name="chevron-left" size={24} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Create workspace</Text>
         <View style={styles.headerSpacer} />
@@ -72,58 +75,12 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
 
       {/* Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Workspace Type Selection */}
-        <View style={styles.typeSection}>
-          <Text style={styles.sectionLabel}>Workspace Type</Text>
-          <View style={styles.typeContainer}>
-            <TouchableOpacity
-              style={[
-                styles.typeButton,
-                workspaceType === 'personal' && styles.typeButtonActive
-              ]}
-              onPress={() => setWorkspaceType('personal')}
-            >
-              <MaterialIcons 
-                name="person" 
-                size={20} 
-                color={workspaceType === 'personal' ? Colors.neutral.white : Colors.neutral.medium} 
-              />
-              <Text style={[
-                styles.typeButtonText,
-                workspaceType === 'personal' && styles.typeButtonTextActive
-              ]}>
-                Personal
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.typeButton,
-                workspaceType === 'group' && styles.typeButtonActive
-              ]}
-              onPress={() => setWorkspaceType('group')}
-            >
-              <MaterialIcons 
-                name="groups" 
-                size={20} 
-                color={workspaceType === 'group' ? Colors.neutral.white : Colors.neutral.medium} 
-              />
-              <Text style={[
-                styles.typeButtonText,
-                workspaceType === 'group' && styles.typeButtonTextActive
-              ]}>
-                Group
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* Workspace Name */}
         <View style={styles.inputSection}>
           <Text style={styles.sectionLabel}>Name</Text>
           <TextInput
             mode="outlined"
-            placeholder="Enter workspace name"
+            placeholder="Anhthuu18 project"
             value={workspaceName}
             onChangeText={setWorkspaceName}
             style={[
@@ -152,19 +109,64 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
           )}
         </View>
 
-        {/* Description */}
+        {/* Workspace Type */}
         <View style={styles.inputSection}>
-          <Text style={styles.sectionLabel}>Description (Optional)</Text>
+          <Text style={styles.sectionLabel}>Workspace type</Text>
+          <View style={styles.dropdownContainer}>
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => setShowTypeDropdown(!showTypeDropdown)}
+            >
+              <View style={styles.dropdownContent}>
+                <MaterialIcons name={workspaceType === 'group' ? 'groups' : 'person'} size={20} color={Colors.neutral.medium} />
+                <Text style={styles.dropdownText}>
+                  {workspaceType === 'group' ? 'Group' : 'Personal'}
+                </Text>
+              </View>
+              <MaterialIcons name={showTypeDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={24} color={Colors.neutral.medium} />
+            </TouchableOpacity>
+            {showTypeDropdown && (
+              <View style={styles.dropdownMenu}>
+                <TouchableOpacity
+                  style={styles.dropdownOption}
+                  onPress={() => {
+                    setWorkspaceType('personal');
+                    setShowTypeDropdown(false);
+                  }}
+                >
+                  <MaterialIcons name="person" size={20} color={Colors.neutral.medium} />
+                  <Text style={styles.dropdownOptionText}>Personal</Text>
+                </TouchableOpacity>
+                <View style={styles.dropdownSeparator} />
+                <TouchableOpacity
+                  style={styles.dropdownOption}
+                  onPress={() => {
+                    setWorkspaceType('group');
+                    setShowTypeDropdown(false);
+                  }}
+                >
+                  <MaterialIcons name="groups" size={20} color={Colors.neutral.medium} />
+                  <Text style={styles.dropdownOptionText}>Group</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Description */} 
+        <View style={styles.inputSection}>
+          <Text style={styles.sectionLabel}>Description</Text>
           <TextInput
             mode="outlined"
-            placeholder="Enter workspace description"
+            placeholder="Workspace description..."
             value={description}
             onChangeText={setDescription}
             multiline
-            numberOfLines={3}
-            style={styles.textInput}
+            numberOfLines={5}
+            style={[styles.textInput, styles.multilineTextInput]}
             outlineStyle={styles.inputOutline}
-            theme={{
+            contentStyle={styles.multilineContent}
+            theme={{  
               colors: {
                 primary: Colors.primary,
                 outline: Colors.neutral.light,
@@ -173,12 +175,13 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
             }}
             left={
               <TextInput.Icon 
-                icon={() => <MaterialIcons name="description" size={20} color={Colors.neutral.medium} />}
+                icon={() => <MaterialIcons name="mail-outline" size={20} color={Colors.neutral.medium} />}
               />
             }
           />
         </View>
       </ScrollView>
+
 
       {/* Create Button */}
       <View style={styles.footer}>
@@ -203,9 +206,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
+    paddingTop: ScreenLayout.headerTopSpacing,
+    paddingBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral.light,
   },
@@ -215,7 +218,7 @@ const styles = StyleSheet.create({
     height: 44,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: '600',
     color: Colors.text,
     flex: 1,
@@ -227,11 +230,8 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-  },
-  typeSection: {
-    marginBottom: 32,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
+    paddingTop: ScreenLayout.contentTopSpacing,
   },
   sectionLabel: {
     fontSize: 16,
@@ -239,34 +239,64 @@ const styles = StyleSheet.create({
     color: Colors.text,
     marginBottom: 12,
   },
-  typeContainer: {
-    flexDirection: 'row',
-    gap: 12,
+  dropdownContainer: {
+    position: 'relative',
   },
-  typeButton: {
-    flex: 1,
+  dropdownButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.neutral.light,
     backgroundColor: Colors.background,
-    gap: 8,
   },
-  typeButtonActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+  dropdownContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  typeButtonText: {
+  dropdownText: {
     fontSize: 16,
-    fontWeight: '500',
-    color: Colors.neutral.medium,
+    color: Colors.text,
   },
-  typeButtonTextActive: {
-    color: Colors.neutral.white,
+  dropdownMenu: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    paddingVertical: 8,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    zIndex: 1000,
+  },
+  dropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  dropdownOptionText: {
+    fontSize: 16,
+    color: Colors.text,
+  },
+  dropdownSeparator: {
+    height: 1,
+    backgroundColor: Colors.neutral.light,
+    marginHorizontal: 20,
   },
   inputSection: {
     marginBottom: 24,
@@ -294,23 +324,31 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   footer: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-    paddingTop: 20,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
+    paddingBottom: ScreenLayout.footerBottomSpacing,
+    paddingTop: 24,
   },
   createButton: {
     backgroundColor: Colors.primary,
-    borderRadius: 50,
-    paddingVertical: 16,
+    ...ButtonStyles.primary,
     alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    shadowColor: Colors.primary,
   },
   createButtonDisabled: {
     backgroundColor: Colors.neutral.medium,
   },
   createButtonText: {
+    ...Typography.buttonText,
     color: Colors.neutral.white,
-    fontSize: 16,
-    fontWeight: '600',
+  },
+  multilineTextInput: {
+    minHeight: 120,
+  },
+  multilineContent: {
+    paddingTop: 12,
+    textAlignVertical: 'top',
   },
 });
 

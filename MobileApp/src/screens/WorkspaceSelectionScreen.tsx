@@ -17,6 +17,7 @@ import { TextInput } from 'react-native-paper';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
+import { ScreenLayout, ButtonStyles, Typography } from '../constants/Dimensions';
 
 interface WorkspaceSelectionScreenProps {
   navigation: any;
@@ -47,59 +48,59 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   const [workspaces, setWorkspaces] = useState<Workspace[]>([
     {
       id: '1',
-      name: 'Design Changes',
+      name: 'WSP name',
       memberCount: 2,
       type: 'group',
-      color: '#6366F1'
+      color: Colors.primary
     },
     {
       id: '2',
-      name: 'Marketing Campaign',
-      memberCount: 5,
+      name: 'WSP name',
+      memberCount: 2,
       type: 'group',
-      color: '#8B5CF6'
+      color: Colors.overlay.pink
     },
     {
       id: '3',
-      name: 'Development Team',
-      memberCount: 8,
+      name: 'WSP name',
+      memberCount: 2,
       type: 'group',
-      color: '#06B6D4'
+      color: Colors.overlay.purple
     },
     {
       id: '4',
-      name: 'Product Design',
-      memberCount: 3,
+      name: 'WSP name',
+      memberCount: 2,
       type: 'group',
-      color: '#EF4444'
+      color: Colors.accent
     },
     {
       id: '5',
-      name: 'Sales Team',
-      memberCount: 6,
+      name: 'WSP name',
+      memberCount: 2,
       type: 'group',
-      color: '#F97316'
+      color: Colors.semantic.success
     },
     {
       id: '6',
-      name: 'HR Department',
-      memberCount: 4,
+      name: 'WSP name',
+      memberCount: 2,
       type: 'group',
-      color: '#84CC16'
+      color: Colors.overlay.coral
     },
     {
       id: '7',
       name: 'Personal Tasks',
       memberCount: 1,
       type: 'personal',
-      color: '#10B981'
+      color: Colors.priority.low
     },
     {
       id: '8',
       name: 'My Projects',
       memberCount: 1,
       type: 'personal',
-      color: '#F59E0B'
+      color: Colors.priority.medium
     }
   ]);
 
@@ -130,10 +131,6 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     setShowAllWorkspaces(true);
   };
 
-  const handleViewLess = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setShowAllWorkspaces(false);
-  };
 
   const renderWorkspaceBlock = (workspace: Workspace, index: number) => {
     const isEven = index % 2 === 0;
@@ -162,9 +159,16 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
         <Text style={styles.workspaceName} numberOfLines={2}>
           {workspace.name}
         </Text>
-        <Text style={styles.memberCount}>
-          {workspace.memberCount} {workspace.memberCount === 1 ? 'người' : 'người'}
-        </Text>
+        {workspace.type === 'group' && (
+          <Text style={styles.memberCount}>
+            Member: {workspace.memberCount}
+          </Text>
+        )}
+        {workspace.type === 'personal' && (
+          <Text style={styles.personalInfo}>
+            Personal workspace
+          </Text>
+        )}
       </TouchableOpacity>
     );
   };
@@ -245,24 +249,15 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
         {/* Workspace Blocks Container */}
         <View style={styles.workspaceSection}>
           {showAllWorkspaces ? (
-            <>
-              <ScrollView 
-                style={styles.workspacesScrollContainerExpanded}
-                showsVerticalScrollIndicator={true}
-                contentContainerStyle={styles.scrollContentContainer}
-              >
-                <View style={styles.workspacesContainer}>
-                  {filteredWorkspaces.map((workspace, index) => renderWorkspaceBlock(workspace, index))}
-                </View>
-              </ScrollView>
-              
-              {/* View Less Button - Outside scroll */}
-              <View style={styles.viewMoreContainer}>
-                <TouchableOpacity style={styles.viewMoreButton} onPress={handleViewLess}>
-                  <Text style={styles.viewMoreText}>View less</Text>
-                </TouchableOpacity>
+            <ScrollView 
+              style={styles.workspacesScrollContainerExpanded}
+              showsVerticalScrollIndicator={true}
+              contentContainerStyle={styles.scrollContentContainer}
+            >
+              <View style={styles.workspacesContainer}>
+                {filteredWorkspaces.map((workspace, index) => renderWorkspaceBlock(workspace, index))}
               </View>
-            </>
+            </ScrollView>
           ) : (
             <>
               <View style={styles.workspacesContainer}>
@@ -314,8 +309,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 30,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
+    paddingTop: ScreenLayout.headerTopSpacing,
+    paddingBottom: ScreenLayout.contentBottomSpacing,
   },
   welcomeSection: {
     marginBottom: 30,
@@ -325,6 +321,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.primary,
     marginBottom: 4,
+    paddingTop: 10,
   },
   subtitleText: {
     fontSize: 16,
@@ -392,34 +389,44 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   workspaceBlock: {
-    padding: 16,
-    borderRadius: 12,
+    padding: 20,
+    borderRadius: 16,
     marginBottom: 16,
     borderWidth: 1,
     alignItems: 'center',
-    minHeight: 120,
+    minHeight: 140,
     justifyContent: 'space-between',
+    backgroundColor: Colors.background,
+    borderColor: Colors.neutral.light,
   },
   workspaceIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   workspaceName: {
     fontSize: 16,
     fontWeight: '600',
     color: Colors.text,
     textAlign: 'center',
-    marginBottom: 8,
-    lineHeight: 20,
+    marginBottom: 12,
+    lineHeight: 22,
   },
   memberCount: {
     fontSize: 14,
     color: Colors.neutral.medium,
     textAlign: 'center',
+    fontWeight: '500',
+  },
+  personalInfo: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+    textAlign: 'center',
+    fontWeight: '500',
+    fontStyle: 'italic',
   },
   viewMoreContainer: {
     alignItems: 'flex-end',
@@ -435,24 +442,21 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 20,
-    paddingBottom: 60,
-    paddingTop: 30,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
+    paddingBottom: ScreenLayout.footerBottomSpacing,
+    paddingTop: 20,
   },
   createButton: {
     backgroundColor: Colors.primary,
-    borderRadius: 25,
-    paddingVertical: 8,
-    paddingHorizontal: 24,
+    ...ButtonStyles.primary,
     alignItems: 'center',
-    minWidth: 120,
+    justifyContent: 'center',
+    alignSelf: 'center',
+    shadowColor: Colors.primary,
   },
   createButtonText: {
+    ...Typography.buttonText,
     color: Colors.neutral.white,
-    fontSize: 14,
-    fontWeight: '600',
   },
   workspaceSection: {
     flex: 1,
@@ -461,20 +465,10 @@ const styles = StyleSheet.create({
     maxHeight: 280, // Fixed height for 4 workspaces (2 rows)
   },
   workspacesScrollContainerExpanded: {
-    maxHeight: 280, // Same height as collapsed view to maintain consistent spacing
+    maxHeight: 320, // Fixed height equivalent to 4 workspaces (2 rows)
   },
   scrollContentContainer: {
     paddingBottom: 20,
-  },
-  viewLessButton: {
-    alignItems: 'center',
-    paddingVertical: 16,
-    marginTop: 10,
-  },
-  viewLessText: {
-    fontSize: 16,
-    color: Colors.primary,
-    fontWeight: '500',
   },
 });
 

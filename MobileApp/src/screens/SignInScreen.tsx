@@ -13,6 +13,7 @@ import { TextInput } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { Colors } from '../constants/Colors';
+import { ScreenLayout } from '../constants/Dimensions';
 import { Strings } from '../constants/Strings';
 import { validateSignInForm, FormErrors } from '../utils/validation';
 import { authService } from '../services';
@@ -395,8 +396,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 48,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
+    paddingTop: ScreenLayout.safeAreaTopPadding,
     paddingBottom: 8,
   },
   backButton: {
@@ -495,8 +496,8 @@ const styles = StyleSheet.create({
     height: 21,
   },
   footer: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
+    paddingBottom: ScreenLayout.footerBottomSpacing,
     paddingTop: 20,
     alignItems: 'center',
   },
