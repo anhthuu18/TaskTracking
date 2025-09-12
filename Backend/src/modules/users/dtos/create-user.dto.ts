@@ -9,6 +9,7 @@ export class CreateUserDTO {
   @IsEmail()
   email: string;
 
+
   @IsNotEmpty({ message: 'Mật khẩu không được để trống' })
   @IsString({ message: 'Mật khẩu phải là chuỗi' })
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
@@ -19,6 +20,7 @@ export class CreateUserDTO {
 
   @IsNotEmpty({ message: 'Xác nhận mật khẩu không được để trống' })
   @IsString({ message: 'Xác nhận mật khẩu phải là chuỗi' })
+
   confirmPassword: string;
 
   @IsOptional()

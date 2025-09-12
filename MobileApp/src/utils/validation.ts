@@ -51,6 +51,7 @@ export const validatePassword = (password: string): ValidationResult => {
   }
 
   // Check for at least one uppercase letter, one lowercase letter, and one number first
+
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
   if (!passwordRegex.test(password)) {
     return {
