@@ -80,6 +80,61 @@ export const ZIndex = {
   fab: 996,
 };
 
+// Screen Layout Spacing - Centralized configuration for consistent spacing across all screens
+export const ScreenLayout = {
+  // Header spacing from top of screen
+  headerTopSpacing: 60,
+  
+  // Footer spacing from bottom of screen  
+  footerBottomSpacing: 60,
+  
+  // Content horizontal padding (left/right margins)
+  contentHorizontalPadding: 20,
+  
+  // Content vertical spacing 
+  contentTopSpacing: 30,
+  contentBottomSpacing: 20,
+  
+  // Section spacing
+  sectionSpacing: 30,
+  
+  // Safe area adjustments
+  safeAreaTopPadding: 48,
+  safeAreaBottomPadding: 30,
+};
+
+// Button Styles - Consistent button configurations
+export const ButtonStyles = {
+  // Primary action button (like OnboardingScreen next button)
+  primary: {
+    paddingVertical: 18,
+    paddingHorizontal: Spacing.xxl, // 48px
+    borderRadius: BorderRadius.xl,  // 24px
+    minWidth: 200,
+    minHeight: 54,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  
+  // Secondary button
+  secondary: {
+    paddingVertical: 16,
+    paddingHorizontal: Spacing.xl,  // 32px
+    borderRadius: BorderRadius.lg,  // 16px
+    minHeight: Heights.button,      // 48px
+  },
+  
+  // Small button
+  small: {
+    paddingVertical: 12,
+    paddingHorizontal: Spacing.lg,  // 24px
+    borderRadius: BorderRadius.md,  // 12px
+    minHeight: 40,
+  },
+};
+
 export const Typography = {
     title: {
       fontSize: FontSize.title,
@@ -117,5 +172,10 @@ export const Typography = {
       fontWeight: FontWeight.medium,
       fontFamily: 'SF Pro Text',
     },
+    // Button text styles
+    buttonText: {
+      fontSize: FontSize.body,
+      fontWeight: FontWeight.medium,
+      fontFamily: 'SF Pro Text',
+    },
   };
-  
