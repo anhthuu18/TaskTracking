@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test OTP SMS</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 500px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .step {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .otp-display {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            color: #667eea;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            letter-spacing: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 Test OTP SMS</h1>
+        
+        <div class="step">
+            <h3>Bước 1: Gửi OTP</h3>
+            <div class="form-group">
+                <label for="phone">Số điện thoại:</label>
+                <input type="tel" id="phone" placeholder="0987654321" value="0987654321">
+            </div>
+            <button onclick="sendOtp()">📱 Gửi OTP</button>
+        </div>
+
+        <div class="step">
+            <h3>Bước 2: Xác thực OTP</h3>
+            <div class="form-group">
+                <label for="otp">Mã OTP (check console log):</label>
+                <input type="text" id="otp" placeholder="1234" maxlength="4">
+            </div>
+            <button onclick="verifyOtp()">✅ Xác thực OTP</button>
+        </div>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3002';
+        let currentPhone = '';
+
+        async function sendOtp() {
+            const phone = document.getElementById('phone').value;
+            const resultDiv = document.getElementById('result');
+            
+            if (!phone) {
+                showResult('Vui lòng nhập số điện thoại!', 'error');
+                return;
+            }
+
+            currentPhone = phone;
+            
+            try {
+                showResult('Đang gửi OTP...', 'info');
+                
+                const response = await fetch(`${API_BASE}/auth/forgot-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ phone: phone })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult(`✅ Gửi OTP thành công! Check console log để xem mã OTP.`, 'success');
+                } else {
+                    showResult(`❌ Lỗi: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ Lỗi kết nối: ${error.message}`, 'error');
+            }
+        }
+
+        async function verifyOtp() {
+            const otp = document.getElementById('otp').value;
+            const resultDiv = document.getElementById('result');
+            
+            if (!otp) {
+                showResult('Vui lòng nhập mã OTP!', 'error');
+                return;
+            }
+
+            if (!currentPhone) {
+                showResult('Vui lòng gửi OTP trước!', 'error');
+                return;
+            }
+
+            try {
+                showResult('Đang xác thực OTP...', 'info');
+                
+                const response = await fetch(`${API_BASE}/auth/verify-otp`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        phone: currentPhone,
+                        otp: otp 
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult(`✅ Xác thực OTP thành công!`, 'success');
+                } else {
+                    showResult(`❌ Lỗi: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ Lỗi kết nối: ${error.message}`, 'error');
+            }
+        }
+
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<div class="result ${type}">${message}</div>`;
+        }
+
+        // Auto-fill OTP from console (for development)
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'OTP_CODE') {
+                document.getElementById('otp').value = event.data.code;
+                showResult(`📱 Mã OTP tự động: ${event.data.code}`, 'info');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -108,6 +108,22 @@ let UsersService = class UsersService {
             }
         });
     }
+    async findByPhone(phone) {
+        return this.prisma.user.findFirst({
+            where: {
+                phone,
+                dateDeleted: null
+            }
+        });
+    }
+    async updatePassword(id, hashedPassword) {
+        await this.prisma.user.update({
+            where: { id },
+            data: {
+                password: hashedPassword
+            }
+        });
+    }
 };
 exports.UsersService = UsersService;
 exports.UsersService = UsersService = __decorate([

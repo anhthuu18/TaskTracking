@@ -86,20 +86,29 @@ const EnterOTPScreen: React.FC<EnterOTPScreenProps> = ({ navigation, route }) =>
 
     setIsLoading(true);
     try {
-      // TODO: Call API to resend OTP
-      // const response = await authService.resendOTP(phoneNumber);
-      
-      // Simulate API call
-      await new Promise<void>(resolve => setTimeout(resolve, 1000));
-      
-      showSuccess('Mã OTP mới đã được gửi');
-      setResendTimer(30);
-      setCanResend(false);
-      setOtp(['', '', '', '']);
+      // Call API to resend OTP
+      const response = await fetch('http://10.0.2.2:3000/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phone: phoneNumber }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        showSuccess('Mã OTP mới đã được gửi');
+        setResendTimer(30);
+        setCanResend(false);
+        setOtp(['', '', '', '']);
+      } else {
+        showError(data.message || 'Không thể gửi lại mã OTP. Vui lòng thử lại.');
+      }
       
     } catch (error) {
       console.error('Resend OTP error:', error);
-      showError('Không thể gửi lại mã OTP. Vui lòng thử lại.');
+      showError('Lỗi kết nối. Vui lòng kiểm tra internet và thử lại.');
     } finally {
       setIsLoading(false);
     }
@@ -115,22 +124,39 @@ const EnterOTPScreen: React.FC<EnterOTPScreenProps> = ({ navigation, route }) =>
 
     setIsLoading(true);
     try {
-      // TODO: Call API to verify OTP
-      // const response = await authService.verifyOTP(phoneNumber, otpString);
-      
-      // Simulate API call
-      await new Promise<void>(resolve => setTimeout(resolve, 1000));
-      
-      showSuccess('Xác thực OTP thành công');
-      
-      // Navigate to reset password screen
-      setTimeout(() => {
-        navigation.navigate('ResetPassword', { phoneNumber, otp: otpString });
-      }, 1000);
+      // Call API to verify OTP
+      const response = await fetch('http://10.0.2.2:3000/auth/verify-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          phone: phoneNumber, 
+          otpCode: otpString 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        showSuccess('Xác thực OTP thành công');
+        
+        // Navigate to reset password screen
+        setTimeout(() => {
+          navigation.navigate('ResetPassword', { phoneNumber, otp: otpString });
+        }, 1000);
+      } else {
+        showError(data.message || 'Mã OTP không đúng. Vui lòng thử lại.');
+        // Clear OTP inputs on error
+        setOtp(['', '', '', '']);
+        setTimeout(() => {
+          inputRefs.current[0]?.focus();
+        }, 100);
+      }
       
     } catch (error) {
       console.error('Verify OTP error:', error);
-      showError('Mã OTP không đúng. Vui lòng thử lại.');
+      showError('Lỗi kết nối. Vui lòng kiểm tra internet và thử lại.');
     } finally {
       setIsLoading(false);
     }

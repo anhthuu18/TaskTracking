@@ -20,7 +20,7 @@ async function bootstrap() {
     transform: true,
   }));
 
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 3002;
   await app.listen(port);
   
   console.log(`🚀 Ứng dụng đang chạy tại: http://localhost:${port}`);
