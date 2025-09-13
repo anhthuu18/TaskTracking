@@ -15,6 +15,7 @@ import { TextInput } from 'react-native-paper';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
+import { ScreenLayout } from '../constants/Dimensions';
 import { Strings } from '../constants/Strings';
 import { validatePhoneNumber } from '../utils/validation';
 import Toast from '../components/Toast';
@@ -46,22 +47,31 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
     setIsLoading(true);
 
     try {
-      // TODO: Call API to send OTP
-      // const response = await authService.sendOTP(phoneNumber);
-      
-      // Simulate API call
-      await new Promise<void>(resolve => setTimeout(resolve, 1000));
-      
-      showSuccess(Strings.otpSentSuccess);
-      
-      // Navigate to OTP screen after a short delay
-      setTimeout(() => {
-        navigation.navigate('EnterOTP', { phoneNumber });
-      }, 1000);
+      // Call API to send OTP
+      const response = await fetch('http://10.0.2.2:3000/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phone: phoneNumber }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        showSuccess('OTP đã được gửi đến số điện thoại của bạn!');
+        
+        // Navigate to OTP screen after a short delay
+        setTimeout(() => {
+          navigation.navigate('EnterOTP', { phoneNumber });
+        }, 1000);
+      } else {
+        showError(data.message || 'Không thể gửi mã OTP. Vui lòng thử lại.');
+      }
       
     } catch (error) {
       console.error('Send OTP error:', error);
-      showError('Không thể gửi mã OTP. Vui lòng thử lại.');
+      showError('Lỗi kết nối. Vui lòng kiểm tra internet và thử lại.');
     } finally {
       setIsLoading(false);
     }
@@ -198,8 +208,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 32,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
+    paddingTop: ScreenLayout.headerTopSpacing,
     paddingBottom: 8,
   },
   backButton: {
@@ -209,7 +219,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
     paddingTop: 8,
   },
   illustrationContainer: {

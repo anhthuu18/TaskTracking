@@ -110,4 +110,22 @@ export class UsersService {
       }
     });
   }
+
+  async findByPhone(phone: string): Promise<any> {
+    return this.prisma.user.findFirst({
+      where: {
+        phone,
+        dateDeleted: null
+      }
+    });
+  }
+
+  async updatePassword(id: number, hashedPassword: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id },
+      data: {
+        password: hashedPassword
+      }
+    });
+  }
 }

@@ -13,6 +13,7 @@ import { TextInput } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { Colors } from '../constants/Colors';
+import { ScreenLayout } from '../constants/Dimensions';
 import { Strings } from '../constants/Strings';
 import { validateSignInForm, FormErrors } from '../utils/validation';
 import { authService } from '../services';
@@ -86,11 +87,9 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
         // Show success toast
         showSuccess('Đăng nhập thành công!');
         
-        // Set authenticated state after a short delay for toast to show
+        // Navigate to workspace selection after a short delay for toast to show
         setTimeout(() => {
-          if (onLoginSuccess) {
-            onLoginSuccess();
-          }
+          navigation.navigate('WorkspaceSelection');
         }, 1000);
       } else {
         // API returned error
@@ -167,9 +166,9 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
           // Show success toast with short duration
           showSuccess('Đăng nhập Google thành công!');
           
-          // Navigate to main screen (TaskList) after very short delay
+          // Navigate to workspace selection after very short delay
           setTimeout(() => {
-            navigation.navigate('TaskList');
+            navigation.navigate('WorkspaceSelection');
           }, 800);
         } else {
           showError(response.message || 'Đăng nhập Google thất bại');
@@ -397,8 +396,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 48,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
+    paddingTop: ScreenLayout.safeAreaTopPadding,
     paddingBottom: 8,
   },
   backButton: {
@@ -497,8 +496,8 @@ const styles = StyleSheet.create({
     height: 21,
   },
   footer: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
+    paddingBottom: ScreenLayout.footerBottomSpacing,
     paddingTop: 20,
     alignItems: 'center',
   },

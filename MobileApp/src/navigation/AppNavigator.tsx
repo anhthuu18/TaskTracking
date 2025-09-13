@@ -2,14 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 
-import SplashScreen from '../screens/SplashScreen';
-import OnboardingScreen from '../screens/OnboardingScreen';
-import SignUpScreen from '../screens/SignUpScreen';
-import SignInScreen from '../screens/SignInScreen';
-import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
-import EnterOTPScreen from '../screens/EnterOTPScreen';
-import ResetPasswordScreen from '../screens/ResetPasswordScreen';
-import TaskListScreen from '../screens/TaskListScreen';
+import {
+  SplashScreen,
+  OnboardingScreen,
+  SignUpScreen,
+  SignInScreen,
+  ForgotPasswordScreen,
+  EnterOTPScreen,
+  ResetPasswordScreen,
+  WorkspaceSelectionScreen,
+  CreateWorkspaceScreen,
+  TaskListScreen
+} from '../screens';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -19,7 +23,9 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   EnterOTP: { phoneNumber: string };
   ResetPassword: { phoneNumber: string; otp: string };
-  TaskList: undefined;
+  WorkspaceSelection: undefined;
+  CreateWorkspace: undefined;
+  TaskList: { workspace?: any };
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -106,6 +112,20 @@ const AppNavigator: React.FC = () => {
               }}
             />
             <Stack.Screen
+              name="WorkspaceSelection"
+              component={WorkspaceSelectionScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="CreateWorkspace"
+              component={CreateWorkspaceScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="TaskList"
               component={TaskListScreen}
               options={{
@@ -114,13 +134,29 @@ const AppNavigator: React.FC = () => {
             />
           </>
         ) : (
-          <Stack.Screen
-            name="TaskList"
-            component={TaskListScreen}
-            options={{
-              headerShown: false,
-            }}
-          />
+          <>
+            <Stack.Screen
+              name="WorkspaceSelection"
+              component={WorkspaceSelectionScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="CreateWorkspace"
+              component={CreateWorkspaceScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="TaskList"
+              component={TaskListScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

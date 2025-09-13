@@ -1,10 +1,13 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../../users/services/users.service';
 import { CreateUserDTO, CreateUserData } from '../../users/dtos/create-user.dto';
 import { LoginDTO } from '../dtos/login.dto';
 import { GoogleLoginDTO } from '../dtos/google-login.dto';
+import { ForgotPasswordDTO, VerifyOtpDTO, ResetPasswordDTO } from '../dtos/forgot-password.dto';
 import { OAuth2Client } from 'google-auth-library';
+import { OtpService } from '../../../services/otp.service';
+import { PrismaService } from '../../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -14,6 +17,8 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly otpService: OtpService,
+    private readonly prisma: PrismaService,
   ) {
     // Sử dụng Android Client ID làm default
     this.googleClient = new OAuth2Client(process.env.GOOGLE_ANDROID_CLIENT_ID);
@@ -246,5 +251,162 @@ export class AuthService {
       }
       throw new UnauthorizedException('Đăng nhập Google Web thất bại');
     }
+  }
+
+  // Forgot Password Flow Methods
+
+  /**
+   * Bước 1: Gửi OTP đến số điện thoại
+   */
+  async sendForgotPasswordOtp(forgotPasswordDto: ForgotPasswordDTO) {
+    try {
+      // Chuẩn hóa số điện thoại (loại bỏ +84, 84 và thay bằng 0)
+      const normalizedPhone = this.normalizePhoneNumber(forgotPasswordDto.phone);
+
+      // Kiểm tra user có tồn tại với số điện thoại này không
+      const user = await this.usersService.findByPhone(normalizedPhone);
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy tài khoản với số điện thoại này');
+      }
+
+      // Gửi OTP
+      const result = await this.otpService.sendOtpSms(
+        normalizedPhone,
+        { length: 4, expiryMinutes: 5 }
+      );
+
+      if (!result.success) {
+        throw new BadRequestException(result.message);
+      }
+
+      return {
+        success: true,
+        message: 'Mã OTP đã được gửi đến số điện thoại của bạn',
+        data: {
+          phone: normalizedPhone,
+          expiresAt: result.expiresAt,
+        },
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Có lỗi xảy ra khi gửi mã OTP');
+    }
+  }
+
+  /**
+   * Bước 2: Xác thực OTP
+   */
+  async verifyForgotPasswordOtp(verifyOtpDto: VerifyOtpDTO) {
+    try {
+      const normalizedPhone = this.normalizePhoneNumber(verifyOtpDto.phone);
+
+      // Xác thực OTP
+      const verifyResult = await this.otpService.verifyOtp(
+        normalizedPhone,
+        verifyOtpDto.otpCode
+      );
+
+      if (!verifyResult.isValid) {
+        throw new BadRequestException(verifyResult.message);
+      }
+
+      return {
+        success: true,
+        message: 'Xác thực OTP thành công',
+        data: {
+          phone: normalizedPhone,
+          canResetPassword: true,
+        },
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Có lỗi xảy ra khi xác thực OTP');
+    }
+  }
+
+  /**
+   * Bước 3: Đặt lại mật khẩu
+   */
+  async resetPassword(resetPasswordDto: ResetPasswordDTO) {
+    try {
+      const normalizedPhone = this.normalizePhoneNumber(resetPasswordDto.phone);
+
+      // Kiểm tra mật khẩu xác nhận
+      if (resetPasswordDto.newPassword !== resetPasswordDto.confirmPassword) {
+        throw new BadRequestException('Mật khẩu xác nhận không khớp');
+      }
+
+      // Kiểm tra có OTP đã được xác thực gần đây không (trong vòng 10 phút)
+      const recentOtp = await this.prisma.otpCode.findFirst({
+        where: {
+          phone: normalizedPhone,
+          isUsed: true,
+          dateCreated: {
+            gte: new Date(Date.now() - 10 * 60 * 1000), // 10 phút trước
+          },
+        },
+        orderBy: {
+          dateCreated: 'desc',
+        },
+      });
+
+      if (!recentOtp) {
+        throw new BadRequestException('Phiên xác thực đã hết hạn. Vui lòng thực hiện lại từ đầu');
+      }
+
+      // Tìm user theo số điện thoại
+      const user = await this.usersService.findByPhone(normalizedPhone);
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy tài khoản');
+      }
+
+      // Hash mật khẩu mới
+      const hashedPassword = await bcrypt.hash(resetPasswordDto.newPassword, 10);
+
+      // Cập nhật mật khẩu
+      await this.usersService.updatePassword(user.id, hashedPassword);
+
+      // Xóa tất cả OTP cũ của user này để bảo mật
+      await this.prisma.otpCode.deleteMany({
+        where: {
+          phone: normalizedPhone,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Đặt lại mật khẩu thành công',
+        data: {
+          userId: user.id,
+          username: user.username,
+        },
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Có lỗi xảy ra khi đặt lại mật khẩu');
+    }
+  }
+
+  /**
+   * Helper method: Chuẩn hóa số điện thoại
+   */
+  private normalizePhoneNumber(phone: string): string {
+    // Loại bỏ khoảng trắng và ký tự đặc biệt
+    let normalized = phone.replace(/\s+/g, '').replace(/[^\d+]/g, '');
+    
+    // Chuyển đổi +84 hoặc 84 thành 0
+    if (normalized.startsWith('+84')) {
+      normalized = '0' + normalized.substring(3);
+    } else if (normalized.startsWith('84')) {
+      normalized = '0' + normalized.substring(2);
+    }
+    
+    return normalized;
   }
 }
