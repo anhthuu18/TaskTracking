@@ -23,6 +23,9 @@ model User {
   dateModified DateTime @updatedAt @map("DateModified")
   dateCreated  DateTime @default(now()) @map("DateCreated")
 
+  // Relations
+  workspaces          Workspace[]       @relation("UserWorkspaces")
+
   @@map("Users")
 }
 
@@ -36,3 +39,38 @@ model Role {
 
   @@map("Roles")
 }
+
+model OtpCode {
+  id          Int      @id @default(autoincrement()) @map("OtpID")
+  phone       String   @db.VarChar(15) @map("Phone")
+  otpCode     String   @db.VarChar(6) @map("OtpCode")
+  isUsed      Boolean  @default(false) @map("IsUsed")    // Đánh dấu OTP đã được sử dụng thành công
+  attempts    Int      @default(0) @map("Attempts")      // Số lần nhập sai (bảo mật chống brute force)
+  expiresAt   DateTime @map("ExpiresAt")                 // Thời gian hết hạn OTP
+  dateCreated DateTime @default(now()) @map("DateCreated")
+
+  @@map("OtpCodes")
+  @@index([phone])
+}
+
+enum WorkspaceType {
+  PERSONAL
+  GROUP
+}
+
+model Workspace {
+  id            Int           @id @default(autoincrement()) @map("WorkspaceID")
+  workspaceName String        @db.VarChar(100) @map("WorkspaceName")
+  description   String?       @db.Text @map("Description") // PostgreSQL Text type for unlimited length
+  userId        Int           @map("UserID")
+  workspaceType WorkspaceType @map("WorkspaceType")
+  dateDeleted   DateTime?     @map("DateDeleted")
+  dateModified  DateTime      @updatedAt @map("DateModified")
+  dateCreated   DateTime      @default(now()) @map("DateCreated")
+
+  // Relations
+  user             User               @relation("UserWorkspaces", fields: [userId], references: [id])
+
+ 
+}
+
