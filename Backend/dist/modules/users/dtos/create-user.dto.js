@@ -25,7 +25,6 @@ __decorate([
     __metadata("design:type", String)
 ], CreateUserDTO.prototype, "email", void 0);
 __decorate([
-
     (0, class_validator_1.IsNotEmpty)({ message: 'Mật khẩu không được để trống' }),
     (0, class_validator_1.IsString)({ message: 'Mật khẩu phải là chuỗi' }),
     (0, class_validator_1.Matches)(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
@@ -37,7 +36,6 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsNotEmpty)({ message: 'Xác nhận mật khẩu không được để trống' }),
     (0, class_validator_1.IsString)({ message: 'Xác nhận mật khẩu phải là chuỗi' }),
-
     __metadata("design:type", String)
 ], CreateUserDTO.prototype, "confirmPassword", void 0);
 __decorate([

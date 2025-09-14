@@ -25,6 +25,7 @@ model User {
 
   // Relations
   workspaces          Workspace[]       @relation("UserWorkspaces")
+  workspaceMembers    WorkspaceMember[] @relation("UserWorkspaceMembers")
 
   @@map("Users")
 }
@@ -71,8 +72,40 @@ model Workspace {
 
   // Relations
   user             User               @relation("UserWorkspaces", fields: [userId], references: [id])
+  workspaceMembers WorkspaceMember[]  @relation("WorkspaceMembers")
 
- 
+  // PostgreSQL optimizations
+  @@index([userId]) // Index for finding workspaces by user
+  @@index([workspaceType]) // Index for filtering by workspace type
+  @@index([dateCreated]) // Index for sorting by creation date
+  @@index([dateDeleted]) // Index for soft delete queries
+  @@map("Workspaces")
+}
+
+enum MemberRole {
+  OWNER
+  MEMBER
+}
+
+model WorkspaceMember {
+  id          Int        @id @default(autoincrement()) @map("WorkspaceMemberID")
+  workspaceId Int        @map("WorkspaceID")
+  userId      Int        @map("UserID")
+  role        MemberRole @default(MEMBER) @map("Role")
+  joinedAt    DateTime   @default(now()) @map("JoinedAt")
+  dateDeleted DateTime?  @map("DateDeleted")
+
+  // Relations
+  workspace   Workspace  @relation("WorkspaceMembers", fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User       @relation("UserWorkspaceMembers", fields: [userId], references: [id], onDelete: Cascade)
+
+  // PostgreSQL optimizations
+  @@unique([workspaceId, userId], name: "unique_workspace_user")
+  @@index([workspaceId]) // Index for finding members by workspace
+  @@index([userId]) // Index for finding workspaces by user
+  @@index([role]) // Index for filtering by role
+  @@index([dateDeleted]) // Index for soft delete queries
+  @@map("WorkspaceMembers")
 }
 
 
