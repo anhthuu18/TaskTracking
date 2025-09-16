@@ -12,8 +12,10 @@ import {
   ResetPasswordScreen,
   WorkspaceSelectionScreen,
   CreateWorkspaceScreen,
-  TaskListScreen
+  TaskListScreen,
+  WorkspaceDashboardScreen
 } from '../screens';
+import ProjectListScreen from '../screens/ProjectListScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -25,7 +27,9 @@ export type RootStackParamList = {
   ResetPassword: { phoneNumber: string; otp: string };
   WorkspaceSelection: undefined;
   CreateWorkspace: undefined;
+  WorkspaceDashboard: { workspace: any };
   TaskList: { workspace?: any };
+  ProjectList: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -126,8 +130,22 @@ const AppNavigator: React.FC = () => {
               }}
             />
             <Stack.Screen
+              name="WorkspaceDashboard"
+              component={WorkspaceDashboardScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="TaskList"
               component={TaskListScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="ProjectList"
+              component={ProjectListScreen}
               options={{
                 headerShown: false,
               }}
@@ -150,8 +168,22 @@ const AppNavigator: React.FC = () => {
               }}
             />
             <Stack.Screen
+              name="WorkspaceDashboard"
+              component={WorkspaceDashboardScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="TaskList"
               component={TaskListScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="ProjectList"
+              component={ProjectListScreen}
               options={{
                 headerShown: false,
               }}

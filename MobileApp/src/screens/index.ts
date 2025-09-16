@@ -12,6 +12,7 @@ export { default as OnboardingScreen } from './OnboardingScreen';
 // Workspace Screens
 export { default as WorkspaceSelectionScreen } from './WorkspaceSelectionScreen';
 export { default as CreateWorkspaceScreen } from './CreateWorkspaceScreen';
+export { default as WorkspaceDashboardScreen } from './WorkspaceDashboardScreen';
 
 // Main App Screens
 export { default as TaskListScreen } from './TaskListScreen';

@@ -25,7 +25,7 @@ export class WorkspaceMemberResponseDto {
   joinedAt: Date;
   user: {
     id: number;
-    username: string;
+    username: string; 
     email: string;
   };
 }

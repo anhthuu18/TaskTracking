@@ -118,8 +118,8 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   const hasMoreWorkspaces = filteredWorkspaces.length > 4;
 
   const handleWorkspaceSelect = (workspace: Workspace) => {
-    // Navigate to TaskList with selected workspace
-    navigation.navigate('TaskList', { workspace });
+    // Navigate to WorkspaceDashboard with selected workspace
+    navigation.navigate('WorkspaceDashboard', { workspace });
   };
 
   const handleCreateWorkspace = () => {
