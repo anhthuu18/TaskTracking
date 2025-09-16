@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -24,8 +18,10 @@ model User {
   dateCreated  DateTime @default(now()) @map("DateCreated")
 
   // Relations
-  workspaces          Workspace[]       @relation("UserWorkspaces")
-  workspaceMembers    WorkspaceMember[] @relation("UserWorkspaceMembers")
+  createdWorkspaces   Workspace[]       @relation("UserWorkspaces")
+  workspaceMemberships WorkspaceMember[] @relation("WorkspaceMembers")
+  createdProjects     Project[]         @relation("CreatedProjects")
+  projectMemberships  ProjectMember[]   @relation("ProjectMembers")
 
   @@map("Users")
 }
@@ -34,7 +30,7 @@ model Role {
   id           Int      @id @default(autoincrement()) @map("RoleID")
   roleName     String   @db.VarChar(20) @map("RoleName")
   description  String?  @map("Description")
-  permissionId Json?    @map("PermissionID") // Sử dụng Json để lưu trữ mảng các quyền
+  permissionId Json?    @map("PermissionID")
   dateCreated  DateTime @default(now()) @map("DateCreated")
   dateModified DateTime @updatedAt @map("DateModified")
 
@@ -60,10 +56,16 @@ enum WorkspaceType {
   GROUP
 }
 
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
 model Workspace {
   id            Int           @id @default(autoincrement()) @map("WorkspaceID")
   workspaceName String        @db.VarChar(100) @map("WorkspaceName")
-  description   String?       @db.Text @map("Description") // PostgreSQL Text type for unlimited length
+  description   String?       @db.Text @map("Description")
   userId        Int           @map("UserID")
   workspaceType WorkspaceType @map("WorkspaceType")
   dateDeleted   DateTime?     @map("DateDeleted")
@@ -72,40 +74,104 @@ model Workspace {
 
   // Relations
   user             User               @relation("UserWorkspaces", fields: [userId], references: [id])
-  workspaceMembers WorkspaceMember[]  @relation("WorkspaceMembers")
+  workspaceMembers WorkspaceMember[]
+  projects        Project[]
 
   // PostgreSQL optimizations
-  @@index([userId]) // Index for finding workspaces by user
-  @@index([workspaceType]) // Index for filtering by workspace type
-  @@index([dateCreated]) // Index for sorting by creation date
-  @@index([dateDeleted]) // Index for soft delete queries
+  @@index([userId])
+  @@index([workspaceType])
+  @@index([dateCreated])
+  @@index([dateDeleted])
   @@map("Workspaces")
 }
 
-enum MemberRole {
-  OWNER
-  MEMBER
-}
-
 model WorkspaceMember {
-  id          Int        @id @default(autoincrement()) @map("WorkspaceMemberID")
-  workspaceId Int        @map("WorkspaceID")
-  userId      Int        @map("UserID")
-  role        MemberRole @default(MEMBER) @map("Role")
-  joinedAt    DateTime   @default(now()) @map("JoinedAt")
-  dateDeleted DateTime?  @map("DateDeleted")
+  id          Int         @id @default(autoincrement()) @map("WorkspaceMemberID")
+  workspaceId Int         @map("WorkspaceID")
+  userId      Int         @map("UserID")
+  role        MemberRole  @default(MEMBER) @map("Role")
+  joinedAt    DateTime    @default(now()) @map("JoinedAt")
+  dateDeleted DateTime?   @map("DateDeleted")
 
   // Relations
-  workspace   Workspace  @relation("WorkspaceMembers", fields: [workspaceId], references: [id], onDelete: Cascade)
-  user        User       @relation("UserWorkspaceMembers", fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation("WorkspaceMembers", fields: [userId], references: [id], onDelete: Cascade)
 
-  // PostgreSQL optimizations
-  @@unique([workspaceId, userId], name: "unique_workspace_user")
-  @@index([workspaceId]) // Index for finding members by workspace
-  @@index([userId]) // Index for finding workspaces by user
-  @@index([role]) // Index for filtering by role
-  @@index([dateDeleted]) // Index for soft delete queries
+  @@unique([workspaceId, userId])
   @@map("WorkspaceMembers")
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([role])
+  @@index([dateDeleted])
 }
 
+model Project {
+  id           Int      @id @default(autoincrement()) @map("ProjectID")
+  projectName  String   @db.VarChar(100) @map("ProjectName")
+  workspaceId  Int      @map("WorkspaceID")
+  description  String?  @db.Text @map("Description")
+  createdBy    Int      @map("CreatedBy")
+  dateDeleted  DateTime? @map("DateDeleted")
+  dateModified DateTime @updatedAt @map("DateModified")
+  dateCreated  DateTime @default(now()) @map("DateCreated")
 
+  // Relations
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id])
+  creator      User          @relation("CreatedProjects", fields: [createdBy], references: [id])
+  members      ProjectMember[]
+  projectRoles ProjectRole[]
+
+  @@map("Projects")
+}
+
+model ProjectMember {
+  id            Int      @id @default(autoincrement()) @map("ProjectMemberID")
+  projectId     Int      @map("ProjectID")
+  userId        Int      @map("UserID")
+  projectRoleId Int      @map("ProjectRoleID")
+  dateJoined    DateTime @default(now()) @map("DateJoined")
+
+  // Relations
+  project     Project     @relation(fields: [projectId], references: [id])
+  user        User        @relation("ProjectMembers", fields: [userId], references: [id])
+  projectRole ProjectRole @relation(fields: [projectRoleId], references: [id])
+
+  @@map("ProjectMembers")
+}
+
+model ProjectRole {
+  id           Int      @id @default(autoincrement()) @map("ProjectRoleID")
+  projectId    Int      @map("ProjectID")
+  roleName     String   @db.VarChar(100) @map("RoleName")
+  description  String?  @db.VarChar(200) @map("Description")
+  dateCreated  DateTime @default(now()) @map("DateCreated")
+  dateModified DateTime @updatedAt @map("DateModified")
+
+  // Relations
+  project           Project                  @relation(fields: [projectId], references: [id])
+  permissions       ProjectRolePermission[]
+  projectMembers    ProjectMember[]
+
+  @@map("ProjectRoles")
+}
+
+model Permission {
+  id             Int                   @id @default(autoincrement()) @map("PermissionID")
+  permissionName String                @unique @db.VarChar(100) @map("PermissionName")
+  description    String?               @db.VarChar(200) @map("Description")
+  projectRoles   ProjectRolePermission[]
+
+  @@map("Permissions")
+}
+
+model ProjectRolePermission {
+  projectRoleId Int @map("ProjectRoleID")
+  permissionId  Int @map("PermissionID")
+
+  // Relations
+  projectRole ProjectRole @relation(fields: [projectRoleId], references: [id])
+  permission  Permission  @relation(fields: [permissionId], references: [id])
+
+  @@id([projectRoleId, permissionId])
+  @@map("ProjectRolePermissions")
+}
