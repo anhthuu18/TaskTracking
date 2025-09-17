@@ -13,9 +13,10 @@ import {
   WorkspaceSelectionScreen,
   CreateWorkspaceScreen,
   TaskListScreen,
-  WorkspaceDashboardScreen
+  WorkspaceDashboardScreen,
+  ProjectListScreen,
+  ProjectDetailScreen
 } from '../screens';
-import ProjectListScreen from '../screens/ProjectListScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -29,7 +30,8 @@ export type RootStackParamList = {
   CreateWorkspace: undefined;
   WorkspaceDashboard: { workspace: any };
   TaskList: { workspace?: any };
-  ProjectList: undefined;
+  ProjectList: { workspace?: any };
+  ProjectDetail: { project: any };
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -150,6 +152,13 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             />
+            <Stack.Screen
+              name="ProjectDetail"
+              component={ProjectDetailScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
           </>
         ) : (
           <>
@@ -184,6 +193,13 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen
               name="ProjectList"
               component={ProjectListScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="ProjectDetail"
+              component={ProjectDetailScreen}
               options={{
                 headerShown: false,
               }}

@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Animated,
-  PanResponder,
-  Dimensions,
+  Alert,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
+import { CreateProjectModal, FloatingActionMenu } from '../components';
+import { CreateProjectRequest, WorkspaceMember } from '../types/Project';
 
 interface ProjectListScreenProps {
   navigation: any;
@@ -29,9 +29,88 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
   const [selectedTab, setSelectedTab] = React.useState<'projects' | 'completed'>('projects');
   const [longPressedProject, setLongPressedProject] = React.useState<number | null>(null);
   const [currentUser] = React.useState({ id: 1, role: 'admin' }); // Mock current user
+  const [showCreateProjectModal, setShowCreateProjectModal] = React.useState(false);
+  const [workspaceMembers, setWorkspaceMembers] = React.useState<WorkspaceMember[]>([]);
   
   // Get workspace from navigation params
   const selectedWorkspace = route?.params?.workspace;
+
+  // Load workspace members on component mount
+  React.useEffect(() => {
+    if (selectedWorkspace?.id) {
+      loadWorkspaceMembers();
+    }
+  }, [selectedWorkspace?.id]);
+
+  const loadWorkspaceMembers = async () => {
+    try {
+      // Mock workspace members for now - replace with actual API call
+      const mockMembers: WorkspaceMember[] = [
+        {
+          id: '1',
+          userId: '1',
+          username: 'john_doe',
+          email: 'john@example.com',
+          role: 'admin',
+        },
+        {
+          id: '2',
+          userId: '2',
+          username: 'jane_smith',
+          email: 'jane@example.com',
+          role: 'member',
+        },
+        {
+          id: '3',
+          userId: '3',
+          username: 'bob_wilson',
+          email: 'bob@example.com',
+          role: 'member',
+        },
+      ];
+      setWorkspaceMembers(mockMembers);
+      
+      // Uncomment when backend is ready:
+      // const members = await projectService.getWorkspaceMembers(selectedWorkspace.id.toString());
+      // setWorkspaceMembers(members);
+    } catch (error) {
+      console.error('Error loading workspace members:', error);
+    }
+  };
+
+  const handleCreateProject = async (projectData: CreateProjectRequest) => {
+    try {
+      // Mock project creation for now - replace with actual API call
+      console.log('Creating project:', projectData);
+      Alert.alert('Success', 'Project created successfully!');
+      
+      // Uncomment when backend is ready:
+      // const newProject = await projectService.createProject(projectData);
+      // console.log('Project created:', newProject);
+      
+      // Refresh project list here
+      // loadProjects();
+      
+    } catch (error) {
+      console.error('Error creating project:', error);
+      Alert.alert('Error', 'Failed to create project. Please try again.');
+    }
+  };
+
+  const handleFloatingMenuActions = {
+    onCreateTask: () => {
+      Alert.alert('Create Task', 'Task creation feature coming soon!');
+    },
+    onCreateProject: () => {
+      setShowCreateProjectModal(true);
+    },
+    onCreateTeam: () => {
+      Alert.alert('Create Team', 'Team creation feature coming soon!');
+    },
+    onCreateMeeting: () => {
+      Alert.alert('Create Meeting', 'Meeting creation feature coming soon!');
+    },
+  };
 
   // Mock projects data - in real app, this would be filtered by workspace ID
   const mockProjects = [
@@ -132,6 +211,34 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
       onPress={() => {
         if (longPressedProject === project.id) {
           setLongPressedProject(null);
+        } else {
+          // Navigate to project detail screen
+          navigation.navigate('ProjectDetail', { 
+            project: {
+              id: project.id.toString(),
+              name: project.title,
+              description: '',
+              startDate: new Date(project.startDate),
+              endDate: new Date(project.endDate),
+              workspaceId: selectedWorkspace?.id?.toString() || '',
+              createdBy: project.createdBy.toString(),
+              members: project.teamMembers.map((member: any, index: number) => ({
+                id: member.id.toString(),
+                userId: member.id.toString(),
+                username: member.name,
+                email: `${member.name.toLowerCase()}@example.com`,
+                role: index === 0 ? 'owner' : 'member',
+                joinedAt: new Date(),
+              })),
+              labels: [],
+              status: 'active',
+              progress: project.progress,
+              completedTasks: project.completedTasks,
+              totalTasks: project.totalTasks,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }
+          });
         }
       }}
       delayLongPress={500}
@@ -220,7 +327,10 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
         <Text style={styles.headerTitle}>
           {selectedWorkspace ? selectedWorkspace.name : 'Project'}
         </Text>
-        <TouchableOpacity style={styles.addButton}>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => setShowCreateProjectModal(true)}
+        >
           <MaterialIcons name="add" size={24} color={Colors.surface} />
         </TouchableOpacity>
       </View>
@@ -267,6 +377,18 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
           }
         </View>
       </ScrollView>
+
+      {/* Floating Action Menu */}
+      <FloatingActionMenu {...handleFloatingMenuActions} />
+
+      {/* Create Project Modal */}
+      <CreateProjectModal
+        visible={showCreateProjectModal}
+        onClose={() => setShowCreateProjectModal(false)}
+        onCreateProject={handleCreateProject}
+        workspaceId={selectedWorkspace?.id?.toString() || ''}
+        workspaceMembers={workspaceMembers}
+      />
     </View>
   );
 };

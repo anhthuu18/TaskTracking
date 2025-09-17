@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, StatusBar, ScrollView, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { RouteProp } from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { Colors } from '../constants/Colors';
 import { ScreenLayout } from '../constants/Dimensions';
 import type { RootStackParamList } from '../navigation/AppNavigator';
+import { CreateProjectModal } from '../components';
 
 // Home Screen Component
 const HomeScreen = ({ navigation }: { navigation: any }) => {
@@ -418,7 +419,9 @@ type WorkspaceDashboardRouteProp = RouteProp<RootStackParamList, 'WorkspaceDashb
 
 const WorkspaceDashboardScreen: React.FC = () => {
   const route = useRoute<WorkspaceDashboardRouteProp>();
+  const navigation = useNavigation();
   const { workspace } = route.params || {};
+  const [isCreateProjectModalVisible, setIsCreateProjectModalVisible] = useState(false);
 
   return (
     <View style={styles.container}>
@@ -430,10 +433,7 @@ const WorkspaceDashboardScreen: React.FC = () => {
         </View>
         <TouchableOpacity 
           style={styles.addButton}
-          onPress={() => {
-            // Navigate to add project screen
-            console.log('Add new project');
-          }}
+          onPress={() => setIsCreateProjectModalVisible(true)}
         >
           <MaterialIcons name="add" size={24} color={Colors.surface} />
         </TouchableOpacity>
@@ -485,6 +485,16 @@ const WorkspaceDashboardScreen: React.FC = () => {
           }}
         />
       </Tab.Navigator>
+      
+      <CreateProjectModal
+        visible={isCreateProjectModalVisible}
+        onClose={() => setIsCreateProjectModalVisible(false)}
+        onProjectCreated={(project: any) => {
+          setIsCreateProjectModalVisible(false);
+          // Navigate to project detail or refresh project list
+          console.log('Project created:', project);
+        }}
+      />
     </View>
   );
 };
