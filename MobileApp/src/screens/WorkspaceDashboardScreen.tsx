@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, StatusBar, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, ScrollView, TouchableOpacity, Modal, FlatList } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { RouteProp } from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -7,11 +7,175 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { Colors } from '../constants/Colors';
 import { ScreenLayout } from '../constants/Dimensions';
 import type { RootStackParamList } from '../navigation/AppNavigator';
-import { CreateProjectModal } from '../components';
+import { CreateProjectModal, CreateActionDropdown, CreateTaskModal, CreateEventModal } from '../components';
 
 // Home Screen Component
-const HomeScreen = ({ navigation }: { navigation: any }) => {
+const HomeScreen = ({ navigation, workspace }: { navigation: any; workspace?: any }) => {
   const [selectedTab, setSelectedTab] = React.useState<'overview' | 'analytics'>('overview');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [taskFilter, setTaskFilter] = useState<string>('all');
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [isCreateProjectModalVisible, setIsCreateProjectModalVisible] = useState(false);
+  
+  const dropdownOptions = [
+    { id: 'task', title: 'Create task', icon: 'add_task' },
+    { id: 'project', title: 'Create project', icon: 'folder' },
+    { id: 'event', title: 'Create event', icon: 'event' },
+  ];
+
+  const filterOptions = [
+    { id: 'all', title: 'All Projects' },
+    { id: 'mane-uikit', title: 'Mane UiKit' },
+    { id: 'mobile-app', title: 'Mobile App' },
+    { id: 'backend', title: 'Backend' },
+  ];
+
+  const getFilterTitle = () => {
+    const option = filterOptions.find(opt => opt.id === taskFilter);
+    return option ? option.title : 'All Projects';
+  };
+
+  // Sample tasks data
+  const allTasks = [
+    {
+      id: '1',
+      title: 'API Integration Testing',
+      project: 'Mane UiKit',
+      projectId: 'mane-uikit',
+      dueDate: new Date('2025-01-15'),
+      priority: 'urgent',
+      icon: 'assignment',
+      color: Colors.error,
+    },
+    {
+      id: '2',
+      title: 'Mobile App UI Design',
+      project: 'Mobile App',
+      projectId: 'mobile-app',
+      dueDate: new Date('2025-01-16'),
+      priority: 'high',
+      icon: 'assignment',
+      color: Colors.warning,
+    },
+    {
+      id: '3',
+      title: 'Database Optimization',
+      project: 'Backend',
+      projectId: 'backend',
+      dueDate: new Date('2025-01-17'),
+      priority: 'medium',
+      icon: 'storage',
+      color: Colors.primary,
+    },
+    {
+      id: '4',
+      title: 'User Authentication',
+      project: 'Backend',
+      projectId: 'backend',
+      dueDate: new Date('2025-01-18'),
+      priority: 'high',
+      icon: 'security',
+      color: Colors.warning,
+    },
+    {
+      id: '5',
+      title: 'Component Library Update',
+      project: 'Mane UiKit',
+      projectId: 'mane-uikit',
+      dueDate: new Date('2025-01-19'),
+      priority: 'medium',
+      icon: 'widgets',
+      color: Colors.primary,
+    },
+    {
+      id: '6',
+      title: 'Performance Testing',
+      project: 'Mobile App',
+      projectId: 'mobile-app',
+      dueDate: new Date('2025-01-20'),
+      priority: 'low',
+      icon: 'speed',
+      color: Colors.accent,
+    },
+  ];
+
+  // Filter and sort tasks
+  const getFilteredTasks = () => {
+    let filtered = allTasks;
+    
+    // Filter by project if not 'all'
+    if (taskFilter !== 'all') {
+      filtered = allTasks.filter(task => task.projectId === taskFilter);
+    }
+    
+    // Sort by due date (closest first)
+    filtered = filtered.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+    
+    // Limit to 5 tasks for 'all' filter
+    if (taskFilter === 'all') {
+      filtered = filtered.slice(0, 5);
+    }
+    
+    return filtered;
+  };
+
+  const getPriorityBadgeStyle = (priority: string) => {
+    switch (priority) {
+      case 'urgent':
+        return styles.urgentBadge;
+      case 'high':
+        return styles.highBadge;
+      case 'medium':
+        return styles.mediumBadge;
+      case 'low':
+        return styles.lowBadge;
+      default:
+        return styles.mediumBadge;
+    }
+  };
+
+  const formatDueDate = (date: Date) => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    if (date.toDateString() === today.toDateString()) {
+      return 'Due: Today';
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+      return 'Due: Tomorrow';
+    } else {
+      return `Due: ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    }
+  };
+
+  const getDeadlineStyle = (date: Date) => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    if (date.toDateString() === today.toDateString()) {
+      return styles.overdue;
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+      return styles.dueSoon;
+    } else {
+      return styles.upcoming;
+    }
+  };
+
+  const handleDropdownSelect = (option: any) => {
+    setShowDropdown(false);
+    switch (option.id) {
+      case 'task':
+        //setShowCreateTaskModal(true);
+        break;
+      case 'project':
+        setIsCreateProjectModalVisible(true);
+        break;
+      case 'event':
+        //setShowCreateEventModal(true);
+        break;
+    }
+  };
 
   return (
   <View style={styles.tabContainer}>
@@ -55,37 +219,70 @@ const HomeScreen = ({ navigation }: { navigation: any }) => {
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleRow}>
                   <MaterialIcons name="analytics" size={20} color={Colors.accent} />
-                  <Text style={styles.sectionTitle}>Task Statistics</Text>
+                  <Text style={styles.sectionTitle}>Workspace Overview</Text>
                 </View>
               </View>
 
-              {/* Statistics Blocks */}
-              <View style={styles.statisticsContainer}>
-                <View style={styles.statBlock}>
-                  <View style={styles.statIconContainer}>
-                    <MaterialIcons name="add-task" size={24} color={Colors.primary} />
+              {/* Enhanced Statistics Grid */}
+              <View style={styles.enhancedStatsContainer}>
+                <View style={styles.statsRow}>
+                  <View style={styles.enhancedStatBlock}>
+                    <View style={styles.statHeader}>
+                      <MaterialIcons name="assignment" size={20} color={Colors.primary} />
+                      <Text style={styles.statTitle}>Total Tasks</Text>
+                    </View>
+                    <Text style={styles.statMainNumber}>48</Text>
+                    <View style={styles.statProgress}>
+                      <View style={styles.statProgressBar}>
+                        <View style={[styles.statProgressFill, { width: '75%', backgroundColor: Colors.primary }]} />
+                      </View>
+                      <Text style={styles.statProgressText}>75% Active</Text>
+                    </View>
                   </View>
-                  <Text style={styles.statNumber}>24</Text>
-                  <Text style={styles.statLabel}>Tasks Created</Text>
-                  <Text style={styles.statPeriod}>Last 7 days</Text>
+
+                  <View style={styles.enhancedStatBlock}>
+                    <View style={styles.statHeader}>
+                      <MaterialIcons name="check_circle" size={20} color={Colors.success} />
+                      <Text style={styles.statTitle}>Completed</Text>
+                    </View>
+                    <Text style={styles.statMainNumber}>36</Text>
+                    <View style={styles.statProgress}>
+                      <View style={styles.statProgressBar}>
+                        <View style={[styles.statProgressFill, { width: '90%', backgroundColor: Colors.success }]} />
+                      </View>
+                      <Text style={styles.statProgressText}>+12 this week</Text>
+                    </View>
+                  </View>
                 </View>
 
-                <View style={styles.statBlock}>
-                  <View style={styles.statIconContainer}>
-                    <MaterialIcons name="task-alt" size={24} color={Colors.success} />
+                <View style={styles.statsRow}>
+                  <View style={styles.enhancedStatBlock}>
+                    <View style={styles.statHeader}>
+                      <MaterialIcons name="schedule" size={20} color={Colors.warning} />
+                      <Text style={styles.statTitle}>Due Soon</Text>
+                    </View>
+                    <Text style={styles.statMainNumber}>6</Text>
+                    <View style={styles.statProgress}>
+                      <View style={styles.statProgressBar}>
+                        <View style={[styles.statProgressFill, { width: '60%', backgroundColor: Colors.warning }]} />
+                      </View>
+                      <Text style={styles.statProgressText}>Next 7 days</Text>
+                    </View>
                   </View>
-                  <Text style={styles.statNumber}>18</Text>
-                  <Text style={styles.statLabel}>Tasks Completed</Text>
-                  <Text style={styles.statPeriod}>Last 7 days</Text>
-                </View>
 
-                <View style={styles.statBlock}>
-                  <View style={styles.statIconContainer}>
-                    <MaterialIcons name="schedule" size={24} color={Colors.warning} />
+                  <View style={styles.enhancedStatBlock}>
+                    <View style={styles.statHeader}>
+                      <MaterialIcons name="trending_up" size={20} color={Colors.accent} />
+                      <Text style={styles.statTitle}>Productivity</Text>
+                    </View>
+                    <Text style={styles.statMainNumber}>92%</Text>
+                    <View style={styles.statProgress}>
+                      <View style={styles.statProgressBar}>
+                        <View style={[styles.statProgressFill, { width: '92%', backgroundColor: Colors.accent }]} />
+                      </View>
+                      <Text style={styles.statProgressText}>↗ +5% vs last week</Text>
+                    </View>
                   </View>
-                  <Text style={styles.statNumber}>6</Text>
-                  <Text style={styles.statLabel}>Due Soon</Text>
-                  <Text style={styles.statPeriod}>Next 3 days</Text>
                 </View>
               </View>
 
@@ -118,11 +315,14 @@ const HomeScreen = ({ navigation }: { navigation: any }) => {
                   {Array.from({ length: 35 }, (_, index) => {
                     const dayNumber = index - 6 + 1;
                     const isCurrentMonth = dayNumber > 0 && dayNumber <= 31;
-                    const hasEvent = [5, 12, 18, 25].includes(dayNumber);
+                    const hasEvent = [5, 12, 18, 25].includes(dayNumber); // Meeting days
+                    const hasUrgentTask = [15, 16].includes(dayNumber); // Urgent tasks
+                    const hasHighTask = [20, 22].includes(dayNumber); // High priority tasks
+                    const hasMediumTask = [18, 24].includes(dayNumber); // Medium priority tasks
                     const isToday = dayNumber === 15;
                     
                     return (
-                      <View key={index} style={[
+                      <TouchableOpacity key={index} style={[
                         styles.calendarDay,
                         isToday && styles.calendarToday,
                         hasEvent && styles.calendarEventDay
@@ -136,8 +336,11 @@ const HomeScreen = ({ navigation }: { navigation: any }) => {
                             {dayNumber}
                           </Text>
                         )}
-                        {hasEvent && <View style={styles.eventDot} />}
-                      </View>
+                        {hasEvent && <View style={[styles.eventDot, styles.meetingDot]} />}
+                        {hasUrgentTask && <View style={[styles.eventDot, styles.urgentTaskDot]} />}
+                        {hasHighTask && <View style={[styles.eventDot, styles.highTaskDot]} />}
+                        {hasMediumTask && <View style={[styles.eventDot, styles.mediumTaskDot]} />}
+                      </TouchableOpacity>
                     );
                   })}
                 </View>
@@ -180,8 +383,12 @@ const HomeScreen = ({ navigation }: { navigation: any }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Project Card */}
-          <View style={styles.projectCard}>
+          {/* Project Card - Clickable */}
+          <TouchableOpacity 
+            style={styles.projectCard}
+            onPress={() => navigation.navigate('ProjectList')}
+            activeOpacity={0.7}
+          >
             <View style={styles.projectHeader}>
               <Text style={styles.projectName}>Mane UiKit</Text>
               <View style={styles.teamMembers}>
@@ -219,7 +426,7 @@ const HomeScreen = ({ navigation }: { navigation: any }) => {
               </View>
               <Text style={styles.tasksText}>24/48 tasks</Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
           {/* Tasks Due Soon Section */}
           <View style={styles.sectionHeader}>
@@ -232,73 +439,107 @@ const HomeScreen = ({ navigation }: { navigation: any }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Tasks List */}
-          <View style={styles.tasksList}>
-            <View style={styles.taskCard}>
-              <View style={styles.taskIcon}>
-                <MaterialIcons name="assignment" size={24} color={Colors.error} />
+          {/* Project Filter Dropdown */}
+          <View style={styles.filterContainer}>
+            <TouchableOpacity 
+              style={styles.filterDropdownButton}
+              onPress={() => setShowFilterDropdown(!showFilterDropdown)}
+            >
+              <Text style={styles.filterDropdownText}>{getFilterTitle()}</Text>
+              <MaterialIcons 
+                name={showFilterDropdown ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
+                size={20} 
+                color={Colors.neutral.medium} 
+              />
+            </TouchableOpacity>
+            
+            {showFilterDropdown && (
+              <View style={styles.filterDropdownMenu}>
+                {filterOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[
+                      styles.filterDropdownItem,
+                      taskFilter === option.id && styles.activeFilterDropdownItem
+                    ]}
+                    onPress={() => {
+                      setTaskFilter(option.id);
+                      setShowFilterDropdown(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.filterDropdownItemText,
+                      taskFilter === option.id && styles.activeFilterDropdownItemText
+                    ]}>
+                      {option.title}
+                    </Text>
+                    {taskFilter === option.id && (
+                      <MaterialIcons name="check" size={16} color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
               </View>
-              <View style={styles.taskContent}>
-                <Text style={styles.taskTitle}>API Integration Testing</Text>
-                <View style={styles.taskDeadline}>
-                  <MaterialIcons name="schedule" size={14} color={Colors.error} />
-                  <Text style={[styles.deadlineText, styles.overdue]}>Due: Today, Jan 15</Text>
-                </View>
-              </View>
-              <View style={[styles.priorityBadge, styles.urgentBadge]}>
-                <Text style={styles.priorityText}>Urgent</Text>
-              </View>
-            </View>
-
-            <View style={styles.taskCard}>
-              <View style={styles.taskIcon}>
-                <MaterialIcons name="assignment" size={24} color={Colors.warning} />
-              </View>
-              <View style={styles.taskContent}>
-                <Text style={styles.taskTitle}>Mobile App UI Design</Text>
-                <View style={styles.taskDeadline}>
-                  <MaterialIcons name="schedule" size={14} color={Colors.warning} />
-                  <Text style={[styles.deadlineText, styles.dueSoon]}>Due: Tomorrow, Jan 16</Text>
-                </View>
-              </View>
-              <View style={styles.priorityBadge}>
-                <Text style={styles.priorityText}>High</Text>
-              </View>
-            </View>
-
-            <View style={styles.taskCard}>
-              <View style={styles.taskIcon}>
-                <MaterialIcons name="assignment" size={24} color={Colors.warning} />
-              </View>
-              <View style={styles.taskContent}>
-                <Text style={styles.taskTitle}>Database Migration</Text>
-                <View style={styles.taskDeadline}>
-                  <MaterialIcons name="schedule" size={14} color={Colors.warning} />
-                  <Text style={[styles.deadlineText, styles.dueSoon]}>Due: Jan 18, 2025</Text>
-                </View>
-              </View>
-              <View style={styles.priorityBadge}>
-                <Text style={styles.priorityText}>Medium</Text>
-              </View>
-            </View>
-
-            <View style={styles.taskCard}>
-              <View style={styles.taskIcon}>
-                <MaterialIcons name="assignment" size={24} color={Colors.neutral.dark} />
-              </View>
-              <View style={styles.taskContent}>
-                <Text style={styles.taskTitle}>Design System Review</Text>
-                <View style={styles.taskDeadline}>
-                  <MaterialIcons name="schedule" size={14} color={Colors.neutral.medium} />
-                  <Text style={styles.deadlineText}>Deadline: 07/01/2021</Text>
-                </View>
-              </View>
-            </View>
+            )}
           </View>
+
+          {/* Tasks List - Scrollable */}
+          <ScrollView style={styles.tasksScrollView} showsVerticalScrollIndicator={false}>
+            <View style={styles.tasksList}>
+              {getFilteredTasks().map((task) => (
+                <View key={task.id} style={styles.taskCard}>
+                  <View style={styles.taskIcon}>
+                    <MaterialIcons name={task.icon as any} size={24} color={task.color} />
+                  </View>
+                  <View style={styles.taskContent}>
+                    <Text style={styles.taskTitle}>{task.title}</Text>
+                    <Text style={styles.taskProject}>{task.project}</Text>
+                    <View style={styles.taskDeadline}>
+                      <MaterialIcons name="schedule" size={14} color={task.color} />
+                      <Text style={[styles.deadlineText, getDeadlineStyle(task.dueDate)]}>
+                        {formatDueDate(task.dueDate)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={[styles.priorityBadge, getPriorityBadgeStyle(task.priority)]}>
+                    <Text style={styles.priorityText}>
+                      {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
             </>
           )}
         </View>
       </ScrollView>
+
+      {/* Dropdown Menu */}
+      <Modal
+        visible={showDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDropdown(false)}
+      >
+        <TouchableOpacity 
+          style={styles.dropdownOverlay}
+          activeOpacity={1}
+          onPress={() => setShowDropdown(false)}
+        >
+          <View style={styles.dropdownMenu}>
+            {dropdownOptions.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                style={styles.dropdownItem}
+                onPress={() => handleDropdownSelect(option)}
+              >
+                <MaterialIcons name={option.icon} size={20} color={Colors.neutral.dark} />
+                <Text style={styles.dropdownItemText}>{option.title}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
   </View>
 );
 };
@@ -422,18 +663,28 @@ const WorkspaceDashboardScreen: React.FC = () => {
   const navigation = useNavigation();
   const { workspace } = route.params || {};
   const [isCreateProjectModalVisible, setIsCreateProjectModalVisible] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
+  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-        <Text style={styles.title}>Dashboard</Text>
-          <MaterialIcons name="info-outline" size={20} color={Colors.neutral.medium} />
+          <View style={styles.titleContainer}>
+            <View style={styles.titleRow}>
+              <MaterialIcons name="dashboard" size={24} color={Colors.primary} />
+              <Text style={styles.title}>Dashboard</Text>
+            </View>
+            <Text style={styles.workspaceWelcome}>
+              Welcome to {workspace?.name || 'Your Workspace'}
+            </Text>
+          </View>
         </View>
         <TouchableOpacity 
           style={styles.addButton}
-          onPress={() => setIsCreateProjectModalVisible(true)}
+          onPress={() => setShowDropdown(true)}
         >
           <MaterialIcons name="add" size={24} color={Colors.surface} />
         </TouchableOpacity>
@@ -449,13 +700,14 @@ const WorkspaceDashboardScreen: React.FC = () => {
       >
         <Tab.Screen 
           name="Home" 
-          component={HomeScreen}
           options={{
             tabBarIcon: ({ color, size }: { color: string; size: number }) => (
               <MaterialIcons name="home" size={size} color={color} />
             ),
           }}
-        />
+        >
+          {(props) => <HomeScreen {...props} workspace={workspace} />}
+        </Tab.Screen>
 
         <Tab.Screen 
           name="Voice" 
@@ -486,13 +738,39 @@ const WorkspaceDashboardScreen: React.FC = () => {
         />
       </Tab.Navigator>
       
+      <CreateActionDropdown
+        visible={showDropdown}
+        onClose={() => setShowDropdown(false)}
+        onCreateProject={() => setIsCreateProjectModalVisible(true)}
+        onCreateTask={() => setShowCreateTaskModal(true)}
+        onCreateEvent={() => setShowCreateEventModal(true)}
+      />
+
       <CreateProjectModal
         visible={isCreateProjectModalVisible}
         onClose={() => setIsCreateProjectModalVisible(false)}
         onProjectCreated={(project: any) => {
           setIsCreateProjectModalVisible(false);
-          // Navigate to project detail or refresh project list
           console.log('Project created:', project);
+        }}
+      />
+
+      <CreateTaskModal
+        visible={showCreateTaskModal}
+        onClose={() => setShowCreateTaskModal(false)}
+        onCreateTask={(taskData: any) => {
+          setShowCreateTaskModal(false);
+          console.log('Task created:', taskData);
+        }}
+        isPersonalWorkspace={true}
+      />
+
+      <CreateEventModal
+        visible={showCreateEventModal}
+        onClose={() => setShowCreateEventModal(false)}
+        onCreateEvent={(eventData: any) => {
+          setShowCreateEventModal(false);
+          console.log('Event created:', eventData);
         }}
       />
     </View>
@@ -516,14 +794,26 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   headerLeft: {
+    flex: 1,
+  },
+  titleContainer: {
+    flex: 1,
+  },
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginBottom: 4,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: Colors.neutral.dark,
+  },
+  workspaceWelcome: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+    fontWeight: '500',
   },
   addButton: {
     width: 48,
@@ -757,6 +1047,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.neutral.dark,
+    marginBottom: 2,
+  },
+  taskProject: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    fontWeight: '500',
     marginBottom: 4,
   },
   taskDeadline: {
@@ -776,6 +1072,9 @@ const styles = StyleSheet.create({
     color: Colors.warning,
     fontWeight: '600',
   },
+  upcoming: {
+    color: Colors.neutral.medium,
+  },
   priorityBadge: {
     backgroundColor: Colors.warning + '20',
     paddingHorizontal: 8,
@@ -786,52 +1085,196 @@ const styles = StyleSheet.create({
   urgentBadge: {
     backgroundColor: Colors.error + '20',
   },
+  highBadge: {
+    backgroundColor: Colors.warning + '20',
+  },
+  mediumBadge: {
+    backgroundColor: Colors.primary + '20',
+  },
+  lowBadge: {
+    backgroundColor: Colors.accent + '20',
+  },
   priorityText: {
     fontSize: 10,
     fontWeight: '600',
     color: Colors.warning,
   },
 
-  // Analytics Screen Styles
-  statisticsContainer: {
+  // Filter Styles
+  filterContainer: {
+    marginBottom: 16,
+    position: 'relative',
+    zIndex: 1000,
+  },
+  filterScrollView: {
+    paddingVertical: 4,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    marginRight: 8,
+  },
+  activeFilterChip: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  filterChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.neutral.medium,
+  },
+  activeFilterChipText: {
+    color: Colors.neutral.white,
+  },
+  filterDropdownButton: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+  },
+  filterDropdownText: {
+    fontSize: 14,
+    color: Colors.neutral.dark,
+    fontWeight: '500',
+  },
+  filterDropdownMenu: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    marginTop: 4,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    zIndex: 1001,
+  },
+  filterDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light,
+  },
+  activeFilterDropdownItem: {
+    backgroundColor: Colors.primary + '10',
+  },
+  filterDropdownItemText: {
+    fontSize: 14,
+    color: Colors.neutral.dark,
+  },
+  activeFilterDropdownItemText: {
+    color: Colors.primary,
+    fontWeight: '500',
+  },
+  tasksScrollView: {
+    maxHeight: 200,
+    marginBottom: 20,
+  },
+
+  // Dropdown Styles
+  dropdownOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 80,
+    paddingRight: 20,
+  },
+  dropdownMenu: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingVertical: 8,
+    minWidth: 180,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     gap: 12,
   },
-  statBlock: {
+  dropdownItemText: {
+    fontSize: 16,
+    color: Colors.neutral.dark,
+    fontWeight: '500',
+  },
+
+  // Enhanced Analytics Screen Styles
+  enhancedStatsContainer: {
+    marginBottom: 24,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  enhancedStatBlock: {
     flex: 1,
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light + '40',
   },
-  statIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.background,
+  statHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: 12,
+    gap: 8,
   },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: Colors.neutral.dark,
-    marginBottom: 4,
-  },
-  statLabel: {
+  statTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.neutral.dark,
-    textAlign: 'center',
-    marginBottom: 4,
+    color: Colors.neutral.medium,
   },
-  statPeriod: {
+  statMainNumber: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: Colors.neutral.dark,
+    marginBottom: 12,
+  },
+  statProgress: {
+    gap: 6,
+  },
+  statProgressBar: {
+    height: 4,
+    backgroundColor: Colors.neutral.light,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  statProgressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  statProgressText: {
     fontSize: 12,
     color: Colors.neutral.medium,
-    textAlign: 'center',
+    fontWeight: '500',
   },
   calendarSection: {
     backgroundColor: Colors.surface,
@@ -873,13 +1316,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    borderRadius: 20,
   },
   calendarToday: {
     backgroundColor: Colors.primary,
     borderRadius: 20,
   },
   calendarEventDay: {
-    backgroundColor: Colors.accent + '20',
+    backgroundColor: Colors.primary + '20',
     borderRadius: 20,
   },
   calendarDayText: {
@@ -900,7 +1344,24 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.accent,
+  },
+  meetingDot: {
+    backgroundColor: Colors.primary,
+    bottom: 8,
+  },
+  urgentTaskDot: {
+    backgroundColor: Colors.error,
+    bottom: 4,
+  },
+  highTaskDot: {
+    backgroundColor: Colors.warning,
+    bottom: 4,
+    right: 8,
+  },
+  mediumTaskDot: {
+    backgroundColor: Colors.success,
+    bottom: 4,
+    left: 8,
   },
   upcomingEvents: {
     borderTopWidth: 1,

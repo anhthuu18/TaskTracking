@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { CreateProjectModal, FloatingActionMenu } from '../components';
+import { CreateProjectModal, CreateActionDropdown, CreateTaskModal, CreateEventModal } from '../components';
 import { CreateProjectRequest, WorkspaceMember } from '../types/Project';
 
 interface ProjectListScreenProps {
@@ -31,6 +31,9 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
   const [currentUser] = React.useState({ id: 1, role: 'admin' }); // Mock current user
   const [showCreateProjectModal, setShowCreateProjectModal] = React.useState(false);
   const [workspaceMembers, setWorkspaceMembers] = React.useState<WorkspaceMember[]>([]);
+  const [showDropdown, setShowDropdown] = React.useState(false);
+  const [showCreateTaskModal, setShowCreateTaskModal] = React.useState(false);
+  const [showCreateEventModal, setShowCreateEventModal] = React.useState(false);
   
   // Get workspace from navigation params
   const selectedWorkspace = route?.params?.workspace;
@@ -329,7 +332,7 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
         </Text>
         <TouchableOpacity 
           style={styles.addButton}
-          onPress={() => setShowCreateProjectModal(true)}
+          onPress={() => setShowDropdown(true)}
         >
           <MaterialIcons name="add" size={24} color={Colors.surface} />
         </TouchableOpacity>
@@ -378,8 +381,16 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
         </View>
       </ScrollView>
 
-      {/* Floating Action Menu */}
-      <FloatingActionMenu {...handleFloatingMenuActions} />
+
+
+      {/* Create Action Dropdown */}
+      <CreateActionDropdown
+        visible={showDropdown}
+        onClose={() => setShowDropdown(false)}
+        onCreateProject={() => setShowCreateProjectModal(true)}
+        onCreateTask={() => setShowCreateTaskModal(true)}
+        onCreateEvent={() => setShowCreateEventModal(true)}
+      />
 
       {/* Create Project Modal */}
       <CreateProjectModal
@@ -388,6 +399,28 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
         onCreateProject={handleCreateProject}
         workspaceId={selectedWorkspace?.id?.toString() || ''}
         workspaceMembers={workspaceMembers}
+      />
+
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        visible={showCreateTaskModal}
+        onClose={() => setShowCreateTaskModal(false)}
+        onCreateTask={(taskData: any) => {
+          setShowCreateTaskModal(false);
+          console.log('Task created:', taskData);
+        }}
+        isPersonalWorkspace={false}
+        projectMembers={workspaceMembers}
+      />
+
+      {/* Create Event Modal */}
+      <CreateEventModal
+        visible={showCreateEventModal}
+        onClose={() => setShowCreateEventModal(false)}
+        onCreateEvent={(eventData: any) => {
+          setShowCreateEventModal(false);
+          console.log('Event created:', eventData);
+        }}
       />
     </View>
   );

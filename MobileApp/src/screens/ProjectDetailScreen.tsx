@@ -5,13 +5,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Modal,
   Alert,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { Project, ProjectFlow, ProjectMember } from '../types/Project';
-import { FloatingActionMenu } from '../components';
+import { Project, ProjectFlow, FlowStatus } from '../types/Project';
+import { CreateActionDropdown, CreateTaskModal, CreateEventModal, CreateProjectModal, MoreActionsDropdown, MemberSortDropdown, StatusSortDropdown } from '../components';
 
 interface ProjectDetailScreenProps {
   navigation: any;
@@ -24,39 +23,74 @@ interface ProjectDetailScreenProps {
 
 const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, route }) => {
   const { project } = route.params;
-  const [showFloatingMenu, setShowFloatingMenu] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
+  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
+  const [showMemberSort, setShowMemberSort] = useState(false);
+  const [showStatusSort, setShowStatusSort] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<FlowStatus | null>(null);
+
+  // Mock users data for dropdown
+  const mockUsers = [
+    { id: '1', name: 'John Doe', username: 'johndoe' },
+    { id: '2', name: 'Jane Smith', username: 'janesmith' },
+    { id: '3', name: 'Mike Johnson', username: 'mikejohnson' },
+  ];
 
   // Mock project flows data
   const projectFlows: ProjectFlow[] = [
     {
       id: '1',
-      name: 'Userflow',
+      name: 'Design System',
       projectId: project.id,
       startDate: new Date('2021-01-01'),
       endDate: new Date('2021-02-01'),
-      members: project.members.slice(0, 4),
-      status: 'in_progress',
-      progress: 75,
+      members: project.members.slice(0, 2),
+      status: FlowStatus.COMPLETED,
+      progress: 100,
     },
     {
       id: '2',
-      name: 'Userflow',
+      name: 'User Research',
       projectId: project.id,
-      startDate: new Date('2021-01-01'),
-      endDate: new Date('2021-02-01'),
-      members: project.members.slice(1, 4),
-      status: 'in_progress',
+      startDate: new Date('2021-01-05'),
+      endDate: new Date('2021-02-05'),
+      members: project.members.slice(1, 3),
+      status: FlowStatus.IN_PROGRESS,
       progress: 60,
     },
     {
       id: '3',
-      name: 'Userflow',
+      name: 'Wireframing',
       projectId: project.id,
-      startDate: new Date('2021-01-01'),
-      endDate: new Date('2021-02-01'),
+      startDate: new Date('2021-01-10'),
+      endDate: new Date('2021-02-10'),
       members: project.members.slice(0, 3),
-      status: 'in_progress',
-      progress: 45,
+      status: FlowStatus.NOT_STARTED,
+      progress: 0,
+    },
+    {
+      id: '4',
+      name: 'Prototyping',
+      projectId: project.id,
+      startDate: new Date('2021-01-15'),
+      endDate: new Date('2021-02-15'),
+      members: project.members.slice(2, 4),
+      status: FlowStatus.BLOCKED,
+      progress: 25,
+    },
+    {
+      id: '5',
+      name: 'Testing',
+      projectId: project.id,
+      startDate: new Date('2021-01-20'),
+      endDate: new Date('2021-02-20'),
+      members: project.members.slice(0, 4),
+      status: FlowStatus.IN_PROGRESS,
+      progress: 80,
     },
   ];
 
@@ -68,21 +102,20 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     });
   };
 
-  const handleFloatingMenuAction = (action: string) => {
-    setShowFloatingMenu(false);
-    
+  const handleMoreAction = (action: string) => {
+    setShowMoreActions(false);
     switch (action) {
-      case 'create_task':
-        Alert.alert('Create Task', 'Create a new task for this project');
+      case 'check_done':
+        Alert.alert('Mark Complete', 'Mark this project as completed?');
         break;
-      case 'create_project':
-        Alert.alert('Create Project', 'Create a new project');
+      case 'share':
+        Alert.alert('Share Project', 'Share this project with others');
         break;
-      case 'create_team':
-        Alert.alert('Create Team', 'Create a new team');
-        break;
-      case 'create_meeting':
-        Alert.alert('Create Meeting', 'Schedule a new meeting');
+      case 'delete':
+        Alert.alert('Delete Project', 'Are you sure you want to delete this project?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive' }
+        ]);
         break;
     }
   };
@@ -148,8 +181,8 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Project detail</Text>
         <TouchableOpacity 
-          style={styles.floatingMenuButton}
-          onPress={() => setShowFloatingMenu(true)}
+          style={styles.addButton}
+          onPress={() => setShowDropdown(true)}
         >
           <MaterialIcons name="add" size={24} color={Colors.surface} />
         </TouchableOpacity>
@@ -158,18 +191,38 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Project Info */}
         <View style={styles.projectInfo}>
-          <Text style={styles.projectTitle}>{project.name}</Text>
+          <View style={styles.projectHeader}>
+            <Text style={styles.projectTitle}>{project.name}</Text>
+            <TouchableOpacity 
+              style={styles.moreActionsButton}
+              onPress={() => setShowMoreActions(true)}
+            >
+              <MaterialIcons name="more-vert" size={24} color={Colors.neutral.dark} />
+            </TouchableOpacity>
+          </View>
           
-          {/* Project Categories */}
-          <View style={styles.categorySection}>
-            <View style={styles.categoryItem}>
-              <Text style={styles.categoryLabel}>BrainStorm</Text>
-              <MaterialIcons name="keyboard-arrow-down" size={20} color={Colors.neutral.medium} />
-            </View>
-            <View style={styles.categoryItem}>
-              <Text style={styles.categoryLabel}>Design</Text>
-              <MaterialIcons name="keyboard-arrow-down" size={20} color={Colors.neutral.medium} />
-            </View>
+          {/* Sort Options */}
+          <View style={styles.sortOptions}>
+            <TouchableOpacity 
+              style={styles.sortButton}
+              onPress={() => setShowMemberSort(true)}
+            >
+              <MaterialIcons name="person" size={16} color={Colors.neutral.medium} />
+              <Text style={styles.sortLabel}>
+                {selectedMember ? mockUsers.find(m => m.id === selectedMember)?.name : 'All Members'}
+              </Text>
+              <MaterialIcons name="keyboard-arrow-down" size={16} color={Colors.neutral.medium} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.sortButton}
+              onPress={() => setShowStatusSort(true)}
+            >
+              <MaterialIcons name="schedule" size={16} color={Colors.neutral.medium} />
+              <Text style={styles.sortLabel}>
+                {selectedStatus ? selectedStatus.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'All Status'}
+              </Text>
+              <MaterialIcons name="keyboard-arrow-down" size={16} color={Colors.neutral.medium} />
+            </TouchableOpacity>
           </View>
 
           {/* Project Members */}
@@ -222,22 +275,85 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
 
         {/* Project Flows */}
         <View style={styles.flowsSection}>
-          {projectFlows.map(renderFlowCard)}
+          {projectFlows
+            .filter(flow => {
+              const memberMatch = selectedMember ? mockUsers.some(user => user.id === selectedMember && flow.members.some(m => m.username === user.username)) : true;
+              const statusMatch = selectedStatus ? flow.status === selectedStatus : true;
+              return memberMatch && statusMatch;
+            })
+            .map(renderFlowCard)}
         </View>
 
-        {/* Add Group Button */}
-        <TouchableOpacity style={styles.addGroupButton}>
-          <MaterialIcons name="add" size={16} color={Colors.primary} />
-          <Text style={styles.addGroupText}>Add group</Text>
-        </TouchableOpacity>
+
       </ScrollView>
 
-      <FloatingActionMenu
-        visible={showFloatingMenu}
-        onClose={() => setShowFloatingMenu(false)}
-        onActionPress={handleFloatingMenuAction}
-        position="top"
+      {/* Create Action Dropdown */}
+      <CreateActionDropdown
+        visible={showDropdown}
+        onClose={() => setShowDropdown(false)}
+        onCreateProject={() => setShowCreateProjectModal(true)}
+        onCreateTask={() => setShowCreateTaskModal(true)}
+        onCreateEvent={() => setShowCreateEventModal(true)}
       />
+
+      {/* Create Project Modal */}
+      <CreateProjectModal
+        visible={showCreateProjectModal}
+        onClose={() => setShowCreateProjectModal(false)}
+        onProjectCreated={(project: any) => {
+          setShowCreateProjectModal(false);
+          console.log('Project created:', project);
+        }}
+      />
+
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        visible={showCreateTaskModal}
+        onClose={() => setShowCreateTaskModal(false)}
+        onCreateTask={(taskData: any) => {
+          setShowCreateTaskModal(false);
+          console.log('Task created:', taskData);
+        }}
+        projectId={project.id}
+        projectName={project.name}
+        projectMembers={project.members}
+        isPersonalWorkspace={false}
+      />
+
+      {/* Create Event Modal */}
+      <CreateEventModal
+        visible={showCreateEventModal}
+        onClose={() => setShowCreateEventModal(false)}
+        onCreateEvent={(eventData: any) => {
+          setShowCreateEventModal(false);
+          console.log('Event created:', eventData);
+        }}
+      />
+
+      {/* More Actions Dropdown */}
+      <MoreActionsDropdown
+        visible={showMoreActions}
+        onClose={() => setShowMoreActions(false)}
+        onAction={handleMoreAction}
+      />
+
+      {/* Member Sort Dropdown */}
+      <MemberSortDropdown
+        visible={showMemberSort}
+        onClose={() => setShowMemberSort(false)}
+        onSelect={setSelectedMember}
+        members={mockUsers}
+        selectedMember={selectedMember}
+      />
+
+      {/* Status Sort Dropdown */}
+      <StatusSortDropdown
+        visible={showStatusSort}
+        onClose={() => setShowStatusSort(false)}
+        onSelect={setSelectedStatus}
+        selectedStatus={selectedStatus}
+      />
+
     </View>
   );
 };
@@ -266,7 +382,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.neutral.dark,
   },
-  floatingMenuButton: {
+  addButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -292,24 +408,35 @@ const styles = StyleSheet.create({
     color: Colors.neutral.dark,
     marginBottom: 20,
   },
-  categorySection: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 24,
-  },
-  categoryItem: {
+  projectHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+  },
+  moreActionsButton: {
+    padding: 4,
+  },
+  sortOptions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: Colors.neutral.light,
-    borderRadius: 8,
-    gap: 8,
+    borderRadius: 16,
+    gap: 6,
+    flex: 1,
   },
-  categoryLabel: {
-    fontSize: 14,
+  sortLabel: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
     fontWeight: '500',
-    color: Colors.neutral.dark,
+    flex: 1,
   },
   membersSection: {
     marginBottom: 24,
@@ -420,23 +547,7 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.neutral.light,
   },
-  addGroupButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    margin: 20,
-    paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    borderRadius: 12,
-    borderStyle: 'dashed',
-  },
-  addGroupText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.primary,
-  },
+
 
 });
 

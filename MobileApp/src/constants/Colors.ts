@@ -45,10 +45,11 @@ export const LightTheme = {
   
   // Priority colors
   priority: {
-    low: '#47C272',
-    medium: '#FF8A00',
-    high: '#FF6A5D',
     urgent: '#E15A93',
+    high: '#FF6A5D',
+    medium: '#FF8A00',
+    low: '#47C272',
+    lowest: '#A29FB6',
   },
   
   // Common colors

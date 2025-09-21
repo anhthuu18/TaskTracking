@@ -21,10 +21,11 @@ export enum TaskStatus {
 }
 
 export enum TaskPriority {
-  LOW = 'low',
-  MEDIUM = 'medium',
+  URGENT = 'urgent',
   HIGH = 'high',
-  URGENT = 'urgent'
+  MEDIUM = 'medium',
+  LOW = 'low',
+  LOWEST = 'lowest'
 }
 
 export interface TaskFilter {
