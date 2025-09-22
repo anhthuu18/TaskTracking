@@ -1,26 +1,128 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, StatusBar, ScrollView, TouchableOpacity, Modal, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import type { RouteProp } from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { CreateProjectModal, WorkspaceActionDropdown, AddMemberModal } from '../components';
 import { Colors } from '../constants/Colors';
-import { ScreenLayout } from '../constants/Dimensions';
-import type { RootStackParamList } from '../navigation/AppNavigator';
-import { CreateProjectModal, CreateActionDropdown, CreateTaskModal, CreateEventModal } from '../components';
 
-// Home Screen Component
-const HomeScreen = ({ navigation, workspace }: { navigation: any; workspace?: any }) => {
+import { projectService } from '../services/projectService';
+
+const Tab = createBottomTabNavigator();
+
+const DashboardContent = ({ navigation, route }: { navigation: any; route?: any }) => {
+  const workspace = route?.params?.workspace;
   const [selectedTab, setSelectedTab] = React.useState<'overview' | 'analytics'>('overview');
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
   const [taskFilter, setTaskFilter] = useState<string>('all');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  const [isCreateProjectModalVisible, setIsCreateProjectModalVisible] = useState(false);
-  
-  const dropdownOptions = [
-    { id: 'task', title: 'Create task', icon: 'add_task' },
-    { id: 'project', title: 'Create project', icon: 'folder' },
-    { id: 'event', title: 'Create event', icon: 'event' },
+
+  // Load projects when workspace changes
+  useEffect(() => {
+    console.log('🔍 Workspace changed:', workspace);
+    if (workspace?.id) {
+      loadProjects();
+    } else {
+      // If no workspace ID, load with default ID 1 for testing
+      console.log('⚠️ No workspace ID, loading with default ID 1');
+      loadProjects();
+    }
+  }, [workspace?.id]);
+
+  const loadProjects = async () => {
+    try {
+      setLoadingProjects(true);
+      const workspaceId = workspace?.id || 1;
+      console.log('🔍 Loading projects for workspace:', workspaceId, 'workspace object:', workspace);
+      const response = await projectService.getProjectsByWorkspace(workspaceId);
+      console.log('📡 Projects response:', response);
+      
+      if (response.success) {
+        setProjects(response.data);
+        console.log('✅ Projects loaded:', response.data.length);
+      } else {
+        console.error('❌ Failed to load projects:', response.message);
+        setProjects([]);
+      }
+    } catch (error) {
+      console.error('❌ Error loading projects:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('❌ Failed to load projects:', errorMessage);
+      setProjects([]);
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
+  // Sample tasks data (will be replaced with real API)
+  const allTasks = [
+    {
+      id: '1',
+      title: 'API Integration Testing',
+      project: 'Mane UiKit',
+      projectId: 'mane-uikit',
+      dueDate: new Date('2025-01-15'),
+      priority: 'urgent',
+      icon: 'assignment',
+      color: '#FF5252',
+    },
+    {
+      id: '2',
+      title: 'Mobile App UI Design',
+      project: 'Mobile App',
+      projectId: 'mobile-app',
+      dueDate: new Date('2025-01-16'),
+      priority: 'high',
+      icon: 'assignment',
+      color: '#FF9800',
+    },
+    {
+      id: '3',
+      title: 'Database Optimization',
+      project: 'Backend',
+      projectId: 'backend',
+      dueDate: new Date('2025-01-17'),
+      priority: 'medium',
+      icon: 'storage',
+      color: '#2196F3',
+    },
+    {
+      id: '4',
+      title: 'User Authentication',
+      project: 'Backend',
+      projectId: 'backend',
+      dueDate: new Date('2025-01-18'),
+      priority: 'high',
+      icon: 'security',
+      color: '#FF9800',
+    },
+    {
+      id: '5',
+      title: 'Component Library Update',
+      project: 'Mane UiKit',
+      projectId: 'mane-uikit',
+      dueDate: new Date('2025-01-19'),
+      priority: 'medium',
+      icon: 'widgets',
+      color: '#2196F3',
+    },
+    {
+      id: '6',
+      title: 'Performance Testing',
+      project: 'Mobile App',
+      projectId: 'mobile-app',
+      dueDate: new Date('2025-01-20'),
+      priority: 'low',
+      icon: 'speed',
+      color: '#9C27B0',
+    },
   ];
 
   const filterOptions = [
@@ -34,70 +136,6 @@ const HomeScreen = ({ navigation, workspace }: { navigation: any; workspace?: an
     const option = filterOptions.find(opt => opt.id === taskFilter);
     return option ? option.title : 'All Projects';
   };
-
-  // Sample tasks data
-  const allTasks = [
-    {
-      id: '1',
-      title: 'API Integration Testing',
-      project: 'Mane UiKit',
-      projectId: 'mane-uikit',
-      dueDate: new Date('2025-01-15'),
-      priority: 'urgent',
-      icon: 'assignment',
-      color: Colors.error,
-    },
-    {
-      id: '2',
-      title: 'Mobile App UI Design',
-      project: 'Mobile App',
-      projectId: 'mobile-app',
-      dueDate: new Date('2025-01-16'),
-      priority: 'high',
-      icon: 'assignment',
-      color: Colors.warning,
-    },
-    {
-      id: '3',
-      title: 'Database Optimization',
-      project: 'Backend',
-      projectId: 'backend',
-      dueDate: new Date('2025-01-17'),
-      priority: 'medium',
-      icon: 'storage',
-      color: Colors.primary,
-    },
-    {
-      id: '4',
-      title: 'User Authentication',
-      project: 'Backend',
-      projectId: 'backend',
-      dueDate: new Date('2025-01-18'),
-      priority: 'high',
-      icon: 'security',
-      color: Colors.warning,
-    },
-    {
-      id: '5',
-      title: 'Component Library Update',
-      project: 'Mane UiKit',
-      projectId: 'mane-uikit',
-      dueDate: new Date('2025-01-19'),
-      priority: 'medium',
-      icon: 'widgets',
-      color: Colors.primary,
-    },
-    {
-      id: '6',
-      title: 'Performance Testing',
-      project: 'Mobile App',
-      projectId: 'mobile-app',
-      dueDate: new Date('2025-01-20'),
-      priority: 'low',
-      icon: 'speed',
-      color: Colors.accent,
-    },
-  ];
 
   // Filter and sort tasks
   const getFilteredTasks = () => {
@@ -162,21 +200,6 @@ const HomeScreen = ({ navigation, workspace }: { navigation: any; workspace?: an
     }
   };
 
-  const handleDropdownSelect = (option: any) => {
-    setShowDropdown(false);
-    switch (option.id) {
-      case 'task':
-        //setShowCreateTaskModal(true);
-        break;
-      case 'project':
-        setIsCreateProjectModalVisible(true);
-        break;
-      case 'event':
-        //setShowCreateEventModal(true);
-        break;
-    }
-  };
-
   return (
   <View style={styles.tabContainer}>
       {/* Search Section */}
@@ -210,16 +233,147 @@ const HomeScreen = ({ navigation, workspace }: { navigation: any; workspace?: an
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.homeContent}>
-          {selectedTab === 'analytics' ? (
-            // Analytics Content
-            <>
+      {/* Content based on selected tab */}
+      <ScrollView style={styles.contentContainer} showsVerticalScrollIndicator={false}>
+        {selectedTab === 'overview' && (
+          <View>
+            {/* Projects Section */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>All Projects</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('ProjectList')}>
+                  <MaterialIcons name="chevron-right" size={20} color={Colors.primary} />
+                </TouchableOpacity>
+              </View>
+              
+              {loadingProjects ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.loadingText}>Loading projects...</Text>
+                </View>
+              ) : projects.length > 0 ? (
+                <TouchableOpacity 
+                  style={styles.projectCard}
+                  onPress={() => navigation.navigate('ProjectList')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.projectHeader}>
+                    <Text style={styles.projectName}>{projects[0].projectName}</Text>
+                    <Text style={styles.memberCount}>
+                      Members: {projects[0]?.memberCount || 1}
+                    </Text>
+                  </View>
+                  <Text style={styles.projectDescription} numberOfLines={2}>
+                    {projects[0]?.description}
+                  </Text>
+                  <View style={styles.projectProgress}>
+                    <View style={styles.progressBar}>
+                      <View style={styles.progressFill} />
+                    </View>
+                    <Text style={styles.tasksText}>24/48 tasks</Text>
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.emptyProjectsContainer}>
+                  <MaterialIcons name="folder-open" size={48} color={Colors.neutral.light} />
+                  <Text style={styles.emptyProjectsText}>No projects yet</Text>
+                  <Text style={styles.emptyProjectsSubtext}>Create your first project to get started</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Tasks Due Soon Section */}
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <MaterialIcons name="schedule" size={20} color={Colors.warning} />
+                <Text style={styles.sectionTitle}>Tasks Due Soon</Text>
+              </View>
+              <TouchableOpacity>
+                <Text style={styles.seeAllText}>See all</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Project Filter Dropdown */}
+            <View style={styles.filterContainer}>
+              <TouchableOpacity 
+                style={styles.filterDropdownButton}
+                onPress={() => setShowFilterDropdown(!showFilterDropdown)}
+              >
+                <Text style={styles.filterDropdownText}>{getFilterTitle()}</Text>
+                <MaterialIcons 
+                  name={showFilterDropdown ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
+                  size={20} 
+                  color={Colors.neutral.medium} 
+                />
+              </TouchableOpacity>
+              
+              {showFilterDropdown && (
+                <View style={styles.filterDropdownMenu}>
+                  {filterOptions.map((option) => (
+                    <TouchableOpacity
+                      key={option.id}
+                      style={[
+                        styles.filterDropdownItem,
+                        taskFilter === option.id && styles.activeFilterDropdownItem
+                      ]}
+                      onPress={() => {
+                        setTaskFilter(option.id);
+                        setShowFilterDropdown(false);
+                      }}
+                    >
+                      <Text style={[
+                        styles.filterDropdownItemText,
+                        taskFilter === option.id && styles.activeFilterDropdownItemText
+                      ]}>
+                        {option.title}
+                      </Text>
+                      {taskFilter === option.id && (
+                        <MaterialIcons name="check" size={16} color={Colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Tasks List - Scrollable */}
+            <ScrollView style={styles.tasksScrollView} showsVerticalScrollIndicator={false}>
+              <View style={styles.tasksList}>
+                {getFilteredTasks().map((task) => (
+                  <TouchableOpacity key={task.id} style={styles.taskCard} activeOpacity={0.7}>
+                    <View style={styles.taskIcon}>
+                      <MaterialIcons name={task.icon as any} size={24} color={task.color} />
+                    </View>
+                    <View style={styles.taskContent}>
+                      <Text style={styles.taskTitle}>{task.title}</Text>
+                      <Text style={styles.taskProject}>{task.project}</Text>
+                      <View style={styles.taskDeadline}>
+                        <MaterialIcons name="schedule" size={14} color={task.color} />
+                        <Text style={[styles.deadlineText, getDeadlineStyle(task.dueDate)]}>
+                          {formatDueDate(task.dueDate)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[styles.priorityBadge, getPriorityBadgeStyle(task.priority)]}>
+                      <Text style={styles.priorityText}>
+                        {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        )}
+
+        {selectedTab === 'analytics' && (
+          <View>
               {/* Task Statistics Section */}
+            <View style={styles.sectionContainer}>
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleRow}>
                   <MaterialIcons name="analytics" size={20} color={Colors.accent} />
-                  <Text style={styles.sectionTitle}>Workspace Overview</Text>
+                  <Text style={styles.sectionTitle}>Task Statistics</Text>
                 </View>
               </View>
 
@@ -282,36 +436,38 @@ const HomeScreen = ({ navigation, workspace }: { navigation: any; workspace?: an
                       </View>
                       <Text style={styles.statProgressText}>↗ +5% vs last week</Text>
                     </View>
+                    </View>
                   </View>
                 </View>
               </View>
 
               {/* Calendar Section */}
+            <View style={styles.sectionContainer}>
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleRow}>
-                  <MaterialIcons name="event" size={20} color={Colors.accent} />
-                  <Text style={styles.sectionTitle}>Calendar Events</Text>
+                  <MaterialIcons name="calendar-today" size={20} color={Colors.primary} />
+                  <Text style={styles.sectionTitle}>Calendar</Text>
                 </View>
               </View>
 
               <View style={styles.calendarSection}>
                 <View style={styles.calendarHeader}>
+                    <TouchableOpacity>
+                    <MaterialIcons name="chevron-left" size={24} color={Colors.neutral.dark} />
+                    </TouchableOpacity>
                   <Text style={styles.calendarMonth}>January 2025</Text>
-                  <View style={styles.calendarNavigation}>
                     <TouchableOpacity>
-                      <MaterialIcons name="chevron-left" size={24} color={Colors.neutral.medium} />
+                    <MaterialIcons name="chevron-right" size={24} color={Colors.neutral.dark} />
                     </TouchableOpacity>
-                    <TouchableOpacity>
-                      <MaterialIcons name="chevron-right" size={24} color={Colors.neutral.medium} />
-                    </TouchableOpacity>
-                  </View>
+                </View>
+
+                <View style={styles.calendarWeekdays}>
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                    <Text key={day} style={styles.calendarWeekday}>{day}</Text>
+                  ))}
                 </View>
 
                 <View style={styles.calendarGrid}>
-                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
-                    <Text key={index} style={styles.calendarDayHeader}>{day}</Text>
-                  ))}
-                  
                   {Array.from({ length: 35 }, (_, index) => {
                     const dayNumber = index - 6 + 1;
                     const isCurrentMonth = dayNumber > 0 && dayNumber <= 31;
@@ -327,12 +483,15 @@ const HomeScreen = ({ navigation, workspace }: { navigation: any; workspace?: an
                         isToday && styles.calendarToday,
                         hasEvent && styles.calendarEventDay
                       ]}>
-                        {isCurrentMonth && (
+                        {isCurrentMonth ? (
                           <Text style={[
                             styles.calendarDayText,
-                            isToday && styles.calendarTodayText,
-                            hasEvent && styles.calendarEventText
+                            isToday && styles.calendarTodayText
                           ]}>
+                            {dayNumber}
+                          </Text>
+                        ) : (
+                          <Text style={styles.calendarInactiveDayText}>
                             {dayNumber}
                           </Text>
                         )}
@@ -347,209 +506,85 @@ const HomeScreen = ({ navigation, workspace }: { navigation: any; workspace?: an
 
                 {/* Upcoming Events */}
                 <View style={styles.upcomingEvents}>
-                  <Text style={styles.upcomingTitle}>Upcoming Events</Text>
+                  <Text style={styles.upcomingEventsTitle}>Upcoming Events</Text>
+                  
                   <View style={styles.eventItem}>
-                    <View style={styles.eventTime}>
-                      <Text style={styles.eventTimeText}>10:00</Text>
+                    <View style={styles.eventDate}>
+                      <Text style={styles.eventDateDay}>18</Text>
+                      <Text style={styles.eventDateMonth}>Jan</Text>
                     </View>
                     <View style={styles.eventContent}>
                       <Text style={styles.eventTitle}>Team Meeting</Text>
-                      <Text style={styles.eventDate}>Today, Jan 15, 2025</Text>
+                      <Text style={styles.eventTime}>10:00 AM - 11:00 AM</Text>
+                      <Text style={styles.eventProject}>Mane UiKit</Text>
                     </View>
+                    <View style={[styles.eventTypeDot, { backgroundColor: Colors.primary }]} />
                   </View>
+
                   <View style={styles.eventItem}>
-                    <View style={styles.eventTime}>
-                      <Text style={styles.eventTimeText}>14:30</Text>
+                    <View style={styles.eventDate}>
+                      <Text style={styles.eventDateDay}>20</Text>
+                      <Text style={styles.eventDateMonth}>Jan</Text>
                     </View>
                     <View style={styles.eventContent}>
-                      <Text style={styles.eventTitle}>Project Review</Text>
-                      <Text style={styles.eventDate}>Tomorrow, Jan 16, 2025</Text>
+                      <Text style={styles.eventTitle}>Database Migration Due</Text>
+                      <Text style={styles.eventTime}>All day</Text>
+                      <Text style={styles.eventProject}>Backend</Text>
                     </View>
-                  </View>
-                </View>
-              </View>
-            </>
-          ) : (
-            // Overview Content (existing)
-            <>
-              {/* Your Project Section */}
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <MaterialIcons name="apps" size={20} color={Colors.accent} />
-              <Text style={styles.sectionTitle}>Your project</Text>
-            </View>
-            <TouchableOpacity onPress={() => navigation.navigate('ProjectList')}>
-              <MaterialIcons name="chevron-right" size={24} color={Colors.neutral.medium} />
-            </TouchableOpacity>
+                    <View style={[styles.eventTypeDot, { backgroundColor: Colors.error }]} />
           </View>
 
-          {/* Project Card - Clickable */}
-          <TouchableOpacity 
-            style={styles.projectCard}
-            onPress={() => navigation.navigate('ProjectList')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.projectHeader}>
-              <Text style={styles.projectName}>Mane UiKit</Text>
-              <View style={styles.teamMembers}>
-                <View style={[styles.memberAvatar, { backgroundColor: Colors.overlay.pink }]}>
-                  <Text style={styles.memberInitial}>A</Text>
+                  <View style={styles.eventItem}>
+                    <View style={styles.eventDate}>
+                      <Text style={styles.eventDateDay}>25</Text>
+                      <Text style={styles.eventDateMonth}>Jan</Text>
                 </View>
-                <View style={[styles.memberAvatar, { backgroundColor: Colors.overlay.purple }]}>
-                  <Text style={styles.memberInitial}>B</Text>
+                    <View style={styles.eventContent}>
+                      <Text style={styles.eventTitle}>Sprint Review</Text>
+                      <Text style={styles.eventTime}>2:00 PM - 3:30 PM</Text>
+                      <Text style={styles.eventProject}>Mobile App</Text>
                 </View>
-                <View style={[styles.memberAvatar, { backgroundColor: Colors.overlay.coral }]}>
-                  <Text style={styles.memberInitial}>C</Text>
+                    <View style={[styles.eventTypeDot, { backgroundColor: Colors.accent }]} />
                 </View>
-                <View style={styles.memberCount}>
-                  <Text style={styles.memberCountText}>+4</Text>
                 </View>
               </View>
             </View>
-
-            <View style={styles.projectDates}>
-              <View style={styles.dateItem}>
-                <MaterialIcons name="schedule" size={16} color={Colors.neutral.medium} />
-                <Text style={styles.dateText}>01/01/2021</Text>
               </View>
-              <View style={styles.dateSeparator} />
-              <View style={styles.dateItem}>
-                <MaterialIcons name="schedule" size={16} color={Colors.primary} />
-                <Text style={[styles.dateText, { color: Colors.primary }]}>01/02/2021</Text>
-              </View>
-            </View>
-
-            <View style={styles.progressSection}>
-              <Text style={styles.progressText}>50%</Text>
-              <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: '50%' }]} />
-              </View>
-              <Text style={styles.tasksText}>24/48 tasks</Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* Tasks Due Soon Section */}
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <MaterialIcons name="schedule" size={20} color={Colors.warning} />
-              <Text style={styles.sectionTitle}>Tasks due soon</Text>
-            </View>
-            <TouchableOpacity>
-              <MaterialIcons name="chevron-right" size={24} color={Colors.neutral.medium} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Project Filter Dropdown */}
-          <View style={styles.filterContainer}>
-            <TouchableOpacity 
-              style={styles.filterDropdownButton}
-              onPress={() => setShowFilterDropdown(!showFilterDropdown)}
-            >
-              <Text style={styles.filterDropdownText}>{getFilterTitle()}</Text>
-              <MaterialIcons 
-                name={showFilterDropdown ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
-                size={20} 
-                color={Colors.neutral.medium} 
-              />
-            </TouchableOpacity>
-            
-            {showFilterDropdown && (
-              <View style={styles.filterDropdownMenu}>
-                {filterOptions.map((option) => (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={[
-                      styles.filterDropdownItem,
-                      taskFilter === option.id && styles.activeFilterDropdownItem
-                    ]}
-                    onPress={() => {
-                      setTaskFilter(option.id);
-                      setShowFilterDropdown(false);
-                    }}
-                  >
-                    <Text style={[
-                      styles.filterDropdownItemText,
-                      taskFilter === option.id && styles.activeFilterDropdownItemText
-                    ]}>
-                      {option.title}
-                    </Text>
-                    {taskFilter === option.id && (
-                      <MaterialIcons name="check" size={16} color={Colors.primary} />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-
-          {/* Tasks List - Scrollable */}
-          <ScrollView style={styles.tasksScrollView} showsVerticalScrollIndicator={false}>
-            <View style={styles.tasksList}>
-              {getFilteredTasks().map((task) => (
-                <View key={task.id} style={styles.taskCard}>
-                  <View style={styles.taskIcon}>
-                    <MaterialIcons name={task.icon as any} size={24} color={task.color} />
-                  </View>
-                  <View style={styles.taskContent}>
-                    <Text style={styles.taskTitle}>{task.title}</Text>
-                    <Text style={styles.taskProject}>{task.project}</Text>
-                    <View style={styles.taskDeadline}>
-                      <MaterialIcons name="schedule" size={14} color={task.color} />
-                      <Text style={[styles.deadlineText, getDeadlineStyle(task.dueDate)]}>
-                        {formatDueDate(task.dueDate)}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={[styles.priorityBadge, getPriorityBadgeStyle(task.priority)]}>
-                    <Text style={styles.priorityText}>
-                      {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          </ScrollView>
-            </>
-          )}
-        </View>
+        )}
       </ScrollView>
-
-      {/* Dropdown Menu */}
-      <Modal
-        visible={showDropdown}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowDropdown(false)}
-      >
-        <TouchableOpacity 
-          style={styles.dropdownOverlay}
-          activeOpacity={1}
-          onPress={() => setShowDropdown(false)}
-        >
-          <View style={styles.dropdownMenu}>
-            {dropdownOptions.map((option) => (
-              <TouchableOpacity
-                key={option.id}
-                style={styles.dropdownItem}
-                onPress={() => handleDropdownSelect(option)}
-              >
-                <MaterialIcons name={option.icon} size={20} color={Colors.neutral.dark} />
-                <Text style={styles.dropdownItemText}>{option.title}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-  </View>
-);
+              </View>
+  );
 };
 
+// Settings Screen Component
+const SettingsScreen = () => (
+  <ScrollView style={styles.tabContainer} showsVerticalScrollIndicator={false}>
+    <View style={styles.settingsContent}>
+      <Text style={styles.sectionTitle}>Settings</Text>
+      
+      <View style={styles.settingsItem}>
+        <MaterialIcons name="person" size={24} color={Colors.primary} />
+        <Text style={styles.settingsItemText}>Profile Settings</Text>
+          </View>
 
-// Voice Screen Component
+      <View style={styles.settingsItem}>
+        <MaterialIcons name="notifications" size={24} color={Colors.primary} />
+        <Text style={styles.settingsItemText}>Notifications</Text>
+          </View>
+
+      <View style={styles.settingsItem}>
+        <MaterialIcons name="security" size={24} color={Colors.primary} />
+        <Text style={styles.settingsItemText}>Privacy & Security</Text>
+                  </View>
+            </View>
+          </ScrollView>
+);
+
+// Voice Commands Screen Component
 const VoiceScreen = () => (
   <View style={styles.tabContainer}>
     <View style={styles.centerContent}>
-      <View style={styles.voiceIconContainer}>
+      <View style={styles.voiceIcon}>
         <MaterialIcons name="mic" size={48} color={Colors.primary} />
       </View>
       <Text style={styles.centerTitle}>Voice Commands</Text>
@@ -570,33 +605,22 @@ const NotificationScreen = () => (
       
       <View style={styles.notificationItem}>
         <View style={styles.notificationIcon}>
-          <MaterialIcons name="task_alt" size={20} color={Colors.semantic.success} />
+          <MaterialIcons name="notifications" size={24} color={Colors.primary} />
         </View>
-        <View style={styles.notificationTextContainer}>
-          <Text style={styles.notificationTitle}>Task Completed</Text>
-          <Text style={styles.notificationMessage}>Project documentation has been completed</Text>
+        <View style={styles.notificationText}>
+          <Text style={styles.notificationTitle}>New task assigned</Text>
+          <Text style={styles.notificationSubtitle}>You have been assigned to "API Integration"</Text>
           <Text style={styles.notificationTime}>2 hours ago</Text>
         </View>
       </View>
 
       <View style={styles.notificationItem}>
         <View style={styles.notificationIcon}>
-          <MaterialIcons name="assignment" size={20} color={Colors.primary} />
+          <MaterialIcons name="group-add" size={24} color={Colors.accent} />
         </View>
-        <View style={styles.notificationTextContainer}>
-          <Text style={styles.notificationTitle}>New Task Assigned</Text>
-          <Text style={styles.notificationMessage}>You have been assigned a new task</Text>
-          <Text style={styles.notificationTime}>4 hours ago</Text>
-        </View>
-      </View>
-
-      <View style={styles.notificationItem}>
-        <View style={styles.notificationIcon}>
-          <MaterialIcons name="schedule" size={20} color={Colors.semantic.warning} />
-        </View>
-        <View style={styles.notificationTextContainer}>
-          <Text style={styles.notificationTitle}>Deadline Reminder</Text>
-          <Text style={styles.notificationMessage}>Project deadline is approaching</Text>
+        <View style={styles.notificationText}>
+          <Text style={styles.notificationTitle}>New member joined</Text>
+          <Text style={styles.notificationSubtitle}>John Doe joined the workspace</Text>
           <Text style={styles.notificationTime}>1 day ago</Text>
         </View>
       </View>
@@ -604,87 +628,42 @@ const NotificationScreen = () => (
   </ScrollView>
 );
 
-const SettingsScreen = () => (
-  <ScrollView style={styles.tabContainer} showsVerticalScrollIndicator={false}>
-    <View style={styles.settingsContent}>
-      <Text style={styles.sectionTitle}>Settings</Text>
-      
-      <View style={styles.settingsSection}>
-        <Text style={styles.settingsSectionTitle}>Account</Text>
-        <TouchableOpacity style={styles.settingsItem}>
-          <MaterialIcons name="person" size={24} color={Colors.neutral.medium} />
-          <Text style={styles.settingsItemText}>Profile</Text>
-          <MaterialIcons name="chevron-right" size={24} color={Colors.neutral.medium} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingsItem}>
-          <MaterialIcons name="delete" size={24} color={Colors.neutral.medium} />
-          <Text style={styles.settingsItemText}>Trash</Text>
-          <MaterialIcons name="chevron-right" size={24} color={Colors.neutral.medium} />
-        </TouchableOpacity>
-      </View>
+const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; route?: any }) => {
+  const workspace = route?.params?.workspace;
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [showActionDropdown, setShowActionDropdown] = useState(false);
 
-      <View style={styles.settingsSection}>
-        <Text style={styles.settingsSectionTitle}>Preferences</Text>
-        <TouchableOpacity style={styles.settingsItem}>
-          <MaterialIcons name="notifications" size={24} color={Colors.neutral.medium} />
-          <Text style={styles.settingsItemText}>Notifications</Text>
-          <MaterialIcons name="chevron-right" size={24} color={Colors.neutral.medium} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingsItem}>
-          <MaterialIcons name="palette" size={24} color={Colors.neutral.medium} />
-          <Text style={styles.settingsItemText}>Theme</Text>
-          <MaterialIcons name="chevron-right" size={24} color={Colors.neutral.medium} />
-        </TouchableOpacity>
-      </View>
+  const handleCreateProject = () => {
+    setShowCreateProjectModal(true);
+  };
 
-      <View style={styles.settingsSection}>
-        <Text style={styles.settingsSectionTitle}>Support</Text>
-        <TouchableOpacity style={styles.settingsItem}>
-          <MaterialIcons name="help" size={24} color={Colors.neutral.medium} />
-          <Text style={styles.settingsItemText}>Help & Support</Text>
-          <MaterialIcons name="chevron-right" size={24} color={Colors.neutral.medium} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingsItem}>
-          <MaterialIcons name="info" size={24} color={Colors.neutral.medium} />
-          <Text style={styles.settingsItemText}>About</Text>
-          <MaterialIcons name="chevron-right" size={24} color={Colors.neutral.medium} />
-        </TouchableOpacity>
-      </View>
-  </View>
-  </ScrollView>
-);
+  const handleAddMember = () => {
+    setShowAddMemberModal(true);
+  };
 
-const Tab = createBottomTabNavigator();
-
-type WorkspaceDashboardRouteProp = RouteProp<RootStackParamList, 'WorkspaceDashboard'>;
-
-const WorkspaceDashboardScreen: React.FC = () => {
-  const route = useRoute<WorkspaceDashboardRouteProp>();
-  const navigation = useNavigation();
-  const { workspace } = route.params || {};
-  const [isCreateProjectModalVisible, setIsCreateProjectModalVisible] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
-  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
+  const handleMemberAdded = async () => {
+    console.log('Member added successfully');
+  };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.titleContainer}>
-            <View style={styles.titleRow}>
+          <View style={styles.workspaceInfo}>
+            <View style={styles.dashboardIcon}>
               <MaterialIcons name="dashboard" size={24} color={Colors.primary} />
-              <Text style={styles.title}>Dashboard</Text>
             </View>
-            <Text style={styles.workspaceWelcome}>
-              Welcome to {workspace?.name || 'Your Workspace'}
-            </Text>
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.dashboardTitle}>Dashboard</Text>
+              <Text style={styles.welcomeSubtitle}>Welcome, {workspace?.name || 'Workspace'}</Text>
+            </View>
           </View>
         </View>
         <TouchableOpacity 
           style={styles.addButton}
-          onPress={() => setShowDropdown(true)}
+          onPress={() => setShowActionDropdown(true)}
         >
           <MaterialIcons name="add" size={24} color={Colors.surface} />
         </TouchableOpacity>
@@ -701,19 +680,20 @@ const WorkspaceDashboardScreen: React.FC = () => {
         <Tab.Screen 
           name="Home" 
           options={{
-            tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+            title: 'Home',
+            tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="home" size={size} color={color} />
             ),
           }}
         >
-          {(props) => <HomeScreen {...props} workspace={workspace} />}
+          {() => <DashboardContent navigation={navigation} route={route} />}
         </Tab.Screen>
-
         <Tab.Screen 
           name="Voice" 
           component={VoiceScreen}
           options={{
-            tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+            title: 'Voice',
+            tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="mic" size={size} color={color} />
             ),
           }}
@@ -722,7 +702,8 @@ const WorkspaceDashboardScreen: React.FC = () => {
           name="Notifications" 
           component={NotificationScreen}
           options={{
-            tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+            title: 'Notifications',
+            tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="notifications" size={size} color={color} />
             ),
           }}
@@ -731,46 +712,38 @@ const WorkspaceDashboardScreen: React.FC = () => {
           name="Settings" 
           component={SettingsScreen}
           options={{
-            tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+            title: 'Settings',
+            tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="settings" size={size} color={color} />
             ),
           }}
         />
       </Tab.Navigator>
       
-      <CreateActionDropdown
-        visible={showDropdown}
-        onClose={() => setShowDropdown(false)}
-        onCreateProject={() => setIsCreateProjectModalVisible(true)}
-        onCreateTask={() => setShowCreateTaskModal(true)}
-        onCreateEvent={() => setShowCreateEventModal(true)}
+      {/* Modals */}
+      <WorkspaceActionDropdown
+        visible={showActionDropdown}
+        onClose={() => setShowActionDropdown(false)}
+        onCreateProject={handleCreateProject}
+        onAddMember={handleAddMember}
+      />
+
+      <AddMemberModal
+        visible={showAddMemberModal}
+        onClose={() => setShowAddMemberModal(false)}
+        workspaceId={workspace?.id || 0}
+        onMemberAdded={handleMemberAdded}
       />
 
       <CreateProjectModal
-        visible={isCreateProjectModalVisible}
-        onClose={() => setIsCreateProjectModalVisible(false)}
-        onProjectCreated={(project: any) => {
-          setIsCreateProjectModalVisible(false);
+        visible={showCreateProjectModal}
+        onClose={() => setShowCreateProjectModal(false)}
+        workspaceId={workspace?.id || 0}
+        workspaceMembers={[]}
+        onProjectCreated={async (project: any) => {
+          setShowCreateProjectModal(false);
           console.log('Project created:', project);
-        }}
-      />
-
-      <CreateTaskModal
-        visible={showCreateTaskModal}
-        onClose={() => setShowCreateTaskModal(false)}
-        onCreateTask={(taskData: any) => {
-          setShowCreateTaskModal(false);
-          console.log('Task created:', taskData);
-        }}
-        isPersonalWorkspace={true}
-      />
-
-      <CreateEventModal
-        visible={showCreateEventModal}
-        onClose={() => setShowCreateEventModal(false)}
-        onCreateEvent={(eventData: any) => {
-          setShowCreateEventModal(false);
-          console.log('Event created:', eventData);
+          // Reload projects after creation
         }}
       />
     </View>
@@ -781,130 +754,130 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    paddingTop: ScreenLayout.headerTopSpacing,
+    paddingTop: 50,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    paddingTop: 24,
-    backgroundColor: Colors.background,
+    paddingTop: 10,
+    backgroundColor: Colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: Colors.neutral.light,
   },
   headerLeft: {
     flex: 1,
   },
-  titleContainer: {
-    flex: 1,
-  },
-  titleRow: {
+  workspaceInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
   },
-  title: {
-    fontSize: 28,
+  dashboardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  headerTextContainer: {
+    flexDirection: 'column',
+  },
+  dashboardTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: Colors.neutral.dark,
   },
-  workspaceWelcome: {
+  welcomeSubtitle: {
     fontSize: 14,
     color: Colors.neutral.medium,
-    fontWeight: '500',
+    marginTop: 2,
   },
   addButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+  },
+  tabBar: {
+    backgroundColor: Colors.surface,
+    elevation: 0,
+    shadowOpacity: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light,
   },
   tabContainer: {
     flex: 1,
     backgroundColor: Colors.background,
   },
-  tabBar: {
-    backgroundColor: Colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    height: 70,
-    paddingBottom: 12,
-    paddingTop: 8,
-  },
-  
-  // Home Screen Styles
   searchSection: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    gap: 12,
+    backgroundColor: Colors.surface,
   },
   searchContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.neutral.light + '40',
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginRight: 12,
   },
   searchIcon: {
-    marginRight: 12,
-    opacity: 0.6,
+    marginRight: 8,
   },
   searchPlaceholder: {
     fontSize: 16,
     color: Colors.neutral.medium,
-    fontWeight: '400',
   },
   filterButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.surface,
-    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.background,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   tabSection: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingVertical: 16,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light,
   },
   tabButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
     borderRadius: 20,
     marginRight: 12,
   },
   activeTabButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primary + '20',
   },
   tabButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
     color: Colors.neutral.medium,
   },
   activeTabButtonText: {
-    color: Colors.neutral.white,
+    color: Colors.primary,
+    fontWeight: '600',
   },
-  scrollContent: {
+  contentContainer: {
     flex: 1,
+    padding: 20,
   },
-  homeContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+  sectionContainer: {
+    marginBottom: 24,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -912,179 +885,154 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: Colors.neutral.dark,
+  },
+  seeAllText: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: '500',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  loadingText: {
     marginLeft: 8,
+    fontSize: 14,
+    color: Colors.neutral.medium,
+  },
+  projectsScrollView: {
+    marginHorizontal: -10,
   },
   projectCard: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 32,
-  },
-  projectHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  projectName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.neutral.dark,
-  },
-  teamMembers: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  memberAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: -8,
-    borderWidth: 2,
-    borderColor: Colors.background,
-  },
-  memberInitial: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: Colors.neutral.white,
-  },
-  memberCount: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: -8,
-    borderWidth: 2,
-    borderColor: Colors.background,
-  },
-  memberCountText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: Colors.neutral.white,
-  },
-  projectDates: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  dateItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dateText: {
-    fontSize: 14,
-    color: Colors.neutral.medium,
-    marginLeft: 4,
-  },
-  dateSeparator: {
-    flex: 1,
-    height: 2,
-    backgroundColor: Colors.border,
-    marginHorizontal: 16,
-    position: 'relative',
-  },
-  progressSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  progressText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.primary,
-    marginRight: 12,
-  },
-  progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: Colors.border,
-    borderRadius: 4,
-    marginRight: 12,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: 4,
-  },
-  tasksText: {
-    fontSize: 14,
-    color: Colors.neutral.medium,
-  },
-  tasksList: {
-    gap: 12,
-  },
-  taskCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
     padding: 16,
+    marginBottom: 12,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light + '40',
+  },
+  projectIcon: {
+    width: 48,
+    height: 48,
     borderRadius: 12,
-  },
-  taskIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.background,
-    justifyContent: 'center',
+    backgroundColor: Colors.primary + '20',
     alignItems: 'center',
-    marginRight: 12,
+    justifyContent: 'center',
+    marginBottom: 12,
   },
-  taskContent: {
+  projectContent: {
     flex: 1,
   },
-  taskTitle: {
+  projectTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: Colors.neutral.dark,
-    marginBottom: 2,
+    marginBottom: 4,
   },
+  projectDescription: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  projectStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  projectStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  projectStatText: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    marginLeft: 4,
+  },
+  emptyProjectsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    width: 280,
+    marginHorizontal: 10,
+  },
+  emptyProjectsText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: Colors.neutral.medium,
+    marginTop: 12,
+  },
+  emptyProjectsSubtext: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  filterContainer: {
+    marginBottom: 16,
+  },
+  tasksList: {
+    marginTop: 8,
+  },
+  analyticsContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  comingSoonText: {
+    fontSize: 16,
+    color: Colors.neutral.medium,
+    marginTop: 16,
+  },
+  settingsContent: {
+    padding: 20,
+  },
+  settingsItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  settingsItemText: {
+    fontSize: 16,
+    color: Colors.neutral.dark,
+    marginLeft: 12,
+  },
+  
+  // Section Title Row
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  // Task Project Style
   taskProject: {
     fontSize: 12,
     color: Colors.neutral.medium,
     fontWeight: '500',
     marginBottom: 4,
   },
-  taskDeadline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  deadlineText: {
-    fontSize: 12,
-    color: Colors.neutral.medium,
-    marginLeft: 4,
-  },
-  overdue: {
-    color: Colors.error,
-    fontWeight: '600',
-  },
-  dueSoon: {
-    color: Colors.warning,
-    fontWeight: '600',
-  },
-  upcoming: {
-    color: Colors.neutral.medium,
-  },
-  priorityBadge: {
-    backgroundColor: Colors.warning + '20',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  urgentBadge: {
-    backgroundColor: Colors.error + '20',
-  },
+
+  // Priority Badge Styles
   highBadge: {
     backgroundColor: Colors.warning + '20',
   },
@@ -1094,42 +1042,13 @@ const styles = StyleSheet.create({
   lowBadge: {
     backgroundColor: Colors.accent + '20',
   },
-  priorityText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: Colors.warning,
-  },
 
-  // Filter Styles
-  filterContainer: {
-    marginBottom: 16,
-    position: 'relative',
-    zIndex: 1000,
-  },
-  filterScrollView: {
-    paddingVertical: 4,
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
-    marginRight: 8,
-  },
-  activeFilterChip: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  filterChipText: {
-    fontSize: 14,
-    fontWeight: '500',
+  // Deadline Styles
+  upcoming: {
     color: Colors.neutral.medium,
   },
-  activeFilterChipText: {
-    color: Colors.neutral.white,
-  },
+
+
   filterDropdownButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1187,44 +1106,79 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   tasksScrollView: {
-    maxHeight: 200,
+    flex: 1,
     marginBottom: 20,
   },
 
-  // Dropdown Styles
-  dropdownOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-    paddingTop: 80,
-    paddingRight: 20,
-  },
-  dropdownMenu: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    paddingVertical: 8,
-    minWidth: 180,
-    shadowColor: Colors.neutral.dark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  dropdownItem: {
+  // Task Card Styles
+  taskCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 16,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    marginBottom: 12,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light + '40',
   },
-  dropdownItemText: {
+  taskIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '10',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  taskContent: {
+    flex: 1,
+    marginRight: 12,
+  },
+  taskTitle: {
     fontSize: 16,
+    fontWeight: '600',
     color: Colors.neutral.dark,
+    marginBottom: 4,
+  },
+  taskDeadline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  deadlineText: {
+    fontSize: 12,
+    marginLeft: 4,
     fontWeight: '500',
   },
+  priorityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  priorityText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+  },
+  urgentBadge: {
+    backgroundColor: Colors.error + '20',
+  },
+  dueSoon: {
+    color: Colors.warning,
+  },
+  overdue: {
+    color: Colors.error,
+  },
 
-  // Enhanced Analytics Screen Styles
+  // Enhanced Analytics Styles
   enhancedStatsContainer: {
     marginBottom: 24,
   },
@@ -1244,8 +1198,9 @@ const styles = StyleSheet.create({
   statHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'center',
     gap: 8,
+    marginBottom: 4,
   },
   statTitle: {
     fontSize: 14,
@@ -1256,6 +1211,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
     color: Colors.neutral.dark,
+    textAlign: 'center',
     marginBottom: 12,
   },
   statProgress: {
@@ -1274,41 +1230,43 @@ const styles = StyleSheet.create({
   statProgressText: {
     fontSize: 12,
     color: Colors.neutral.medium,
+    textAlign: 'center',
     fontWeight: '500',
   },
+
+  // Calendar Styles
   calendarSection: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
+    padding: 16,
+    marginBottom: 20,
   },
   calendarHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   calendarMonth: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: Colors.neutral.dark,
   },
-  calendarNavigation: {
+  calendarWeekdays: {
     flexDirection: 'row',
-    gap: 8,
+    justifyContent: 'space-around',
+    marginBottom: 8,
+  },
+  calendarWeekday: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.neutral.medium,
+    textAlign: 'center',
+    width: 40,
   },
   calendarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 20,
-  },
-  calendarDayHeader: {
-    width: '14.28%',
-    textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.neutral.medium,
-    paddingVertical: 8,
   },
   calendarDay: {
     width: '14.28%',
@@ -1329,18 +1287,18 @@ const styles = StyleSheet.create({
   calendarDayText: {
     fontSize: 14,
     color: Colors.neutral.dark,
+    fontWeight: '500',
   },
   calendarTodayText: {
     color: Colors.surface,
     fontWeight: 'bold',
   },
-  calendarEventText: {
-    color: Colors.accent,
-    fontWeight: '600',
+  calendarInactiveDayText: {
+    fontSize: 14,
+    color: Colors.neutral.light,
   },
   eventDot: {
     position: 'absolute',
-    bottom: 4,
     width: 4,
     height: 4,
     borderRadius: 2,
@@ -1363,38 +1321,49 @@ const styles = StyleSheet.create({
     bottom: 4,
     left: 8,
   },
+
+  // Upcoming Events Styles
   upcomingEvents: {
     borderTopWidth: 1,
     borderTopColor: Colors.neutral.light,
     paddingTop: 16,
+    marginTop: 16,
   },
-  upcomingTitle: {
+  upcomingEventsTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: Colors.neutral.dark,
     marginBottom: 12,
   },
   eventItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
   },
-  eventTime: {
-    width: 60,
+  eventDate: {
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.primary + '20',
-    borderRadius: 8,
-    paddingVertical: 8,
     marginRight: 12,
+    minWidth: 40,
   },
-  eventTimeText: {
+  eventDateDay: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.neutral.dark,
+  },
+  eventDateMonth: {
     fontSize: 12,
-    fontWeight: '600',
-    color: Colors.primary,
+    color: Colors.neutral.medium,
+    fontWeight: '500',
   },
   eventContent: {
     flex: 1,
+    marginRight: 8,
   },
   eventTitle: {
     fontSize: 14,
@@ -1402,38 +1371,130 @@ const styles = StyleSheet.create({
     color: Colors.neutral.dark,
     marginBottom: 2,
   },
-  eventDate: {
+  eventTime: {
     fontSize: 12,
     color: Colors.neutral.medium,
+    marginBottom: 2,
+  },
+  eventProject: {
+    fontSize: 11,
+    color: Colors.primary,
+    fontWeight: '500',
+  },
+  eventTypeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 
-  // Voice Screen Styles
+
+  projectHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  projectName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.neutral.dark,
+    flex: 1,
+  },
+  memberCount: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+    fontWeight: '500',
+  },
+  teamMembers: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  memberAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -8,
+    borderWidth: 2,
+    borderColor: Colors.surface,
+  },
+  memberAvatarText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: Colors.surface,
+  },
+  moreMembers: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.neutral.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -8,
+    borderWidth: 2,
+    borderColor: Colors.surface,
+  },
+  moreMembersText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: Colors.neutral.dark,
+  },
+
+  projectProgress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  progressBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: Colors.neutral.light,
+    borderRadius: 4,
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    width: '50%',
+    backgroundColor: Colors.primary,
+    borderRadius: 4,
+  },
+  tasksText: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    fontWeight: '500',
+  },
+
+
+
   centerContent: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     padding: 40,
   },
-  voiceIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: Colors.surface,
-    justifyContent: 'center',
+  voiceIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.primary + '20',
     alignItems: 'center',
-    marginBottom: 24,
+    justifyContent: 'center',
+    marginBottom: 20,
   },
   centerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '600',
     color: Colors.neutral.dark,
     marginBottom: 8,
   },
   centerSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: Colors.neutral.medium,
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   voiceButton: {
     flexDirection: 'row',
@@ -1441,36 +1502,39 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 25,
+    borderRadius: 24,
   },
   voiceButtonText: {
-    color: Colors.neutral.white,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
+    color: Colors.surface,
     marginLeft: 8,
   },
-
-  // Notification Screen Styles
   notificationContent: {
     padding: 20,
   },
   notificationItem: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,
+    borderRadius: 16,
     padding: 16,
-    borderRadius: 12,
     marginBottom: 12,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   notificationIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.background,
-    justifyContent: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '20',
     alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 12,
   },
-  notificationTextContainer: {
+  notificationText: {
     flex: 1,
   },
   notificationTitle: {
@@ -1479,7 +1543,7 @@ const styles = StyleSheet.create({
     color: Colors.neutral.dark,
     marginBottom: 4,
   },
-  notificationMessage: {
+  notificationSubtitle: {
     fontSize: 14,
     color: Colors.neutral.medium,
     marginBottom: 4,
@@ -1488,73 +1552,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.neutral.medium,
   },
-
-  // Settings Screen Styles
-  settingsContent: {
-    padding: 20,
-  },
-  settingsSection: {
-    marginBottom: 24,
-  },
-  settingsSectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.neutral.dark,
-    marginBottom: 12,
-  },
-  settingsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  settingsItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  settingsItemContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  settingsItemText: {
-    fontSize: 16,
-    color: Colors.neutral.dark,
-    marginBottom: 2,
-  },
-  settingsItemSubtext: {
-    fontSize: 12,
-    color: Colors.neutral.medium,
-  },
-  toggle: {
-    width: 50,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: Colors.neutral.light,
-    padding: 2,
-    justifyContent: 'center',
-  },
-  toggleActive: {
-    backgroundColor: Colors.primary,
-  },
-  toggleThumb: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: Colors.surface,
-    shadowColor: Colors.neutral.dark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  toggleThumbActive: {
-    transform: [{ translateX: 20 }],
-  },
-
-
 });
 
 export default WorkspaceDashboardScreen;

@@ -2,6 +2,8 @@ export { default as CreateProjectModal } from './CreateProjectModal';
 export { default as FloatingActionMenu } from './FloatingActionMenu';
 export { default as MemberDropdown } from './MemberDropdown';
 export { default as CreateActionDropdown } from './CreateActionDropdown';
+export { default as AddMemberModal } from './AddMemberModal';
+export { default as WorkspaceActionDropdown } from './WorkspaceActionDropdown';
 export { default as CreateTaskModal } from './CreateTaskModal';
 export { default as CreateEventModal } from './CreateEventModal';
 export { default as MoreActionsDropdown } from './MoreActionsDropdown';

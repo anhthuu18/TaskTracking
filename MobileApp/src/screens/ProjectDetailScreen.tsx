@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,13 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { Project, ProjectFlow, FlowStatus } from '../types/Project';
-import { CreateActionDropdown, CreateTaskModal, CreateEventModal, CreateProjectModal, MoreActionsDropdown, MemberSortDropdown, StatusSortDropdown } from '../components';
+import { Project, ProjectMember } from '../types/Project';
+import { CreateActionDropdown, CreateTaskModal, CreateEventModal, CreateProjectModal, MoreActionsDropdown, MemberSortDropdown } from '../components';
+import { projectService } from '../services';
 
 interface ProjectDetailScreenProps {
   navigation: any;
@@ -22,77 +24,55 @@ interface ProjectDetailScreenProps {
 }
 
 const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, route }) => {
-  const { project } = route.params;
+  const { project: initialProject } = route.params;
+  const [project, setProject] = useState<Project>(initialProject);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
   const [showMemberSort, setShowMemberSort] = useState(false);
-  const [showStatusSort, setShowStatusSort] = useState(false);
+
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<FlowStatus | null>(null);
+  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock users data for dropdown
-  const mockUsers = [
-    { id: '1', name: 'John Doe', username: 'johndoe' },
-    { id: '2', name: 'Jane Smith', username: 'janesmith' },
-    { id: '3', name: 'Mike Johnson', username: 'mikejohnson' },
-  ];
+  // Load project details and members on component mount
+  useEffect(() => {
+    loadProjectDetails();
+    loadProjectMembers();
+  }, [project.id]);
 
-  // Mock project flows data
-  const projectFlows: ProjectFlow[] = [
-    {
-      id: '1',
-      name: 'Design System',
-      projectId: project.id,
-      startDate: new Date('2021-01-01'),
-      endDate: new Date('2021-02-01'),
-      members: project.members.slice(0, 2),
-      status: FlowStatus.COMPLETED,
-      progress: 100,
-    },
-    {
-      id: '2',
-      name: 'User Research',
-      projectId: project.id,
-      startDate: new Date('2021-01-05'),
-      endDate: new Date('2021-02-05'),
-      members: project.members.slice(1, 3),
-      status: FlowStatus.IN_PROGRESS,
-      progress: 60,
-    },
-    {
-      id: '3',
-      name: 'Wireframing',
-      projectId: project.id,
-      startDate: new Date('2021-01-10'),
-      endDate: new Date('2021-02-10'),
-      members: project.members.slice(0, 3),
-      status: FlowStatus.NOT_STARTED,
-      progress: 0,
-    },
-    {
-      id: '4',
-      name: 'Prototyping',
-      projectId: project.id,
-      startDate: new Date('2021-01-15'),
-      endDate: new Date('2021-02-15'),
-      members: project.members.slice(2, 4),
-      status: FlowStatus.BLOCKED,
-      progress: 25,
-    },
-    {
-      id: '5',
-      name: 'Testing',
-      projectId: project.id,
-      startDate: new Date('2021-01-20'),
-      endDate: new Date('2021-02-20'),
-      members: project.members.slice(0, 4),
-      status: FlowStatus.IN_PROGRESS,
-      progress: 80,
-    },
-  ];
+  const loadProjectDetails = async () => {
+    try {
+      const response = await projectService.getProjectDetails(Number(project.id));
+      
+      if (response.success) {
+        setProject(response.data);
+      } else {
+        console.error('Failed to load project details:', response.message);
+      }
+    } catch (error: any) {
+      console.error('Error loading project details:', error);
+    }
+  };
+
+  const loadProjectMembers = async () => {
+    try {
+      setLoading(true);
+      const response = await projectService.getProjectMembers(Number(project.id));
+      
+      if (response.success) {
+        setProjectMembers(response.data);
+      } else {
+        console.error('Failed to load project members:', response.message);
+      }
+    } catch (error: any) {
+      console.error('Error loading project members:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
@@ -102,7 +82,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     });
   };
 
-  const handleMoreAction = (action: string) => {
+  const handleMoreAction = async (action: string) => {
     setShowMoreActions(false);
     switch (action) {
       case 'check_done':
@@ -114,56 +94,51 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
       case 'delete':
         Alert.alert('Delete Project', 'Are you sure you want to delete this project?', [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', style: 'destructive' }
+          { 
+            text: 'Delete', 
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const response = await projectService.deleteProject(Number(project.id));
+                if (response.success) {
+                  Alert.alert('Success', 'Project deleted successfully');
+                  navigation.goBack();
+                } else {
+                  Alert.alert('Error', response.message || 'Failed to delete project');
+                }
+              } catch (error: any) {
+                Alert.alert('Error', error.message || 'Failed to delete project');
+              }
+            }
+          }
         ]);
         break;
     }
   };
 
-  const renderFlowCard = (flow: ProjectFlow) => (
-    <View key={flow.id} style={styles.flowCard}>
-      <View style={styles.flowHeader}>
-        <Text style={styles.flowTitle}>{flow.name}</Text>
-        <View style={styles.flowMembers}>
-          {flow.members.slice(0, 3).map((member, index) => (
-            <View
-              key={member.id}
-              style={[
-                styles.memberAvatar,
-                { 
-                  backgroundColor: Colors.primary,
-                  marginLeft: index > 0 ? -8 : 0,
-                  zIndex: 3 - index,
-                }
-              ]}
-            >
-              <Text style={styles.memberAvatarText}>
-                {member.username.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          ))}
-          {flow.members.length > 3 && (
-            <View style={[styles.memberAvatar, styles.additionalMemberAvatar, { marginLeft: -8 }]}>
-              <Text style={styles.memberAvatarText}>+{flow.members.length - 3}</Text>
-            </View>
-          )}
+  const renderMemberCard = (member: ProjectMember) => (
+    <View key={member.id} style={styles.memberCard}>
+      <View style={styles.memberHeader}>
+        <View style={[styles.memberAvatar, { backgroundColor: Colors.primary }]}>
+          <Text style={styles.memberAvatarText}>
+            {member.user.username.charAt(0).toUpperCase()}
+          </Text>
+        </View>
+        <View style={styles.memberInfo}>
+          <Text style={styles.memberName}>{member.user.username}</Text>
+          <Text style={styles.memberEmail}>{member.user.email}</Text>
+        </View>
+        <View style={styles.memberRole}>
+          <Text style={styles.memberRoleText}>{member.role}</Text>
         </View>
       </View>
-
-      <View style={styles.flowDates}>
-        <View style={styles.flowDateItem}>
-          <MaterialIcons name="schedule" size={14} color={Colors.neutral.medium} />
-          <Text style={styles.flowDateText}>{formatDate(flow.startDate)}</Text>
-        </View>
-        <View style={styles.flowDateSeparator}>
-          <View style={styles.flowDateLine} />
-          <MaterialIcons name="arrow-forward" size={14} color={Colors.neutral.medium} />
-        </View>
-        <View style={styles.flowDateItem}>
-          <MaterialIcons name="event" size={14} color={Colors.primary} />
-          <Text style={styles.flowDateText}>{formatDate(flow.endDate)}</Text>
-        </View>
-      </View>
+      <Text style={styles.memberJoinDate}>
+        Joined: {new Date(member.joinedAt).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        })}
+      </Text>
     </View>
   );
 
@@ -192,7 +167,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         {/* Project Info */}
         <View style={styles.projectInfo}>
           <View style={styles.projectHeader}>
-            <Text style={styles.projectTitle}>{project.name}</Text>
+            <Text style={styles.projectTitle}>{project.projectName}</Text>
             <TouchableOpacity 
               style={styles.moreActionsButton}
               onPress={() => setShowMoreActions(true)}
@@ -200,57 +175,30 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
               <MaterialIcons name="more-vert" size={24} color={Colors.neutral.dark} />
             </TouchableOpacity>
           </View>
-          
-          {/* Sort Options */}
-          <View style={styles.sortOptions}>
-            <TouchableOpacity 
-              style={styles.sortButton}
-              onPress={() => setShowMemberSort(true)}
-            >
-              <MaterialIcons name="person" size={16} color={Colors.neutral.medium} />
-              <Text style={styles.sortLabel}>
-                {selectedMember ? mockUsers.find(m => m.id === selectedMember)?.name : 'All Members'}
-              </Text>
-              <MaterialIcons name="keyboard-arrow-down" size={16} color={Colors.neutral.medium} />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.sortButton}
-              onPress={() => setShowStatusSort(true)}
-            >
-              <MaterialIcons name="schedule" size={16} color={Colors.neutral.medium} />
-              <Text style={styles.sortLabel}>
-                {selectedStatus ? selectedStatus.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'All Status'}
-              </Text>
-              <MaterialIcons name="keyboard-arrow-down" size={16} color={Colors.neutral.medium} />
-            </TouchableOpacity>
-          </View>
 
-          {/* Project Members */}
-          <View style={styles.membersSection}>
-            <Text style={styles.sectionTitle}>Userflow</Text>
-            <View style={styles.membersRow}>
-              {project.members.slice(0, 4).map((member, index) => (
-                <View
-                  key={member.id}
-                  style={[
-                    styles.memberAvatar,
-                    { 
-                      backgroundColor: Colors.primary,
-                      marginLeft: index > 0 ? -8 : 0,
-                      zIndex: 4 - index,
-                    }
-                  ]}
-                >
-                  <Text style={styles.memberAvatarText}>
-                    {member.username.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              ))}
-              {project.members.length > 4 && (
-                <View style={[styles.memberAvatar, styles.additionalMemberAvatar, { marginLeft: -8 }]}>
-                  <Text style={styles.memberAvatarText}>+{project.members.length - 4}</Text>
-                </View>
-              )}
+          {/* Project Description */}
+          {project.description && (
+            <View style={styles.descriptionSection}>
+              <Text style={styles.projectDescription}>{project.description}</Text>
+            </View>
+          )}
+
+          {/* Project Info Cards */}
+          <View style={styles.infoCards}>
+            <View style={styles.infoCard}>
+              <MaterialIcons name="person" size={20} color={Colors.primary} />
+              <Text style={styles.infoCardLabel}>Created by</Text>
+              <Text style={styles.infoCardValue}>{project.user?.username || 'Unknown'}</Text>
+            </View>
+            <View style={styles.infoCard}>
+              <MaterialIcons name="group" size={20} color={Colors.accent} />
+              <Text style={styles.infoCardLabel}>Members</Text>
+              <Text style={styles.infoCardValue}>{project.memberCount || 1}</Text>
+            </View>
+            <View style={styles.infoCard}>
+              <MaterialIcons name="folder" size={20} color={Colors.warning} />
+              <Text style={styles.infoCardLabel}>Workspace</Text>
+              <Text style={styles.infoCardValue}>{project.workspace?.workspaceName || 'Unknown'}</Text>
             </View>
           </View>
 
@@ -259,7 +207,9 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
             <View style={styles.dateRow}>
               <View style={styles.dateItem}>
                 <MaterialIcons name="schedule" size={16} color={Colors.neutral.medium} />
-                <Text style={styles.dateText}>{formatDate(project.startDate)}</Text>
+                <Text style={styles.dateText}>
+                  Created: {formatDate(new Date(project.dateCreated))}
+                </Text>
               </View>
               <View style={styles.dateSeparator}>
                 <View style={styles.dateLine} />
@@ -267,21 +217,33 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
               </View>
               <View style={styles.dateItem}>
                 <MaterialIcons name="event" size={16} color={Colors.primary} />
-                <Text style={styles.dateText}>{formatDate(project.endDate)}</Text>
+                <Text style={styles.dateText}>
+                  Modified: {formatDate(new Date(project.dateModified))}
+                </Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* Project Flows */}
-        <View style={styles.flowsSection}>
-          {projectFlows
-            .filter(flow => {
-              const memberMatch = selectedMember ? mockUsers.some(user => user.id === selectedMember && flow.members.some(m => m.username === user.username)) : true;
-              const statusMatch = selectedStatus ? flow.status === selectedStatus : true;
-              return memberMatch && statusMatch;
-            })
-            .map(renderFlowCard)}
+        {/* Project Members */}
+        <View style={styles.membersSection}>
+          <Text style={styles.sectionTitle}>Project Members</Text>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.loadingText}>Loading members...</Text>
+            </View>
+          ) : projectMembers.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="group" size={32} color={Colors.neutral.medium} />
+              <Text style={styles.emptyTitle}>No members found</Text>
+              <Text style={styles.emptySubtitle}>Invite members to collaborate on this project</Text>
+            </View>
+          ) : (
+            <View style={styles.membersGrid}>
+              {projectMembers.map(renderMemberCard)}
+            </View>
+          )}
         </View>
 
 
@@ -314,9 +276,9 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
           setShowCreateTaskModal(false);
           console.log('Task created:', taskData);
         }}
-        projectId={project.id}
-        projectName={project.name}
-        projectMembers={project.members}
+        projectId={Number(project.id)}
+        projectName={project.projectName}
+        projectMembers={projectMembers}
         isPersonalWorkspace={false}
       />
 
@@ -342,16 +304,12 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         visible={showMemberSort}
         onClose={() => setShowMemberSort(false)}
         onSelect={setSelectedMember}
-        members={mockUsers}
+        members={projectMembers.map(m => ({ 
+          id: m.id.toString(), 
+          name: m.user.username, 
+          username: m.user.username 
+        }))}
         selectedMember={selectedMember}
-      />
-
-      {/* Status Sort Dropdown */}
-      <StatusSortDropdown
-        visible={showStatusSort}
-        onClose={() => setShowStatusSort(false)}
-        onSelect={setSelectedStatus}
-        selectedStatus={selectedStatus}
       />
 
     </View>
@@ -496,56 +454,109 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.neutral.light,
   },
-  flowsSection: {
-    paddingHorizontal: 20,
-    gap: 16,
+  descriptionSection: {
+    marginBottom: 20,
   },
-  flowCard: {
+  projectDescription: {
+    fontSize: 16,
+    color: Colors.neutral.medium,
+    lineHeight: 24,
+  },
+  infoCards: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  infoCard: {
+    flex: 1,
+    backgroundColor: Colors.neutral.light + '40',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  infoCardLabel: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    fontWeight: '500',
+  },
+  infoCardValue: {
+    fontSize: 14,
+    color: Colors.neutral.dark,
+    fontWeight: '600',
+  },
+  membersGrid: {
+    gap: 12,
+  },
+  memberCard: {
     backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
     borderColor: Colors.neutral.light,
   },
-  flowHeader: {
+  memberHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  flowTitle: {
+  memberInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  memberName: {
     fontSize: 16,
     fontWeight: '600',
     color: Colors.neutral.dark,
   },
-  flowMembers: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  flowDates: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  flowDateItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  flowDateText: {
-    fontSize: 12,
+  memberEmail: {
+    fontSize: 14,
     color: Colors.neutral.medium,
   },
-  flowDateSeparator: {
+  memberRole: {
+    backgroundColor: Colors.primary + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  memberRoleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.primary,
+    textTransform: 'uppercase',
+  },
+  memberJoinDate: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    fontStyle: 'italic',
+  },
+  loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    gap: 6,
+    justifyContent: 'center',
+    paddingVertical: 40,
   },
-  flowDateLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.neutral.light,
+  loadingText: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+    marginLeft: 12,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+    textAlign: 'center',
   },
 
 

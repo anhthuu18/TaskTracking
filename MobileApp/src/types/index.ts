@@ -5,3 +5,4 @@ export type { Event, EventFilter, CreateEventData } from './Event';
 export * from './Navigation';
 export * from './Auth';
 export * from './Project';
+export * from './Workspace';

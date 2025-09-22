@@ -29,6 +29,14 @@ export class ProjectsController {
     return this.projectsService.getUserProjects(req.user.userId);
   }
 
+  @Get('list-by-workspace/:workspaceId')
+  async getProjectsByWorkspace(
+    @Param('workspaceId', ParseIntPipe) workspaceId: number,
+    @Request() req
+  ) {
+    return this.projectsService.getProjectsByWorkspace(workspaceId, req.user.userId);
+  }
+
   @Get('get-details/:id')
   async getProject(@Param('id', ParseIntPipe) id: number, @Request() req) {
     return this.projectsService.getProjectById(id, req.user.userId);

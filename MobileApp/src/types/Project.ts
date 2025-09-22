@@ -1,46 +1,96 @@
-// Project type definitions for AI Task Tracking Mobile
+// Project type definitions matching Backend DTOs
 
 export interface Project {
-  id: string;
-  name: string;
+  id: number;
+  projectName: string;
   description?: string;
-  startDate: Date;
-  endDate: Date;
-  workspaceId: string;
-  createdBy: string;
-  members: ProjectMember[];
-  labels: ProjectLabel[];
-  status: ProjectStatus;
-  progress: number;
-  completedTasks: number;
-  totalTasks: number;
-  createdAt: Date;
-  updatedAt: Date;
+  workspaceId: number;
+  userId: number;
+  status?: ProjectStatus;
+  dateCreated: Date;
+  dateModified: Date;
+  user?: {
+    id: number;
+    username: string;
+    email: string;
+  };
+  workspace?: {
+    id: number;
+    workspaceName: string;
+  };
+  memberCount?: number;
+  userRole?: ProjectMemberRole;
 }
 
 export interface ProjectMember {
-  id: string;
-  userId: string;
-  username: string;
-  email: string;
-  avatar?: string;
-  role: ProjectRole;
+  id: number;
+  projectId: number;
+  userId: number;
+  role: ProjectMemberRole;
   joinedAt: Date;
+  user: {
+    id: number;
+    username: string;
+    email: string;
+  };
 }
 
+export enum ProjectMemberRole {
+  OWNER = 'OWNER',
+  ADMIN = 'ADMIN',
+  MEMBER = 'MEMBER'
+}
+
+// Request DTOs
+export interface CreateProjectRequest {
+  projectName: string;
+  description?: string;
+  workspaceId: number;
+}
+
+export interface UpdateProjectRequest {
+  projectName?: string;
+  description?: string;
+}
+
+export interface InviteProjectMemberRequest {
+  email: string;
+  role?: ProjectMemberRole;
+}
+
+export interface UpdateMemberRoleRequest {
+  role: ProjectMemberRole;
+}
+
+// Response DTOs
+export interface ProjectResponse {
+  success: boolean;
+  message: string;
+  data: Project;
+}
+
+export interface ProjectListResponse {
+  success: boolean;
+  message: string;
+  data: Project[];
+}
+
+export interface ProjectMemberResponse {
+  success: boolean;
+  message: string;
+  data: ProjectMember[];
+}
+
+export interface DeleteProjectResponse {
+  success: boolean;
+  message: string;
+}
+
+// Legacy types for backward compatibility (to be removed later)
 export interface ProjectLabel {
   id: string;
   name: string;
   color: string;
-}
-
-export interface WorkspaceMember {
-  id: string;
-  userId: string;
-  username: string;
-  email: string;
-  avatar?: string;
-  role: WorkspaceRoleType;
 }
 
 export interface ProjectFlow {
@@ -81,16 +131,5 @@ export enum FlowStatus {
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
   BLOCKED = 'blocked'
-}
-
-export interface CreateProjectRequest {
-  name: string;
-  description?: string;
-  startDate: Date;
-  endDate: Date;
-  workspaceId: string;
-  memberIds: string[];
-  inviteEmails?: string[];
-  labels: Omit<ProjectLabel, 'id'>[];
 }
 

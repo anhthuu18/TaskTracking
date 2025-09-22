@@ -12,19 +12,24 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import { ScreenLayout, ButtonStyles, Typography } from '../constants/Dimensions';
+import { workspaceService } from '../services';
+import { Workspace, WorkspaceType } from '../types';
 
 interface WorkspaceSelectionScreenProps {
   navigation: any;
   route?: any;
 }
 
-interface Workspace {
+interface WorkspaceUI {
   id: string;
   name: string;
   memberCount: number;
@@ -36,73 +41,79 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTab, setSelectedTab] = useState<'group' | 'personal'>('group');
   const [showAllWorkspaces, setShowAllWorkspaces] = useState(false);
+  const [workspaces, setWorkspaces] = useState<WorkspaceUI[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Enable LayoutAnimation on Android
+  // Color palette for workspace icons
+  const workspaceColors = [
+    Colors.primary,
+    Colors.overlay.pink,
+    Colors.overlay.purple,
+    Colors.accent,
+    Colors.semantic.success,
+    Colors.overlay.coral,
+    Colors.priority.low,
+    Colors.priority.medium,
+    Colors.warning,
+    Colors.semantic.info,
+  ];
+
+  // Enable LayoutAnimation on Android (only for old architecture)
   useEffect(() => {
     if (Platform.OS === 'android') {
-      if (UIManager.setLayoutAnimationEnabledExperimental) {
-        UIManager.setLayoutAnimationEnabledExperimental(true);
+      // Check if we're using the old architecture before calling this
+      try {
+        if (UIManager.setLayoutAnimationEnabledExperimental) {
+          UIManager.setLayoutAnimationEnabledExperimental(true);
+        }
+      } catch (error) {
+        // Silently ignore in New Architecture
+        console.log('LayoutAnimation not available in New Architecture');
       }
     }
   }, []);
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([
-    {
-      id: '1',
-      name: 'WSP name',
-      memberCount: 2,
-      type: 'group',
-      color: Colors.primary
-    },
-    {
-      id: '2',
-      name: 'WSP name',
-      memberCount: 2,
-      type: 'group',
-      color: Colors.overlay.pink
-    },
-    {
-      id: '3',
-      name: 'WSP name',
-      memberCount: 2,
-      type: 'group',
-      color: Colors.overlay.purple
-    },
-    {
-      id: '4',
-      name: 'WSP name',
-      memberCount: 2,
-      type: 'group',
-      color: Colors.accent
-    },
-    {
-      id: '5',
-      name: 'WSP name',
-      memberCount: 2,
-      type: 'group',
-      color: Colors.semantic.success
-    },
-    {
-      id: '6',
-      name: 'WSP name',
-      memberCount: 2,
-      type: 'group',
-      color: Colors.overlay.coral
-    },
-    {
-      id: '7',
-      name: 'Personal Tasks',
-      memberCount: 1,
-      type: 'personal',
-      color: Colors.priority.low
-    },
-    {
-      id: '8',
-      name: 'My Projects',
-      memberCount: 1,
-      type: 'personal',
-      color: Colors.priority.medium
+
+  // Load workspaces on component mount
+  useEffect(() => {
+    loadWorkspaces();
+  }, []);
+
+  const loadWorkspaces = async () => {
+    try {
+      setLoading(true);
+      const response = await workspaceService.getAllWorkspaces();
+      
+      if (response.success) {
+        // Convert backend workspace data to UI format
+        const uiWorkspaces: WorkspaceUI[] = response.data.map((workspace, index) => ({
+          id: workspace.id.toString(),
+          name: workspace.workspaceName,
+          memberCount: workspace.memberCount || 1,
+          type: workspace.workspaceType === WorkspaceType.GROUP ? 'group' : 'personal',
+          color: workspaceColors[index % workspaceColors.length],
+        }));
+        
+        setWorkspaces(uiWorkspaces);
+      } else {
+        Alert.alert('Error', response.message || 'Failed to load workspaces');
+      }
+    } catch (error: any) {
+      console.error('Error loading workspaces:', error);
+      Alert.alert('Error', error.message || 'Failed to load workspaces');
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  const refreshWorkspaces = async () => {
+    try {
+      setRefreshing(true);
+      await loadWorkspaces();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const screenWidth = Dimensions.get('window').width;
   const blockWidth = (screenWidth - 60) / 2; // 20px padding on each side + 20px gap between blocks
@@ -117,9 +128,17 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   const displayedWorkspaces = showAllWorkspaces ? filteredWorkspaces : filteredWorkspaces.slice(0, 4);
   const hasMoreWorkspaces = filteredWorkspaces.length > 4;
 
-  const handleWorkspaceSelect = (workspace: Workspace) => {
+  const handleWorkspaceSelect = (workspace: WorkspaceUI) => {
     // Navigate to WorkspaceDashboard with selected workspace
-    navigation.navigate('WorkspaceDashboard', { workspace });
+    console.log('🔍 Selecting workspace:', workspace);
+    navigation.navigate('WorkspaceDashboard', { 
+      workspace: {
+        id: parseInt(workspace.id), // Convert to number for backend
+        name: workspace.name,
+        memberCount: workspace.memberCount,
+        type: workspace.type
+      }
+    });
   };
 
   const handleCreateWorkspace = () => {
@@ -132,7 +151,7 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   };
 
 
-  const renderWorkspaceBlock = (workspace: Workspace, index: number) => {
+  const renderWorkspaceBlock = (workspace: WorkspaceUI, index: number) => {
     const isEven = index % 2 === 0;
     return (
       <TouchableOpacity
@@ -248,11 +267,29 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
 
         {/* Workspace Blocks Container */}
         <View style={styles.workspaceSection}>
-          {showAllWorkspaces ? (
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.loadingText}>Loading workspaces...</Text>
+            </View>
+          ) : workspaces.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="folder-open" size={48} color={Colors.neutral.medium} />
+              <Text style={styles.emptyTitle}>No workspaces found</Text>
+              <Text style={styles.emptySubtitle}>Create your first workspace to get started</Text>
+            </View>
+          ) : showAllWorkspaces ? (
             <ScrollView 
               style={styles.workspacesScrollContainerExpanded}
               showsVerticalScrollIndicator={true}
               contentContainerStyle={styles.scrollContentContainer}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={refreshWorkspaces}
+                  colors={[Colors.primary]}
+                />
+              }
             >
               <View style={styles.workspacesContainer}>
                 {filteredWorkspaces.map((workspace, index) => renderWorkspaceBlock(workspace, index))}
@@ -469,6 +506,35 @@ const styles = StyleSheet.create({
   },
   scrollContentContainer: {
     paddingBottom: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: Colors.neutral.medium,
+    marginTop: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+    textAlign: 'center',
   },
 });
 

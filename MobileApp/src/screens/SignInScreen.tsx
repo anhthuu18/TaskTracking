@@ -8,6 +8,7 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TextInput } from 'react-native-paper';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -80,9 +81,9 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
         // Success - save user data and navigate
 
         
-        // TODO: Save token to AsyncStorage for persistence
-        // await AsyncStorage.setItem('authToken', response.data.token);
-        // await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+        // Save token to AsyncStorage for persistence
+        await AsyncStorage.setItem('authToken', response.data.token);
+        await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
         
         // Show success toast
         showSuccess('Đăng nhập thành công!');
@@ -159,9 +160,9 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
         
         if (response.success && response.data) {
           // Success - save user data and navigate
-          // TODO: Save token to AsyncStorage for persistence
-          // await AsyncStorage.setItem('authToken', response.data.token);
-          // await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+          // Save token to AsyncStorage for persistence
+          await AsyncStorage.setItem('authToken', response.data.token);
+          await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
           
           // Show success toast with short duration
           showSuccess('Đăng nhập Google thành công!');

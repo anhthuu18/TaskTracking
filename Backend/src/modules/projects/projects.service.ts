@@ -116,6 +116,72 @@ export class ProjectsService {
     });
   }
 
+  // Get projects by workspace for a user
+  async getProjectsByWorkspace(workspaceId: number, userId: number) {
+    // First verify user has access to the workspace
+    const workspace = await this.prisma.workspace.findFirst({
+      where: {
+        id: workspaceId,
+        OR: [
+          { userId: userId }, // Owner
+          {
+            workspaceMembers: {
+              some: {
+                userId: userId,
+                dateDeleted: null
+              }
+            }
+          }
+        ],
+        dateDeleted: null
+      }
+    });
+
+    if (!workspace) {
+      throw new ForbiddenException('You do not have access to this workspace');
+    }
+
+    // Get projects in the workspace that user has access to
+    return this.prisma.project.findMany({
+      where: {
+        workspaceId: workspaceId,
+        dateDeleted: null,
+        OR: [
+          { createdBy: userId }, // Projects created by user
+          {
+            members: {
+              some: {
+                userId: userId
+              }
+            }
+          }
+        ]
+      },
+      include: {
+        creator: {
+          select: { id: true, username: true, email: true }
+        },
+        workspace: {
+          select: { id: true, workspaceName: true }
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, username: true, email: true }
+            },
+            projectRole: {
+              select: { id: true, roleName: true }
+            }
+          }
+        },
+        _count: {
+          select: { members: true }
+        }
+      },
+      orderBy: { dateCreated: 'desc' }
+    });
+  }
+
   // Get project by ID with permission check
   async getProjectById(projectId: number, userId: number) {
     const project = await this.prisma.project.findFirst({
