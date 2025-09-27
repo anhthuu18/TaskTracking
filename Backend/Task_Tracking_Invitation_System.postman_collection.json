@@ -1,0 +1,809 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "Task Tracking - Invitation System",
+		"description": "Complete API collection for testing workspace and project invitation system",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/auth/login",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Workspace Management",
+			"item": [
+				{
+					"name": "Create Workspace",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"workspaceName\": \"My Team Workspace\",\n  \"description\": \"A workspace for our team collaboration\",\n  \"workspaceType\": \"GROUP\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/workspace/create-workspace",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"workspace",
+								"create-workspace"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Workspaces",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/workspace/list-all",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"workspace",
+								"list-all"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Workspace Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/workspace/get-details/{{WORKSPACE_ID}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"workspace",
+								"get-details",
+								"{{WORKSPACE_ID}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Workspace Invitations",
+			"item": [
+				{
+					"name": "Invite Member to Workspace (Email)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"newmember@example.com\",\n  \"inviteType\": \"EMAIL\",\n  \"message\": \"Welcome to our team workspace! We'd love to have you collaborate with us.\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/workspace/{{WORKSPACE_ID}}/invite-member",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"workspace",
+								"{{WORKSPACE_ID}}",
+								"invite-member"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Invite Member to Workspace (In-App)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"inapp@example.com\",\n  \"inviteType\": \"IN_APP\",\n  \"message\": \"Join our workspace for better collaboration!\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/workspace/{{WORKSPACE_ID}}/invite-member",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"workspace",
+								"{{WORKSPACE_ID}}",
+								"invite-member"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accept Workspace Invitation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/workspace/accept-invitation?token={{INVITATION_TOKEN}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"workspace",
+								"accept-invitation"
+							],
+							"query": [
+								{
+									"key": "token",
+									"value": "{{INVITATION_TOKEN}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Pending Workspace Invitations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/workspace/{{WORKSPACE_ID}}/invitations",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"workspace",
+								"{{WORKSPACE_ID}}",
+								"invitations"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Workspace Invitation",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/workspace/cancel-invitation/{{INVITATION_ID}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"workspace",
+								"cancel-invitation",
+								"{{INVITATION_ID}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Workspace Members",
+			"item": [
+				{
+					"name": "Add Member Directly",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": 2,\n  \"role\": \"MEMBER\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/workspace/{{WORKSPACE_ID}}/add-member",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"workspace",
+								"{{WORKSPACE_ID}}",
+								"add-member"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Workspace Members",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/workspace/{{WORKSPACE_ID}}/members",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"workspace",
+								"{{WORKSPACE_ID}}",
+								"members"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Workspace Member",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/workspace/{{WORKSPACE_ID}}/remove-member/{{MEMBER_ID}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"workspace",
+								"{{WORKSPACE_ID}}",
+								"remove-member",
+								"{{MEMBER_ID}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Project Management",
+			"item": [
+				{
+					"name": "Create Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"projectName\": \"Website Redesign\",\n  \"workspaceId\": {{WORKSPACE_ID}},\n  \"description\": \"Complete redesign of our company website\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/projects/create-project",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"create-project"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Projects",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/projects/list-all",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"list-all"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Projects by Workspace",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/projects/list-by-workspace/{{WORKSPACE_ID}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"list-by-workspace",
+								"{{WORKSPACE_ID}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Project Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/projects/get-details/{{PROJECT_ID}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"get-details",
+								"{{PROJECT_ID}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Project Invitations",
+			"item": [
+				{
+					"name": "Invite Member to Project (Email)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"projectmember@example.com\",\n  \"inviteType\": \"EMAIL\",\n  \"roleId\": 1,\n  \"message\": \"We'd like you to join our project team. Your expertise would be valuable!\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/projects/{{PROJECT_ID}}/invite-member",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"{{PROJECT_ID}}",
+								"invite-member"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Invite Member to Project (In-App)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"inappproject@example.com\",\n  \"inviteType\": \"IN_APP\",\n  \"message\": \"Join our project for an exciting collaboration!\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/projects/{{PROJECT_ID}}/invite-member",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"{{PROJECT_ID}}",
+								"invite-member"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accept Project Invitation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/projects/accept-invitation?token={{PROJECT_INVITATION_TOKEN}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"accept-invitation"
+							],
+							"query": [
+								{
+									"key": "token",
+									"value": "{{PROJECT_INVITATION_TOKEN}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Pending Project Invitations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/projects/{{PROJECT_ID}}/invitations",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"{{PROJECT_ID}}",
+								"invitations"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Project Invitation",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/projects/cancel-invitation/{{PROJECT_INVITATION_ID}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"cancel-invitation",
+								"{{PROJECT_INVITATION_ID}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Project Members",
+			"item": [
+				{
+					"name": "Add Project Member Directly",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": 2,\n  \"projectRoleId\": 1\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/projects/add-member/{{PROJECT_ID}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"add-member",
+								"{{PROJECT_ID}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Project Member",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/projects/remove-member/{{PROJECT_ID}}/{{PROJECT_MEMBER_ID}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"remove-member",
+								"{{PROJECT_ID}}",
+								"{{PROJECT_MEMBER_ID}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Promote to Admin",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/projects/promote-admin/{{PROJECT_ID}}/{{PROJECT_MEMBER_ID}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"promote-admin",
+								"{{PROJECT_ID}}",
+								"{{PROJECT_MEMBER_ID}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Project Roles & Permissions",
+			"item": [
+				{
+					"name": "Create Project Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"roleName\": \"Developer\",\n  \"description\": \"Software developer with code access\",\n  \"permissionIds\": [1, 2, 3]\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/projects/create-role/{{PROJECT_ID}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"create-role",
+								"{{PROJECT_ID}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Permissions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ACCESS_TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/projects/list-permissions",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"projects",
+								"list-permissions"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "BASE_URL",
+			"value": "http://localhost:3001",
+			"type": "string"
+		},
+		{
+			"key": "ACCESS_TOKEN",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "WORKSPACE_ID",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "PROJECT_ID",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "INVITATION_TOKEN",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "PROJECT_INVITATION_TOKEN",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "INVITATION_ID",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "PROJECT_INVITATION_ID",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "MEMBER_ID",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "PROJECT_MEMBER_ID",
+			"value": "1",
+			"type": "string"
+		}
+	]
+}

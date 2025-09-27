@@ -241,7 +241,7 @@ const DashboardContent = ({ navigation, route }: { navigation: any; route?: any 
             <View style={styles.sectionContainer}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>All Projects</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('ProjectList')}>
+                <TouchableOpacity onPress={() => navigation.navigate('ProjectList', { workspace })}>
                   <MaterialIcons name="chevron-right" size={20} color={Colors.primary} />
                 </TouchableOpacity>
               </View>
@@ -254,7 +254,7 @@ const DashboardContent = ({ navigation, route }: { navigation: any; route?: any 
               ) : projects.length > 0 ? (
                 <TouchableOpacity 
                   style={styles.projectCard}
-                  onPress={() => navigation.navigate('ProjectList')}
+                  onPress={() => navigation.navigate('ProjectList', { workspace })}
                   activeOpacity={0.7}
                 >
                   <View style={styles.projectHeader}>

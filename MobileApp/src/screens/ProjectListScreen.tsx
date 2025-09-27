@@ -233,17 +233,14 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
       </View>
 
       <View style={styles.progressSection}>
-        <Text style={styles.progressText}>{project.userRole || 'Member'}</Text>
+        <Text style={styles.progressText}>Members: {project.memberCount || 1}</Text>
         <View style={styles.progressBar}>
-          <Text style={styles.taskCount}>
-            {project.memberCount || 1} member{(project.memberCount || 1) > 1 ? 's' : ''}
-          </Text>
+          {project.description && (
+            <Text style={styles.projectDescription} numberOfLines={1}>
+              {project.description}
+            </Text>
+          )}
         </View>
-        {project.description && (
-          <Text style={styles.projectDescription} numberOfLines={1}>
-            {project.description}
-          </Text>
-        )}
       </View>
     </TouchableOpacity>
   );

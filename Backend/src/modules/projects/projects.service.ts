@@ -1,10 +1,18 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProjectDto, UpdateProjectDto, AddMemberDto, CreateProjectRoleDto } from './dto';
+import { InviteProjectMemberDto } from './dto/invite-project-member.dto';
+import { ProjectInvitationResponseDto } from './dto/project-invitation-response.dto';
+import { EmailService } from '../../services/email.service';
+import { InviteType, InvitationStatus } from '@prisma/client';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class ProjectsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService
+  ) {}
 
   // Create a new project - creator becomes admin automatically
   async createProject(createProjectDto: CreateProjectDto, userId: number) {
@@ -544,5 +552,433 @@ export class ProjectsService {
     });
 
     return !!membership;
+  }
+
+  // Invite member to project via email or in-app (Hierarchical Approach - Step 2)
+  async inviteProjectMember(projectId: number, inviteDto: InviteProjectMemberDto, inviterId: number): Promise<ProjectInvitationResponseDto> {
+    const { email, inviteType, roleId, message } = inviteDto;
+
+    // Check if user has admin permission
+    await this.checkAdminPermission(projectId, inviterId);
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        workspace: true,
+        projectRoles: true
+      }
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    // HIERARCHICAL APPROACH: Check if user exists and is workspace member first
+    const user = await this.prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (user) {
+      // User exists - check workspace membership
+      const workspaceMember = await this.prisma.workspaceMember.findFirst({
+        where: {
+          workspaceId: project.workspaceId,
+          userId: user.id,
+          dateDeleted: null
+        }
+      });
+
+      if (!workspaceMember) {
+        throw new BadRequestException(
+          `Người dùng phải là thành viên của workspace "${project.workspace.workspaceName}" trước khi có thể được mời vào project này. ` +
+          `Vui lòng mời họ vào workspace trước.`
+        );
+      }
+    } else {
+      // User doesn't exist - they need to be invited to workspace first
+      throw new BadRequestException(
+        `Người dùng với email "${email}" chưa đăng ký tài khoản hoặc chưa là thành viên của workspace. ` +
+        `Vui lòng mời họ vào workspace "${project.workspace.workspaceName}" trước.`
+      );
+    }
+
+    // Check if user is already a project member
+    const existingMember = await this.prisma.projectMember.findFirst({
+      where: {
+        projectId,
+        user: { email }
+      }
+    });
+
+    if (existingMember) {
+      throw new BadRequestException('Người dùng đã là thành viên của project này');
+    }
+
+    // HIERARCHICAL APPROACH: Handle existing pending invitation smartly
+    const existingInvitation = await this.prisma.projectInvitation.findFirst({
+      where: {
+        projectId,
+        email,
+        status: InvitationStatus.PENDING,
+        expiresAt: { gt: new Date() }
+      }
+    });
+
+    if (existingInvitation) {
+      // Update existing invitation instead of throwing error
+      const updatedInvitation = await this.prisma.projectInvitation.update({
+        where: { id: existingInvitation.id },
+        data: {
+          message: message || existingInvitation.message,
+          invitedBy: inviterId,
+          roleId: roleId || existingInvitation.roleId,
+          updatedAt: new Date(),
+        },
+        include: {
+          project: {
+            include: {
+              workspace: {
+                select: {
+                  id: true,
+                  workspaceName: true
+                }
+              }
+            }
+          },
+          inviter: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      // Resend email if EMAIL type
+      if (inviteType === InviteType.EMAIL) {
+        const acceptUrl = `${process.env.FRONTEND_URL}/accept-project-invitation?token=${existingInvitation.token}`;
+        await this.emailService.sendProjectInvitation(
+          email,
+          project.projectName,
+          project.workspace.workspaceName,
+          updatedInvitation.inviter.username,
+          acceptUrl,
+          message || 'Lời mời project đã được gửi lại'
+        );
+      }
+
+      return {
+        id: updatedInvitation.id,
+        projectId: updatedInvitation.projectId,
+        email: updatedInvitation.email,
+        invitedBy: updatedInvitation.invitedBy,
+        inviteType: updatedInvitation.inviteType,
+        status: updatedInvitation.status,
+        token: updatedInvitation.token,
+        message: updatedInvitation.message,
+        roleId: updatedInvitation.roleId,
+        expiresAt: updatedInvitation.expiresAt,
+        createdAt: updatedInvitation.createdAt,
+        project: {
+          id: updatedInvitation.project.id,
+          projectName: updatedInvitation.project.projectName,
+          workspace: updatedInvitation.project.workspace
+        },
+        inviter: updatedInvitation.inviter
+      };
+    }
+
+    // Validate role if provided
+    let assignedRoleId = roleId;
+    if (roleId) {
+      const role = await this.prisma.projectRole.findFirst({
+        where: {
+          id: roleId,
+          projectId
+        }
+      });
+
+      if (!role) {
+        throw new NotFoundException('Project role not found');
+      }
+    } else {
+      // Get default member role
+      const memberRole = await this.prisma.projectRole.findFirst({
+        where: {
+          projectId,
+          roleName: { not: 'Admin' }
+        }
+      });
+      assignedRoleId = memberRole?.id;
+    }
+
+    // Generate unique token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+    // Create invitation
+    const invitation = await this.prisma.projectInvitation.create({
+      data: {
+        projectId,
+        email,
+        invitedBy: inviterId,
+        inviteType,
+        token,
+        message,
+        roleId: assignedRoleId,
+        expiresAt
+      },
+      include: {
+        project: {
+          include: {
+            workspace: {
+              select: {
+                id: true,
+                workspaceName: true
+              }
+            }
+          }
+        },
+        inviter: {
+          select: {
+            id: true,
+            username: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    // Send email if EMAIL type
+    if (inviteType === InviteType.EMAIL) {
+      const acceptUrl = `${process.env.FRONTEND_URL}/accept-project-invitation?token=${token}`;
+      await this.emailService.sendProjectInvitation(
+        email,
+        project.projectName,
+        project.workspace.workspaceName,
+        invitation.inviter.username,
+        acceptUrl,
+        message
+      );
+    }
+
+    return {
+      id: invitation.id,
+      projectId: invitation.projectId,
+      email: invitation.email,
+      invitedBy: invitation.invitedBy,
+      inviteType: invitation.inviteType,
+      status: invitation.status,
+      token: invitation.token,
+      message: invitation.message,
+      roleId: invitation.roleId,
+      expiresAt: invitation.expiresAt,
+      createdAt: invitation.createdAt,
+      project: {
+        id: invitation.project.id,
+        projectName: invitation.project.projectName,
+        workspace: invitation.project.workspace
+      },
+      inviter: invitation.inviter
+    };
+  }
+
+  // Accept project invitation (Hierarchical Approach - Enforced)
+  async acceptProjectInvitation(token: string): Promise<any> {
+    const invitation = await this.prisma.projectInvitation.findFirst({
+      where: {
+        token,
+        status: InvitationStatus.PENDING,
+        expiresAt: { gt: new Date() }
+      },
+      include: {
+        project: {
+          include: {
+            workspace: true
+          }
+        }
+      }
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Lời mời không hợp lệ hoặc đã hết hạn');
+    }
+
+    // Check if user exists
+    const user = await this.prisma.user.findUnique({
+      where: { email: invitation.email }
+    });
+
+    if (!user) {
+      throw new BadRequestException('Người dùng chưa đăng ký tài khoản');
+    }
+
+    // HIERARCHICAL APPROACH: Strictly enforce workspace membership requirement
+    const workspaceMember = await this.prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId: invitation.project.workspaceId,
+        userId: user.id,
+        dateDeleted: null
+      }
+    });
+
+    if (!workspaceMember) {
+      throw new BadRequestException(
+        `Bạn phải là thành viên của workspace "${invitation.project.workspace.workspaceName}" trước khi có thể tham gia project này. ` +
+        `Vui lòng liên hệ với quản trị viên workspace để được mời vào workspace trước.`
+      );
+    }
+
+    // Check if already a project member
+    const existingMember = await this.prisma.projectMember.findFirst({
+      where: {
+        projectId: invitation.projectId,
+        userId: user.id
+      }
+    });
+
+    if (existingMember) {
+      throw new BadRequestException('Bạn đã là thành viên của project này');
+    }
+
+    // Get default role if none specified
+    let roleId = invitation.roleId;
+    if (!roleId) {
+      const defaultRole = await this.prisma.projectRole.findFirst({
+        where: {
+          projectId: invitation.projectId,
+          roleName: { not: 'Admin' }
+        }
+      });
+      roleId = defaultRole?.id || 1;
+    }
+
+    // Add user as project member and update invitation status
+    const [member] = await this.prisma.$transaction([
+      this.prisma.projectMember.create({
+        data: {
+          projectId: invitation.projectId,
+          userId: user.id,
+          projectRoleId: roleId
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          },
+          projectRole: {
+            select: {
+              id: true,
+              roleName: true
+            }
+          }
+        }
+      }),
+      this.prisma.projectInvitation.update({
+        where: { id: invitation.id },
+        data: {
+          status: InvitationStatus.ACCEPTED,
+          acceptedAt: new Date()
+        }
+      })
+    ]);
+
+    return member;
+  }
+
+  // Get pending project invitations
+  async getPendingProjectInvitations(projectId: number, userId: number): Promise<ProjectInvitationResponseDto[]> {
+    // Check admin permission
+    await this.checkAdminPermission(projectId, userId);
+
+    const invitations = await this.prisma.projectInvitation.findMany({
+      where: {
+        projectId,
+        status: InvitationStatus.PENDING,
+        expiresAt: { gt: new Date() }
+      },
+      include: {
+        project: {
+          include: {
+            workspace: {
+              select: {
+                id: true,
+                workspaceName: true
+              }
+            }
+          }
+        },
+        inviter: {
+          select: {
+            id: true,
+            username: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return invitations.map(invitation => ({
+      id: invitation.id,
+      projectId: invitation.projectId,
+      email: invitation.email,
+      invitedBy: invitation.invitedBy,
+      inviteType: invitation.inviteType,
+      status: invitation.status,
+      token: invitation.token,
+      message: invitation.message,
+      roleId: invitation.roleId,
+      expiresAt: invitation.expiresAt,
+      createdAt: invitation.createdAt,
+      project: {
+        id: invitation.project.id,
+        projectName: invitation.project.projectName,
+        workspace: invitation.project.workspace
+      },
+      inviter: invitation.inviter
+    }));
+  }
+
+  // Cancel project invitation
+  async cancelProjectInvitation(invitationId: number, userId: number): Promise<void> {
+    const invitation = await this.prisma.projectInvitation.findFirst({
+      where: {
+        id: invitationId,
+        status: InvitationStatus.PENDING
+      },
+      include: {
+        project: true
+      }
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    // Check permission - admin or inviter can cancel
+    const isInviter = invitation.invitedBy === userId;
+    let isAdmin = false;
+
+    try {
+      await this.checkAdminPermission(invitation.projectId, userId);
+      isAdmin = true;
+    } catch {
+      // User is not admin
+    }
+
+    if (!isAdmin && !isInviter) {
+      throw new ForbiddenException('You do not have permission to cancel this invitation');
+    }
+
+    await this.prisma.projectInvitation.update({
+      where: { id: invitationId },
+      data: { status: InvitationStatus.REJECTED }
+    });
   }
 }

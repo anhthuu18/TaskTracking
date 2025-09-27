@@ -18,10 +18,12 @@ model User {
   dateCreated  DateTime @default(now()) @map("DateCreated")
 
   // Relations
-  createdWorkspaces   Workspace[]       @relation("UserWorkspaces")
-  workspaceMemberships WorkspaceMember[] @relation("WorkspaceMembers")
-  createdProjects     Project[]         @relation("CreatedProjects")
-  projectMemberships  ProjectMember[]   @relation("ProjectMembers")
+  createdWorkspaces     Workspace[]         @relation("UserWorkspaces")
+  workspaceMemberships  WorkspaceMember[]   @relation("WorkspaceMembers")
+  createdProjects       Project[]           @relation("CreatedProjects")
+  projectMemberships    ProjectMember[]     @relation("ProjectMembers")
+  sentInvitations       WorkspaceInvitation[] @relation("SentInvitations")
+  sentProjectInvitations ProjectInvitation[] @relation("SentProjectInvitations")
 
   @@map("Users")
 }
@@ -73,9 +75,10 @@ model Workspace {
   dateCreated   DateTime      @default(now()) @map("DateCreated")
 
   // Relations
-  user             User               @relation("UserWorkspaces", fields: [userId], references: [id])
+  user             User                  @relation("UserWorkspaces", fields: [userId], references: [id])
   workspaceMembers WorkspaceMember[]
-  projects        Project[]
+  projects         Project[]
+  invitations      WorkspaceInvitation[]
 
   // PostgreSQL optimizations
   @@index([userId])
@@ -116,10 +119,11 @@ model Project {
   dateCreated  DateTime @default(now()) @map("DateCreated")
 
   // Relations
-  workspace    Workspace     @relation(fields: [workspaceId], references: [id])
-  creator      User          @relation("CreatedProjects", fields: [createdBy], references: [id])
-  members      ProjectMember[]
-  projectRoles ProjectRole[]
+  workspace      Workspace         @relation(fields: [workspaceId], references: [id])
+  creator        User              @relation("CreatedProjects", fields: [createdBy], references: [id])
+  members        ProjectMember[]
+  projectRoles   ProjectRole[]
+  invitations    ProjectInvitation[]
 
   @@map("Projects")
 }
@@ -174,4 +178,69 @@ model ProjectRolePermission {
 
   @@id([projectRoleId, permissionId])
   @@map("ProjectRolePermissions")
+}
+
+enum InviteType {
+  EMAIL
+  IN_APP
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+model WorkspaceInvitation {
+  id          Int              @id @default(autoincrement()) @map("InvitationID")
+  workspaceId Int              @map("WorkspaceID")
+  email       String           @db.VarChar(255) @map("Email")
+  invitedBy   Int              @map("InvitedBy")
+  inviteType  InviteType       @map("InviteType")
+  status      InvitationStatus @default(PENDING) @map("Status")
+  token       String           @unique @db.VarChar(255) @map("Token")
+  message     String?          @db.Text @map("Message")
+  expiresAt   DateTime         @map("ExpiresAt")
+  acceptedAt  DateTime?        @map("AcceptedAt")
+  createdAt   DateTime         @default(now()) @map("CreatedAt")
+  updatedAt   DateTime         @updatedAt @map("UpdatedAt")
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inviter   User      @relation("SentInvitations", fields: [invitedBy], references: [id])
+
+  @@index([workspaceId])
+  @@index([email])
+  @@index([token])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("WorkspaceInvitations")
+}
+
+model ProjectInvitation {
+  id          Int              @id @default(autoincrement()) @map("ProjectInvitationID")
+  projectId   Int              @map("ProjectID")
+  email       String           @db.VarChar(255) @map("Email")
+  invitedBy   Int              @map("InvitedBy")
+  inviteType  InviteType       @map("InviteType")
+  status      InvitationStatus @default(PENDING) @map("Status")
+  token       String           @unique @db.VarChar(255) @map("Token")
+  message     String?          @db.Text @map("Message")
+  roleId      Int?             @map("RoleID") // Project role to assign when accepted
+  expiresAt   DateTime         @map("ExpiresAt")
+  acceptedAt  DateTime?        @map("AcceptedAt")
+  createdAt   DateTime         @default(now()) @map("CreatedAt")
+  updatedAt   DateTime         @updatedAt @map("UpdatedAt")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  inviter User    @relation("SentProjectInvitations", fields: [invitedBy], references: [id])
+
+  @@index([projectId])
+  @@index([email])
+  @@index([token])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("ProjectInvitations")
 }

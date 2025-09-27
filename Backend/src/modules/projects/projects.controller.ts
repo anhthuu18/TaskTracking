@@ -9,9 +9,12 @@ import {
   UseGuards,
   Request,
   ParseIntPipe,
+  Query,
 } from '@nestjs/common';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto, UpdateProjectDto, AddMemberDto, CreateProjectRoleDto } from './dto';
+import { InviteProjectMemberDto } from './dto/invite-project-member.dto';
+import { ProjectInvitationResponseDto } from './dto/project-invitation-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('projects')
@@ -105,5 +108,65 @@ export class ProjectsController {
   @Get('list-permissions')
   async getPermissions() {
     return this.projectsService.getPermissions();
+  }
+
+  @Post(':id/invite-member')
+  async inviteProjectMember(
+    @Param('id', ParseIntPipe) projectId: number,
+    @Body() inviteDto: InviteProjectMemberDto,
+    @Request() req,
+  ) {
+    const invitation = await this.projectsService.inviteProjectMember(
+      projectId,
+      inviteDto,
+      req.user.userId
+    );
+
+    return {
+      statusCode: 201,
+      message: 'Gửi lời mời project thành công',
+      data: invitation,
+    };
+  }
+
+  @Post('accept-invitation')
+  async acceptProjectInvitation(@Query('token') token: string) {
+    const member = await this.projectsService.acceptProjectInvitation(token);
+
+    return {
+      statusCode: 200,
+      message: 'Chấp nhận lời mời project thành công',
+      data: member,
+    };
+  }
+
+  @Get(':id/invitations')
+  async getPendingProjectInvitations(
+    @Param('id', ParseIntPipe) projectId: number,
+    @Request() req,
+  ) {
+    const invitations = await this.projectsService.getPendingProjectInvitations(
+      projectId,
+      req.user.userId
+    );
+
+    return {
+      statusCode: 200,
+      message: 'Lấy danh sách lời mời project thành công',
+      data: invitations,
+    };
+  }
+
+  @Delete('cancel-invitation/:invitationId')
+  async cancelProjectInvitation(
+    @Param('invitationId', ParseIntPipe) invitationId: number,
+    @Request() req,
+  ) {
+    await this.projectsService.cancelProjectInvitation(invitationId, req.user.userId);
+
+    return {
+      statusCode: 200,
+      message: 'Hủy lời mời project thành công',
+    };
   }
 }

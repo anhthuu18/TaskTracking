@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { CreateProjectRequest, WorkspaceMember, ProjectLabel } from '../types/Project';
+import { CreateProjectRequest, ProjectLabel } from '../types/Project';
+import { WorkspaceMember } from '../types/Workspace';
 import DatePicker from './DatePicker';
 import MemberDropdown from './MemberDropdown';
 import LabelSelector from './LabelSelector';
@@ -70,14 +71,9 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     }
 
     const projectData: CreateProjectRequest = {
-      name: projectName.trim(),
+      projectName: projectName.trim(),
       description: description.trim() || undefined,
-      startDate,
-      endDate,
-      workspaceId,
-      memberIds: selectedMembers,
-      inviteEmails: inviteEmails.length > 0 ? inviteEmails : undefined,
-      labels,
+      workspaceId: Number(workspaceId),
     };
 
     try {
