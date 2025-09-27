@@ -33,7 +33,7 @@ class WorkspaceService {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
-        ...(options.headers || {}),
+        ...(options.headers as Record<string, string> || {}),
       };
 
       const response = await fetch(url, {
@@ -189,6 +189,31 @@ class WorkspaceService {
     return this.request<DeleteWorkspaceResponse>(url, {
       method: 'POST',
       body: JSON.stringify(inviteData),
+    });
+  }
+
+  // Lấy danh sách invitations của workspace
+  async getWorkspaceInvitations(workspaceId: number): Promise<any> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return this.mockGetWorkspaceInvitations(workspaceId);
+    }
+
+    const url = buildApiUrl(`/workspace/${workspaceId}/invitations`);
+    return this.request<any>(url, {
+      method: 'GET',
+    });
+  }
+
+  // Gửi lời mời member
+  async inviteMember(workspaceId: number, email: string, role: string): Promise<any> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return this.mockInviteMember(workspaceId, { email, role: role as any });
+    }
+
+    const url = buildApiUrl(`/workspace/${workspaceId}/invite`);
+    return this.request<any>(url, {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
     });
   }
 
@@ -469,6 +494,8 @@ class WorkspaceService {
               id: 1,
               username: 'john_doe',
               email: 'john@example.com',
+              name: 'John Doe',
+              avatar: 'https://i.pravatar.cc/150?img=1',
             },
           },
           {
@@ -481,6 +508,8 @@ class WorkspaceService {
               id: 2,
               username: 'jane_smith',
               email: 'jane@example.com',
+              name: 'Jane Smith',
+              avatar: 'https://i.pravatar.cc/150?img=2',
             },
           },
           {
@@ -493,6 +522,8 @@ class WorkspaceService {
               id: 3,
               username: 'bob_wilson',
               email: 'bob@example.com',
+              name: 'Bob Wilson',
+              avatar: 'https://i.pravatar.cc/150?img=3',
             },
           },
         ];
@@ -514,6 +545,41 @@ class WorkspaceService {
         resolve({
           success: true,
           message: `Đã gửi lời mời đến ${inviteData.email}`,
+        });
+      }, API_CONFIG.MOCK_DELAY);
+    });
+  }
+
+  private async mockGetWorkspaceInvitations(workspaceId: number): Promise<any> {
+    console.log('📡 Mock API: Getting workspace invitations', workspaceId);
+    
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const mockInvitations = [
+          {
+            id: 1,
+            workspaceId: workspaceId,
+            email: 'newuser@example.com',
+            role: 'MEMBER',
+            status: 'pending',
+            createdAt: new Date('2024-01-20'),
+            invitedBy: 1,
+          },
+          {
+            id: 2,
+            workspaceId: workspaceId,
+            email: 'designer@example.com',
+            role: 'ADMIN',
+            status: 'pending',
+            createdAt: new Date('2024-01-22'),
+            invitedBy: 1,
+          },
+        ];
+
+        resolve({
+          success: true,
+          message: 'Lấy danh sách invitations thành công',
+          data: mockInvitations,
         });
       }, API_CONFIG.MOCK_DELAY);
     });

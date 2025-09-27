@@ -9,16 +9,18 @@ import {
 } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { CreateProjectModal, WorkspaceActionDropdown, AddMemberModal } from '../components';
+import { CreateProjectModal, AddMemberModal } from '../components';
 import { Colors } from '../constants/Colors';
+import WorkspaceMembersTab from '../components/WorkspaceMembersTab';
+import InviteMemberModal from '../components/InviteMemberModal';
 
 import { projectService } from '../services/projectService';
 
 const Tab = createBottomTabNavigator();
 
-const DashboardContent = ({ navigation, route }: { navigation: any; route?: any }) => {
+const DashboardContent = ({ navigation, route, onInviteMember }: { navigation: any; route?: any; onInviteMember: () => void }) => {
   const workspace = route?.params?.workspace;
-  const [selectedTab, setSelectedTab] = React.useState<'overview' | 'analytics'>('overview');
+  const [selectedTab, setSelectedTab] = React.useState<'overview' | 'analytics' | 'members'>('overview');
   const [projects, setProjects] = useState<any[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [taskFilter, setTaskFilter] = useState<string>('all');
@@ -231,6 +233,17 @@ const DashboardContent = ({ navigation, route }: { navigation: any; route?: any 
             Analytics
           </Text>
         </TouchableOpacity>
+        {/* Only show Members tab for group workspaces */}
+        {workspace?.type === 'group' && (
+          <TouchableOpacity
+            style={[styles.tabButton, selectedTab === 'members' && styles.activeTabButton]}
+            onPress={() => setSelectedTab('members')}
+          >
+            <Text style={[styles.tabButtonText, selectedTab === 'members' && styles.activeTabButtonText]}>
+              Members
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Content based on selected tab */}
@@ -551,6 +564,15 @@ const DashboardContent = ({ navigation, route }: { navigation: any; route?: any 
             </View>
               </View>
         )}
+
+        {selectedTab === 'members' && (
+          <View style={styles.membersTabContainer}>
+            <WorkspaceMembersTab 
+              workspaceId={workspace?.id || 1} 
+              onInviteMember={onInviteMember}
+            />
+          </View>
+        )}
       </ScrollView>
               </View>
   );
@@ -632,7 +654,7 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
   const workspace = route?.params?.workspace;
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-  const [showActionDropdown, setShowActionDropdown] = useState(false);
+
 
   const handleCreateProject = () => {
     setShowCreateProjectModal(true);
@@ -644,6 +666,10 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
 
   const handleMemberAdded = async () => {
     console.log('Member added successfully');
+  };
+
+  const handleInviteMember = () => {
+    setShowAddMemberModal(true);
   };
 
   return (
@@ -663,7 +689,7 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
         </View>
         <TouchableOpacity 
           style={styles.addButton}
-          onPress={() => setShowActionDropdown(true)}
+          onPress={handleCreateProject}
         >
           <MaterialIcons name="add" size={24} color={Colors.surface} />
         </TouchableOpacity>
@@ -686,7 +712,7 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
             ),
           }}
         >
-          {() => <DashboardContent navigation={navigation} route={route} />}
+          {() => <DashboardContent navigation={navigation} route={route} onInviteMember={handleInviteMember} />}
         </Tab.Screen>
         <Tab.Screen 
           name="Voice" 
@@ -721,13 +747,6 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
       </Tab.Navigator>
       
       {/* Modals */}
-      <WorkspaceActionDropdown
-        visible={showActionDropdown}
-        onClose={() => setShowActionDropdown(false)}
-        onCreateProject={handleCreateProject}
-        onAddMember={handleAddMember}
-      />
-
       <AddMemberModal
         visible={showAddMemberModal}
         onClose={() => setShowAddMemberModal(false)}
@@ -1551,6 +1570,10 @@ const styles = StyleSheet.create({
   notificationTime: {
     fontSize: 12,
     color: Colors.neutral.medium,
+  },
+  membersTabContainer: {
+    flex: 1,
+    marginTop: -20, // Adjust to align with other content
   },
 });
 

@@ -14,24 +14,19 @@ interface WorkspaceActionDropdownProps {
   visible: boolean;
   onClose: () => void;
   onCreateProject: () => void;
-  onAddMember: () => void;
 }
 
 const WorkspaceActionDropdown: React.FC<WorkspaceActionDropdownProps> = ({
   visible,
   onClose,
   onCreateProject,
-  onAddMember,
 }) => {
   const handleCreateProject = () => {
     onClose();
     onCreateProject();
   };
 
-  const handleAddMember = () => {
-    onClose();
-    onAddMember();
-  };
+
 
   return (
     <Modal
@@ -53,18 +48,7 @@ const WorkspaceActionDropdown: React.FC<WorkspaceActionDropdownProps> = ({
             <MaterialIcons name="chevron-right" size={20} color={Colors.neutral.medium} />
           </TouchableOpacity>
 
-          <View style={styles.separator} />
 
-          <TouchableOpacity style={styles.option} onPress={handleAddMember}>
-            <View style={[styles.iconContainer, { backgroundColor: Colors.accent + '20' }]}>
-              <MaterialIcons name="person-add" size={20} color={Colors.accent} />
-            </View>
-            <View style={styles.optionContent}>
-              <Text style={styles.optionTitle}>Add Member</Text>
-              <Text style={styles.optionDescription}>Invite someone to join this workspace</Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={20} color={Colors.neutral.medium} />
-          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     </Modal>

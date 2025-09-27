@@ -27,7 +27,19 @@ export interface WorkspaceMember {
     id: number;
     username: string;
     email: string;
+    name: string;
+    avatar?: string;
   };
+}
+
+export interface WorkspaceInvitation {
+  id: number;
+  workspaceId: number;
+  email: string;
+  role: MemberRole;
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: Date;
+  invitedBy: number;
 }
 
 export enum WorkspaceType {
