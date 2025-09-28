@@ -16,6 +16,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TextInput } from 'react-native-paper';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -23,6 +24,8 @@ import { Colors } from '../constants/Colors';
 import { ScreenLayout, ButtonStyles, Typography } from '../constants/Dimensions';
 import { workspaceService } from '../services';
 import { Workspace, WorkspaceType } from '../types';
+import NotificationModal from '../components/NotificationModal';
+import { notificationService } from '../services/notificationService';
 
 interface WorkspaceSelectionScreenProps {
   navigation: any;
@@ -44,6 +47,9 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   const [workspaces, setWorkspaces] = useState<WorkspaceUI[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [username, setUsername] = useState('User');
 
   // Color palette for workspace icons
   const workspaceColors = [
@@ -76,8 +82,22 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
 
   // Load workspaces on component mount
   useEffect(() => {
+    loadUsername();
     loadWorkspaces();
+    loadNotificationCount();
   }, []);
+
+  const loadUsername = async () => {
+    try {
+      const storedUser = await AsyncStorage.getItem('user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        setUsername(user.username || user.email || 'User');
+      }
+    } catch (error) {
+      console.error('Error loading username:', error);
+    }
+  };
 
   const loadWorkspaces = async () => {
     try {
@@ -110,8 +130,20 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     try {
       setRefreshing(true);
       await loadWorkspaces();
+      await loadNotificationCount();
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const loadNotificationCount = async () => {
+    try {
+      const response = await notificationService.getUserNotifications();
+      if (response.success) {
+        setNotificationCount(response.data.length);
+      }
+    } catch (error) {
+      console.error('Error loading notification count:', error);
     }
   };
 
@@ -148,6 +180,19 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   const handleViewMore = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setShowAllWorkspaces(true);
+  };
+
+  const handleAcceptInvitation = (notificationId: number) => {
+    console.log('Accepting invitation:', notificationId);
+    // Refresh workspace list and notification count
+    loadWorkspaces();
+    loadNotificationCount();
+  };
+
+  const handleDeclineInvitation = (notificationId: number) => {
+    console.log('Declining invitation:', notificationId);
+    // Refresh notification count
+    loadNotificationCount();
   };
 
 
@@ -200,8 +245,24 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
       <View style={styles.content}>
         {/* Welcome Section */}
         <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeText}>Hi, Anhthuu18!</Text>
-          <Text style={styles.subtitleText}>Choose your workspace</Text>
+          <View style={styles.welcomeHeader}>
+            <View style={styles.welcomeTextContainer}>
+              <Text style={styles.welcomeText}>Hi, {username}!</Text>
+              <Text style={styles.subtitleText}>Choose your workspace</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.notificationButton}
+              onPress={() => setShowNotificationModal(true)}
+            >
+              <MaterialIcons name="notifications" size={24} color={Colors.neutral.dark} />
+              {/* Notification badge */}
+              {notificationCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>{notificationCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}
@@ -323,6 +384,14 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
           <Text style={styles.createButtonText}>Create workspace</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Notification Modal */}
+      <NotificationModal
+        visible={showNotificationModal}
+        onClose={() => setShowNotificationModal(false)}
+        onAcceptInvitation={handleAcceptInvitation}
+        onDeclineInvitation={handleDeclineInvitation}
+      />
     </SafeAreaView>
   );
 };
@@ -353,6 +422,14 @@ const styles = StyleSheet.create({
   welcomeSection: {
     marginBottom: 30,
   },
+  welcomeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  welcomeTextContainer: {
+    flex: 1,
+  },
   welcomeText: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -363,6 +440,29 @@ const styles = StyleSheet.create({
   subtitleText: {
     fontSize: 16,
     color: Colors.neutral.medium,
+  },
+  notificationButton: {
+    position: 'relative',
+    padding: 8,
+    marginTop: 10,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: Colors.semantic.error,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: Colors.background,
+  },
+  notificationBadgeText: {
+    color: Colors.neutral.white,
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   searchContainer: {
     flexDirection: 'row',

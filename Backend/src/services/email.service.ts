@@ -110,8 +110,6 @@ export class EmailService {
             ${customMessage ? `<p><em>Tin nhắn: ${customMessage}</em></p>` : ''}
             <p>Nhấp vào nút bên dưới để chấp nhận lời mời:</p>
             <a href="${acceptUrl}" class="button">Chấp nhận lời mời</a>
-            <p>Hoặc copy link sau vào trình duyệt:</p>
-            <p><a href="${acceptUrl}">${acceptUrl}</a></p>
             <p>Lời mời này sẽ hết hạn sau 7 ngày.</p>
           </div>
           <div class="footer">
@@ -157,8 +155,6 @@ export class EmailService {
             <p><strong>Lưu ý:</strong> Bạn cần là thành viên của workspace "${workspaceName}" trước khi có thể tham gia project này.</p>
             <p>Nhấp vào nút bên dưới để chấp nhận lời mời:</p>
             <a href="${acceptUrl}" class="button">Chấp nhận lời mời</a>
-            <p>Hoặc copy link sau vào trình duyệt:</p>
-            <p><a href="${acceptUrl}">${acceptUrl}</a></p>
             <p>Lời mời này sẽ hết hạn sau 7 ngày.</p>
           </div>
           <div class="footer">

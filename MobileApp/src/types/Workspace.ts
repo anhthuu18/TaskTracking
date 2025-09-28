@@ -49,7 +49,6 @@ export enum WorkspaceType {
 
 export enum MemberRole {
   OWNER = 'OWNER',
-  ADMIN = 'ADMIN',
   MEMBER = 'MEMBER'
 }
 
@@ -66,9 +65,9 @@ export interface UpdateWorkspaceRequest {
 }
 
 export interface InviteMemberRequest {
-  email?: string;
-  username?: string;
-  role?: MemberRole;
+  email: string;
+  inviteType: 'EMAIL' | 'IN_APP';
+  message?: string;
 }
 
 // Response DTOs

@@ -173,7 +173,7 @@ class WorkspaceService {
       return this.mockGetWorkspaceMembers(workspaceId);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.WORKSPACE.GET_MEMBERS}/${workspaceId}`);
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.WORKSPACE.GET_MEMBERS}/${workspaceId}/members`);
     return this.request<WorkspaceMemberResponse>(url, {
       method: 'GET',
     });
@@ -185,7 +185,7 @@ class WorkspaceService {
       return this.mockInviteMember(workspaceId, inviteData);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.WORKSPACE.INVITE_MEMBER}/${workspaceId}`);
+    const url = buildApiUrl(`/workspace/${workspaceId}/invite-member`);
     return this.request<DeleteWorkspaceResponse>(url, {
       method: 'POST',
       body: JSON.stringify(inviteData),
@@ -198,7 +198,7 @@ class WorkspaceService {
       return this.mockGetWorkspaceInvitations(workspaceId);
     }
 
-    const url = buildApiUrl(`/workspace/${workspaceId}/invitations`);
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.WORKSPACE.GET_MEMBERS}/${workspaceId}/invitations`);
     return this.request<any>(url, {
       method: 'GET',
     });
@@ -207,13 +207,25 @@ class WorkspaceService {
   // Gửi lời mời member
   async inviteMember(workspaceId: number, email: string, role: string): Promise<any> {
     if (API_CONFIG.USE_MOCK_API) {
-      return this.mockInviteMember(workspaceId, { email, role: role as any });
+      return this.mockInviteMember(workspaceId, { email, inviteType: 'EMAIL' });
     }
 
     const url = buildApiUrl(`/workspace/${workspaceId}/invite`);
     return this.request<any>(url, {
       method: 'POST',
       body: JSON.stringify({ email, role }),
+    });
+  }
+
+  // Chấp nhận lời mời
+  async acceptInvitation(token: string): Promise<DeleteWorkspaceResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return this.mockAcceptInvitation(token);
+    }
+
+    const url = buildApiUrl(`/workspace/accept-invitation/${token}`);
+    return this.request<DeleteWorkspaceResponse>(url, {
+      method: 'POST',
     });
   }
 
@@ -580,6 +592,71 @@ class WorkspaceService {
           success: true,
           message: 'Lấy danh sách invitations thành công',
           data: mockInvitations,
+        });
+      }, API_CONFIG.MOCK_DELAY);
+    });
+  }
+
+  private async mockAcceptInvitation(token: string): Promise<DeleteWorkspaceResponse> {
+    console.log('📡 Mock API: Accepting invitation', token);
+    
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          success: true,
+          message: 'Đã chấp nhận lời mời thành công',
+        });
+      }, API_CONFIG.MOCK_DELAY);
+    });
+  }
+
+  // Remove member from workspace
+  async removeMemberFromWorkspace(workspaceId: number, memberId: number): Promise<DeleteWorkspaceResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return this.mockRemoveMemberFromWorkspace(memberId);
+    }
+
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        throw new Error('No auth token found');
+      }
+
+      const response = await fetch(`${API_CONFIG.REAL_API.BASE_URL}/workspace/${workspaceId}/remove-member/${memberId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to remove member');
+      }
+
+      return {
+        success: true,
+        message: data.message || 'Member removed successfully',
+      };
+    } catch (error) {
+      console.error('Error removing member:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to remove member',
+      };
+    }
+  }
+
+  private async mockRemoveMemberFromWorkspace(memberId: number): Promise<DeleteWorkspaceResponse> {
+    console.log('📡 Mock API: Removing member', memberId);
+    
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          success: true,
+          message: 'Member removed successfully',
         });
       }, API_CONFIG.MOCK_DELAY);
     });

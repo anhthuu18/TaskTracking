@@ -3,7 +3,7 @@ import { useState, useCallback } from 'react';
 export interface ToastState {
   visible: boolean;
   message: string;
-  type: 'success' | 'error' | 'info';
+  type: 'success' | 'error' | 'info' | 'warning';
 }
 
 export const useToast = () => {
@@ -13,7 +13,7 @@ export const useToast = () => {
     type: 'info',
   });
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     setToast({
       visible: true,
       message,
@@ -33,6 +33,10 @@ export const useToast = () => {
     showToast(message, 'info');
   }, [showToast]);
 
+  const showWarning = useCallback((message: string) => {
+    showToast(message, 'warning');
+  }, [showToast]);
+
   const hideToast = useCallback(() => {
     setToast(prev => ({ ...prev, visible: false }));
   }, []);
@@ -43,6 +47,7 @@ export const useToast = () => {
     showSuccess,
     showError,
     showInfo,
+    showWarning,
     hideToast,
   };
 };

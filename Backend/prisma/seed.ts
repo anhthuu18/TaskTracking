@@ -1,69 +1,37 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, WorkspaceType, MemberRole } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // Create default permissions
-  const permissions = [
-    {
-      permissionName: 'CREATE_PROJECT',
-      description: 'Create new projects'
-    },
-    {
-      permissionName: 'UPDATE_PROJECT',
-      description: 'Update project details'
-    },
-    {
-      permissionName: 'DELETE_PROJECT',
-      description: 'Delete projects'
-    },
-    {
-      permissionName: 'ADD_MEMBER',
-      description: 'Add members to project'
-    },
-    {
-      permissionName: 'REMOVE_MEMBER',
-      description: 'Remove members from project'
-    },
-    {
-      permissionName: 'MANAGE_ROLES',
-      description: 'Create and manage project roles'
-    },
-    {
-      permissionName: 'VIEW_PROJECT',
-      description: 'View project details'
-    },
-    {
-      permissionName: 'CREATE_TASK',
-      description: 'Create tasks in project'
-    },
-    {
-      permissionName: 'UPDATE_TASK',
-      description: 'Update tasks in project'
-    },
-    {
-      permissionName: 'DELETE_TASK',
-      description: 'Delete tasks in project'
-    },
-    {
-      permissionName: 'ASSIGN_TASK',
-      description: 'Assign tasks to members'
-    },
-    {
-      permissionName: 'VIEW_REPORTS',
-      description: 'View project reports and analytics'
-    }
-  ];
+  console.log('🌱 Seeding workspace members...');
 
-  for (const permission of permissions) {
-    await prisma.permission.upsert({
-      where: { permissionName: permission.permissionName },
-      update: {},
-      create: permission
-    });
+  // Find all GROUP workspaces that don't have workspace members
+  const groupWorkspaces = await prisma.workspace.findMany({
+    where: {
+      workspaceType: WorkspaceType.GROUP,
+      dateDeleted: null,
+    },
+    include: {
+      workspaceMembers: true,
+    },
+  });
+
+  for (const workspace of groupWorkspaces) {
+    // If workspace has no members, add the creator as OWNER
+    if (workspace.workspaceMembers.length === 0) {
+      console.log(`Adding owner member for workspace: ${workspace.workspaceName}`);
+      
+      await prisma.workspaceMember.create({
+        data: {
+          workspaceId: workspace.id,
+          userId: workspace.userId,
+          role: MemberRole.OWNER,
+        },
+      });
+    }
   }
 
-  console.log('Permissions seeded successfully');
+  console.log('✅ Workspace member seeding completed!');
 }
 
 main()

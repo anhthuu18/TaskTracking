@@ -40,7 +40,7 @@ export class AuthService {
       const user = await this.usersService.create(userDataForDB);
 
       // Tạo JWT token
-      const payload = { username: user.username, sub: user.id };
+      const payload = { username: user.username, email: user.email, sub: user.id };
       const token = this.jwtService.sign(payload);
 
       return {
@@ -79,7 +79,7 @@ export class AuthService {
     }
 
     // Tạo JWT token
-    const payload = { username: user.username, sub: user.id };
+    const payload = { username: user.username, email: user.email, sub: user.id };
     const token = this.jwtService.sign(payload);
 
     return {

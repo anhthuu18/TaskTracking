@@ -13,6 +13,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import { workspaceService } from '../services';
 import { InviteMemberRequest } from '../types/Workspace';
+import { useToastContext } from '../context/ToastContext';
 
 interface AddMemberModalProps {
   visible: boolean;
@@ -27,47 +28,73 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   workspaceId,
   onMemberAdded,
 }) => {
-  const [emailOrUsername, setEmailOrUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const { showSuccess, showError, showWarning } = useToastContext();
+
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
   const handleInviteMember = async () => {
-    if (!emailOrUsername.trim()) {
-      Alert.alert('Error', 'Please enter an email or username');
+    if (!email.trim()) {
+      Alert.alert('Lỗi', 'Vui lòng nhập email');
+      return;
+    }
+
+    if (!validateEmail(email.trim())) {
+      Alert.alert('Lỗi', 'Email không hợp lệ');
       return;
     }
 
     try {
       setLoading(true);
       
-      // Determine if input is email or username
-      const isEmail = emailOrUsername.includes('@');
-      const inviteData: InviteMemberRequest = isEmail 
-        ? { email: emailOrUsername.trim() }
-        : { username: emailOrUsername.trim() };
+      const inviteData: InviteMemberRequest = {
+        email: email.trim(),
+        inviteType: 'EMAIL',
+        message: message.trim() || undefined,
+      };
 
       const response = await workspaceService.inviteMemberToWorkspace(workspaceId, inviteData);
       
       if (response.success) {
-        Alert.alert(
-          'Success', 
-          `Invitation sent successfully! ${isEmail ? 'Email' : 'App notification'} has been sent to ${emailOrUsername}`
-        );
-        setEmailOrUsername('');
+        setEmail('');
+        setMessage('');
         onMemberAdded?.();
+        // Close modal first, then show success toast
         onClose();
+        setTimeout(() => {
+          showSuccess(`Đã gửi lời mời đến ${email}`);
+        }, 100);
       } else {
-        Alert.alert('Error', response.message || 'Failed to send invitation');
+        onClose();
+        setTimeout(() => {
+          showError(response.message || 'Không thể gửi lời mời');
+        }, 100);
       }
     } catch (error: any) {
-      console.error('Error inviting member:', error);
-      Alert.alert('Error', error.message || 'Failed to send invitation');
+      // Close modal first to ensure toast is visible
+      onClose();
+      
+      // Show appropriate toast message
+      setTimeout(() => {
+        if (error.message && error.message.includes('active invitation')) {
+          showWarning('Email này đã có lời mời đang chờ xử lý. Vui lòng đợi lời mời hết hạn trước khi gửi lại.');
+        } else {
+          showError(error.message || 'Có lỗi xảy ra khi gửi lời mời');
+        }
+      }, 100);
     } finally {
       setLoading(false);
     }
   };
 
   const handleClose = () => {
-    setEmailOrUsername('');
+    setEmail('');
+    setMessage('');
     onClose();
   };
 
@@ -82,7 +109,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
         <View style={styles.modal}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Add Member</Text>
+            <Text style={styles.title}>Mời thành viên</Text>
             <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
               <MaterialIcons name="close" size={24} color={Colors.neutral.dark} />
             </TouchableOpacity>
@@ -90,19 +117,32 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
 
           {/* Content */}
           <View style={styles.content}>
-            <Text style={styles.label}>Email or Username</Text>
+            <Text style={styles.label}>Email *</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter email or username"
+              placeholder="Nhập email của thành viên"
               placeholderTextColor={Colors.neutral.medium}
-              value={emailOrUsername}
-              onChangeText={setEmailOrUsername}
+              value={email}
+              onChangeText={setEmail}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
             />
+            
+            <Text style={styles.label}>Tin nhắn (tùy chọn)</Text>
+            <TextInput
+              style={[styles.input, styles.messageInput]}
+              placeholder="Thêm tin nhắn cá nhân..."
+              placeholderTextColor={Colors.neutral.medium}
+              value={message}
+              onChangeText={setMessage}
+              multiline={true}
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+            
             <Text style={styles.hint}>
-              Enter an email address to send email invitation, or username for app notification
+              Lời mời sẽ được gửi qua email và có hiệu lực trong 7 ngày.
             </Text>
           </View>
 
@@ -113,20 +153,20 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
               onPress={handleClose}
               disabled={loading}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>Hủy</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
               style={[styles.button, styles.inviteButton]}
               onPress={handleInviteMember}
-              disabled={loading || !emailOrUsername.trim()}
+              disabled={loading || !email.trim()}
             >
               {loading ? (
                 <ActivityIndicator size="small" color={Colors.surface} />
               ) : (
                 <>
                   <MaterialIcons name="send" size={16} color={Colors.surface} />
-                  <Text style={styles.inviteButtonText}>Send Invite</Text>
+                  <Text style={styles.inviteButtonText}>Gửi lời mời</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -180,6 +220,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: Colors.neutral.dark,
     marginBottom: 6,
+    marginTop: 12,
   },
   input: {
     borderWidth: 1.5,
@@ -190,6 +231,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.neutral.dark,
     backgroundColor: Colors.surface,
+  },
+  messageInput: {
+    minHeight: 60,
+    textAlignVertical: 'top',
   },
   hint: {
     fontSize: 11,

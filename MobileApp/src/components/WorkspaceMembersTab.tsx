@@ -6,20 +6,28 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import { WorkspaceMember, WorkspaceInvitation, MemberRole } from '../types/Workspace';
+import { workspaceService } from '../services';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useToastContext } from '../context/ToastContext';
 
 interface WorkspaceMembersTabProps {
   workspaceId: number;
   onInviteMember: () => void;
+  onMemberAdded?: () => void;
 }
 
-const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, onInviteMember }) => {
+const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, onInviteMember, onMemberAdded }) => {
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserRole, setCurrentUserRole] = useState<MemberRole | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const { showSuccess, showError } = useToastContext();
 
   // Mock data for UI testing
   const mockMembers: WorkspaceMember[] = [
@@ -40,7 +48,7 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
       id: 2,
       workspaceId: workspaceId,
       userId: 2,
-      role: MemberRole.ADMIN,
+      role: MemberRole.MEMBER,
       joinedAt: new Date('2024-01-20T14:15:00Z'),
       user: {
         id: 2,
@@ -91,7 +99,7 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
       id: 2,
       workspaceId: workspaceId,
       email: 'pending2@example.com',
-      role: MemberRole.ADMIN,
+      role: MemberRole.MEMBER,
       status: 'pending',
       createdAt: new Date('2024-02-16T14:30:00Z'),
       invitedBy: 1
@@ -99,44 +107,187 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
   ];
 
   useEffect(() => {
-    loadMembersAndInvitations();
+    loadCurrentUserInfo();
   }, [workspaceId]);
+
+  useEffect(() => {
+    if (currentUserId && currentUserId > 0) {
+      console.log('🚀 Loading members and invitations for userId:', currentUserId);
+      loadMembersAndInvitations();
+    }
+  }, [currentUserId, workspaceId]);
+
+  // Refresh data when member is added
+  useEffect(() => {
+    if (onMemberAdded) {
+      loadMembersAndInvitations();
+    }
+  }, [onMemberAdded]);
+
+  const loadCurrentUserInfo = async () => {
+    try {
+      const storedUser = await AsyncStorage.getItem('user');
+      console.log('🔍 Stored User Debug:', { storedUser });
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        console.log('🔍 Parsed User Debug:', { user, userId: user.id });
+        setCurrentUserId(user.id);
+      }
+    } catch (error) {
+      console.error('Error loading current user info:', error);
+    }
+  };
 
   const loadMembersAndInvitations = async () => {
     try {
       setLoading(true);
       
-      // Use mock data for UI testing
-      setTimeout(() => {
-        setMembers(mockMembers);
-        setInvitations(mockInvitations);
-        setLoading(false);
-      }, 1000); // Simulate loading delay
-      
-      // TODO: Replace with actual API calls when ready
-      // const [membersResponse, invitationsResponse] = await Promise.all([
-      //   workspaceService.getWorkspaceMembers(workspaceId),
-      //   workspaceService.getWorkspaceInvitations(workspaceId)
-      // ]);
+      // Use real API calls
+      const [membersResponse, invitationsResponse] = await Promise.all([
+        workspaceService.getWorkspaceMembers(workspaceId),
+        workspaceService.getWorkspaceInvitations(workspaceId)
+      ]);
 
-      // if (membersResponse.success) {
-      //   setMembers(membersResponse.data);
-      // }
-      // if (invitationsResponse.success) {
-      //   setInvitations(invitationsResponse.data);
-      // }
+      if (membersResponse.success) {
+        setMembers(membersResponse.data);
+        
+        // Find current user's role in this workspace
+        if (currentUserId) {
+          console.log('🔍 Looking for current user in members list:', {
+            currentUserId,
+            membersCount: membersResponse.data.length,
+            membersData: membersResponse.data.map(m => ({ 
+              userId: m.userId, 
+              role: m.role, 
+              email: m.user?.email,
+              username: m.user?.username 
+            }))
+          });
+          
+          const currentUserMember = membersResponse.data.find(member => member.userId === currentUserId);
+          console.log('🔍 Current User Debug:', {
+            currentUserId,
+            currentUserMember,
+            foundRole: currentUserMember?.role,
+            membersResponseSuccess: membersResponse.success,
+            membersDataLength: membersResponse.data.length
+          });
+          
+          if (currentUserMember) {
+            setCurrentUserRole(currentUserMember.role);
+            console.log('✅ Set current user role:', currentUserMember.role);
+          } else {
+            console.log('❌ Current user not found in members list');
+            console.log('❌ Available member IDs:', membersResponse.data.map(m => m.userId));
+          }
+        } else {
+          console.log('❌ Current user ID is null (from parameter)');
+        }
+      } else {
+        console.error('Failed to load members:', membersResponse.message);
+        setMembers([]);
+      }
+      
+      if (invitationsResponse.success) {
+        setInvitations(invitationsResponse.data);
+      } else {
+        console.error('Failed to load invitations:', invitationsResponse.message);
+        setInvitations([]);
+      }
     } catch (error) {
       console.error('Error loading members and invitations:', error);
+      setMembers([]);
+      setInvitations([]);
+    } finally {
       setLoading(false);
     }
+  };
+
+  // Helper functions for permissions
+  const canManageMembers = () => {
+    const canManage = currentUserRole === MemberRole.OWNER;
+    console.log('🔍 Permission Debug:', {
+      currentUserRole,
+      canManage,
+      isOwner: currentUserRole === MemberRole.OWNER,
+      MemberRoleEnum: MemberRole
+    });
+    return canManage;
+  };
+
+  const canRemoveMember = (member: WorkspaceMember) => {
+    const isOwner = currentUserRole === MemberRole.OWNER;
+    const targetIsOwner = member.role === MemberRole.OWNER;
+
+    const canRemove = isOwner && !targetIsOwner;
+    console.log('🔍 Can Remove Debug:', {
+      currentUserRole,
+      memberRole: member.role,
+      targetIsOwner,
+      canRemove
+    });
+    return canRemove;
+  };
+
+  // Member actions
+  const showMemberActions = (member: WorkspaceMember) => {
+    const actions = [];
+    
+    if (canRemoveMember(member)) {
+      actions.push({
+        text: 'Remove Member',
+        onPress: () => removeMember(member),
+        style: 'destructive' as const
+      });
+    }
+    
+    if (actions.length > 0) {
+      Alert.alert(
+        'Member Actions',
+        `Actions for ${member.user.name || member.user.username}`,
+        actions
+      );
+    } else {
+      Alert.alert('No Actions', 'You do not have permission to perform actions on this member.');
+    }
+  };
+
+
+  const removeMember = async (member: WorkspaceMember) => {
+    Alert.alert(
+      'Remove Member',
+      `Are you sure you want to remove ${member.user.name || member.user.username} from this workspace?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('🚀 Removing member:', member.id, 'userId:', member.userId);
+              const response = await workspaceService.removeMemberFromWorkspace(workspaceId, member.id);
+              
+              if (response.success) {
+                showSuccess(`${member.user.name || member.user.username} has been removed from workspace`);
+                // Refresh members list
+                loadMembersAndInvitations();
+              } else {
+                showError(response.message || 'Failed to remove member');
+              }
+            } catch (error) {
+              console.error('Error removing member:', error);
+              showError('Failed to remove member');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const getRoleIcon = (role: MemberRole) => {
     switch (role) {
       case MemberRole.OWNER:
         return 'admin-panel-settings';
-      case MemberRole.ADMIN:
-        return 'manage-accounts';
       case MemberRole.MEMBER:
         return 'person';
       default:
@@ -148,8 +299,6 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
     switch (role) {
       case MemberRole.OWNER:
         return Colors.error;
-      case MemberRole.ADMIN:
-        return Colors.warning;
       case MemberRole.MEMBER:
         return Colors.primary;
       default:
@@ -179,17 +328,27 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
     );
   }
 
+  console.log('🔍 Render Debug:', {
+    currentUserRole,
+    canManageMembers: canManageMembers(),
+    invitationsLength: invitations.length,
+    membersLength: members.length,
+    currentUserId,
+    loading
+  });
+
   return (
     <View style={styles.container}>
-      {/* Invitations Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Pending Invitations ({invitations.length})</Text>
-          <TouchableOpacity style={styles.addButton} onPress={onInviteMember}>
-            <MaterialIcons name="person-add" size={16} color={Colors.neutral.white} />
-            <Text style={styles.addButtonText}>Add Member</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Invitations Section - Only show for admin/owner */}
+      {(canManageMembers() || currentUserRole === null) && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Pending Invitations ({invitations.length})</Text>
+            <TouchableOpacity style={styles.addButton} onPress={onInviteMember}>
+              <MaterialIcons name="person-add" size={16} color={Colors.neutral.white} />
+              <Text style={styles.addButtonText}>Add Member</Text>
+            </TouchableOpacity>
+          </View>
         <ScrollView 
           style={styles.sectionScrollView}
           showsVerticalScrollIndicator={false}
@@ -222,7 +381,8 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
             </View>
           )}
         </ScrollView>
-      </View>
+        </View>
+      )}
 
       {/* Members Section */}
       <View style={styles.section}>
@@ -257,10 +417,20 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
                       </Text>
                     </View>
                   </View>
-                  <View style={[styles.roleContainer, { backgroundColor: getRoleColor(member.role) }]}>
-                    <Text style={styles.roleText}>
-                      {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                    </Text>
+                  <View style={styles.memberActions}>
+                    <View style={[styles.roleContainer, { backgroundColor: getRoleColor(member.role) }]}>
+                      <Text style={styles.roleText}>
+                        {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                      </Text>
+                    </View>
+                    {canRemoveMember(member) && (
+                      <TouchableOpacity 
+                        style={styles.moreButton}
+                        onPress={() => showMemberActions(member)}
+                      >
+                        <MaterialIcons name="more-vert" size={20} color={Colors.neutral.medium} />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               ))}
@@ -268,6 +438,7 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
           )}
         </ScrollView>
       </View>
+
     </View>
   );
 };
@@ -299,7 +470,7 @@ const styles = StyleSheet.create({
   },
   sectionScrollView: {
     flex: 1,
-    maxHeight: 220, // Limit height for each section
+    maxHeight: 240, // Limit height for each section
   },
   sectionHeader: {  
     flexDirection: 'row',
@@ -458,7 +629,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   invitationEmail: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: Colors.neutral.dark,
     marginBottom: 2,
@@ -474,8 +645,18 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: Colors.surface,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
+  },
+  // Member actions styles
+  memberActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  moreButton: {
+    padding: 4,
+    borderRadius: 4,
   },
 });
 

@@ -18,7 +18,7 @@ import { projectService } from '../services/projectService';
 
 const Tab = createBottomTabNavigator();
 
-const DashboardContent = ({ navigation, route, onInviteMember }: { navigation: any; route?: any; onInviteMember: () => void }) => {
+const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded }: { navigation: any; route?: any; onInviteMember: () => void; onMemberAdded?: () => void }) => {
   const workspace = route?.params?.workspace;
   const [selectedTab, setSelectedTab] = React.useState<'overview' | 'analytics' | 'members'>('overview');
   const [projects, setProjects] = useState<any[]>([]);
@@ -570,6 +570,7 @@ const DashboardContent = ({ navigation, route, onInviteMember }: { navigation: a
             <WorkspaceMembersTab 
               workspaceId={workspace?.id || 1} 
               onInviteMember={onInviteMember}
+              onMemberAdded={onMemberAdded}
             />
           </View>
         )}
@@ -712,7 +713,7 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
             ),
           }}
         >
-          {() => <DashboardContent navigation={navigation} route={route} onInviteMember={handleInviteMember} />}
+          {() => <DashboardContent navigation={navigation} route={route} onInviteMember={handleInviteMember} onMemberAdded={handleMemberAdded} />}
         </Tab.Screen>
         <Tab.Screen 
           name="Voice" 

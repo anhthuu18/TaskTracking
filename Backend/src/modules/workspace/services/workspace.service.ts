@@ -476,69 +476,22 @@ export class WorkspaceService {
       throw new BadRequestException('Người dùng đã là thành viên của workspace');
     }
 
-    // HIERARCHICAL APPROACH: Check for existing pending invitation and handle smartly
+    // Check for any pending invitation, regardless of expiry
     const existingInvitation = await this.prisma.workspaceInvitation.findFirst({
       where: {
         workspaceId,
         email,
         status: InvitationStatus.PENDING,
-        expiresAt: { gt: new Date() },
       },
     });
 
     if (existingInvitation) {
-      // Instead of throwing error, update the existing invitation with new message and resend
-      const updatedInvitation = await this.prisma.workspaceInvitation.update({
-        where: { id: existingInvitation.id },
-        data: {
-          message: message || existingInvitation.message,
-          invitedBy: inviterId, // Update inviter
-          updatedAt: new Date(),
-        },
-        include: {
-          workspace: {
-            select: {
-              id: true,
-              workspaceName: true,
-              workspaceType: true,
-            },
-          },
-          inviter: {
-            select: {
-              id: true,
-              username: true,
-              email: true,
-            },
-          },
-        },
-      });
-
-      // Resend email if EMAIL type
-      if (inviteType === InviteType.EMAIL) {
-        const acceptUrl = `${process.env.FRONTEND_URL}/accept-invitation?token=${existingInvitation.token}`;
-        await this.emailService.sendWorkspaceInvitation(
-          email,
-          workspace.workspaceName,
-          updatedInvitation.inviter.username,
-          acceptUrl,
-          message || 'Lời mời workspace đã được gửi lại'
-        );
+      // If invitation is not expired, prevent sending a new one
+      if (existingInvitation.expiresAt > new Date()) {
+        throw new BadRequestException(`An active invitation for this email already exists and will expire on ${existingInvitation.expiresAt.toLocaleDateString()}.`);
       }
-
-      return {
-        id: updatedInvitation.id,
-        workspaceId: updatedInvitation.workspaceId,
-        email: updatedInvitation.email,
-        invitedBy: updatedInvitation.invitedBy,
-        inviteType: updatedInvitation.inviteType,
-        status: updatedInvitation.status,
-        token: updatedInvitation.token,
-        message: updatedInvitation.message,
-        expiresAt: updatedInvitation.expiresAt,
-        createdAt: updatedInvitation.createdAt,
-        workspace: updatedInvitation.workspace,
-        inviter: updatedInvitation.inviter,
-      };
+      // If it's expired, we can proceed to create a new one.
+      // Optionally, you can delete or mark the old one as EXPIRED here.
     }
 
     // Generate unique token
@@ -577,7 +530,7 @@ export class WorkspaceService {
 
     // Send email if EMAIL type
     if (inviteType === InviteType.EMAIL) {
-      const acceptUrl = `${process.env.FRONTEND_URL}/accept-invitation?token=${token}`;
+      const acceptUrl = `${process.env.FRONTEND_URL}/workspace/accept-invitation/${token}`;
       await this.emailService.sendWorkspaceInvitation(
         email,
         workspace.workspaceName,
@@ -788,13 +741,11 @@ export class WorkspaceService {
       throw new NotFoundException('Workspace không tồn tại');
     }
 
-    // Check permission
+    // Check permission - Only owner can remove members
     const isOwner = workspace.userId === requesterId;
-    const memberRole = workspace.workspaceMembers[0]?.role;
-    const canRemove = isOwner || memberRole === MemberRole.ADMIN;
 
-    if (!canRemove) {
-      throw new ForbiddenException('Chỉ owner hoặc admin mới có thể xóa thành viên');
+    if (!isOwner) {
+      throw new ForbiddenException('Chỉ owner mới có thể xóa thành viên');
     }
 
     // Find member to remove
@@ -862,32 +813,10 @@ export class WorkspaceService {
 
   // Get pending invitations for workspace
   async getPendingInvitations(workspaceId: number, requesterId: number): Promise<InvitationResponseDto[]> {
-    // Check if user can view invitations (owner or admin)
-    const workspace = await this.prisma.workspace.findFirst({
-      where: {
-        id: workspaceId,
-        dateDeleted: null,
-      },
-      include: {
-        workspaceMembers: {
-          where: {
-            userId: requesterId,
-            dateDeleted: null,
-          },
-        },
-      },
-    });
-
-    if (!workspace) {
-      throw new NotFoundException('Workspace không tồn tại');
-    }
-
-    const isOwner = workspace.userId === requesterId;
-    const memberRole = workspace.workspaceMembers[0]?.role;
-    const canView = isOwner || memberRole === MemberRole.ADMIN;
-
-    if (!canView) {
-      throw new ForbiddenException('Chỉ owner hoặc admin mới có thể xem danh sách lời mời');
+    // Check access to workspace (all members can view invitations)
+    const hasAccess = await this.checkWorkspaceAccess(workspaceId, requesterId);
+    if (!hasAccess) {
+      throw new ForbiddenException('Bạn không có quyền truy cập workspace này');
     }
 
     const invitations = await this.prisma.workspaceInvitation.findMany({
@@ -1024,5 +953,63 @@ export class WorkspaceService {
     });
 
     return workspace;
+  }
+
+  // Promote member to admin
+  async promoteMember(workspaceId: number, memberId: number, requesterId: number): Promise<WorkspaceMemberResponseDto> {
+    // Check if requester has permission (must be owner)
+    const requesterMember = await this.prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        userId: requesterId,
+        dateDeleted: null,
+      },
+    });
+
+    if (!requesterMember || requesterMember.role !== MemberRole.OWNER) {
+      throw new ForbiddenException('Chỉ owner mới có thể thăng cấp thành viên');
+    }
+
+    // Check if target member exists and is a regular member
+    const targetMember = await this.prisma.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        userId: memberId,
+        dateDeleted: null,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    if (!targetMember) {
+      throw new NotFoundException('Thành viên không tồn tại trong workspace');
+    }
+
+    if (targetMember.role !== MemberRole.MEMBER) {
+      throw new BadRequestException('Chỉ có thể thăng cấp thành viên thường lên admin');
+    }
+
+    // Update member role to admin
+    const updatedMember = await this.prisma.workspaceMember.update({
+      where: { id: targetMember.id },
+      data: { role: MemberRole.ADMIN },
+      include: {
+        user: true,
+      },
+    });
+
+    return {
+      id: updatedMember.id,
+      workspaceId: updatedMember.workspaceId,
+      userId: updatedMember.userId,
+      role: updatedMember.role,
+      joinedAt: updatedMember.joinedAt,
+      user: {
+        id: updatedMember.user.id,
+        username: updatedMember.user.username,
+        email: updatedMember.user.email,
+      },
+    };
   }
 }

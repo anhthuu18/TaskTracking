@@ -17,6 +17,7 @@ import {
   ProjectListScreen,
   ProjectDetailScreen
 } from '../screens';
+import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -32,6 +33,7 @@ export type RootStackParamList = {
   TaskList: { workspace?: any };
   ProjectList: { workspace?: any };
   ProjectDetail: { project: any };
+  AcceptInvitation: { token: string };
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -159,6 +161,13 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             />
+            <Stack.Screen
+              name="AcceptInvitation"
+              component={AcceptInvitationScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
           </>
         ) : (
           <>
@@ -200,6 +209,13 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen
               name="ProjectDetail"
               component={ProjectDetailScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="AcceptInvitation"
+              component={AcceptInvitationScreen}
               options={{
                 headerShown: false,
               }}
