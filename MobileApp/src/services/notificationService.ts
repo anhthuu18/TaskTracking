@@ -36,6 +36,12 @@ export interface ActionResponse {
   message: string;
 }
 
+export interface ProjectInvitePayload {
+  projectId: number;
+  emails: string[];
+  message?: string;
+}
+
 class NotificationService {
   private async getAuthToken(): Promise<string | null> {
     try {
@@ -103,6 +109,19 @@ class NotificationService {
     });
   }
 
+  // Create in-app notifications for project invite (no accept/reject required)
+  async createProjectInviteNotification(payload: ProjectInvitePayload): Promise<ActionResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return new Promise((resolve) => setTimeout(() => resolve({ success: true, message: 'Project invites sent' }), API_CONFIG.MOCK_DELAY));
+    }
+
+    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.NOTIFICATION.PROJECT_INVITE);
+    return this.request<ActionResponse>(url, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   // Decline an invitation
   async declineInvitation(invitationId: number): Promise<ActionResponse> {
     if (API_CONFIG.USE_MOCK_API) {
@@ -118,7 +137,7 @@ class NotificationService {
   // ==================== MOCK METHODS ====================
   
   private async mockGetUserNotifications(): Promise<NotificationResponse> {
-    console.log('📡 Mock API: Getting user notifications');
+
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -181,7 +200,6 @@ class NotificationService {
   }
 
   private async mockAcceptInvitation(invitationId: number): Promise<ActionResponse> {
-    console.log('📡 Mock API: Accepting invitation', invitationId);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -194,7 +212,6 @@ class NotificationService {
   }
 
   private async mockDeclineInvitation(invitationId: number): Promise<ActionResponse> {
-    console.log('📡 Mock API: Declining invitation', invitationId);
     
     return new Promise((resolve) => {
       setTimeout(() => {

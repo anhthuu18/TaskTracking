@@ -112,7 +112,6 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
 
   useEffect(() => {
     if (currentUserId && currentUserId > 0) {
-      console.log('🚀 Loading members and invitations for userId:', currentUserId);
       loadMembersAndInvitations();
     }
   }, [currentUserId, workspaceId]);
@@ -127,10 +126,8 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
   const loadCurrentUserInfo = async () => {
     try {
       const storedUser = await AsyncStorage.getItem('user');
-      console.log('🔍 Stored User Debug:', { storedUser });
       if (storedUser) {
         const user = JSON.parse(storedUser);
-        console.log('🔍 Parsed User Debug:', { user, userId: user.id });
         setCurrentUserId(user.id);
       }
     } catch (error) {
@@ -153,35 +150,10 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
         
         // Find current user's role in this workspace
         if (currentUserId) {
-          console.log('🔍 Looking for current user in members list:', {
-            currentUserId,
-            membersCount: membersResponse.data.length,
-            membersData: membersResponse.data.map(m => ({ 
-              userId: m.userId, 
-              role: m.role, 
-              email: m.user?.email,
-              username: m.user?.username 
-            }))
-          });
-          
           const currentUserMember = membersResponse.data.find(member => member.userId === currentUserId);
-          console.log('🔍 Current User Debug:', {
-            currentUserId,
-            currentUserMember,
-            foundRole: currentUserMember?.role,
-            membersResponseSuccess: membersResponse.success,
-            membersDataLength: membersResponse.data.length
-          });
-          
           if (currentUserMember) {
             setCurrentUserRole(currentUserMember.role);
-            console.log('✅ Set current user role:', currentUserMember.role);
-          } else {
-            console.log('❌ Current user not found in members list');
-            console.log('❌ Available member IDs:', membersResponse.data.map(m => m.userId));
           }
-        } else {
-          console.log('❌ Current user ID is null (from parameter)');
         }
       } else {
         console.error('Failed to load members:', membersResponse.message);
@@ -205,28 +177,13 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
 
   // Helper functions for permissions
   const canManageMembers = () => {
-    const canManage = currentUserRole === MemberRole.OWNER;
-    console.log('🔍 Permission Debug:', {
-      currentUserRole,
-      canManage,
-      isOwner: currentUserRole === MemberRole.OWNER,
-      MemberRoleEnum: MemberRole
-    });
-    return canManage;
+    return currentUserRole === MemberRole.OWNER;
   };
 
   const canRemoveMember = (member: WorkspaceMember) => {
     const isOwner = currentUserRole === MemberRole.OWNER;
     const targetIsOwner = member.role === MemberRole.OWNER;
-
-    const canRemove = isOwner && !targetIsOwner;
-    console.log('🔍 Can Remove Debug:', {
-      currentUserRole,
-      memberRole: member.role,
-      targetIsOwner,
-      canRemove
-    });
-    return canRemove;
+    return isOwner && !targetIsOwner;
   };
 
   // Member actions
@@ -264,7 +221,6 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
           style: 'destructive',
           onPress: async () => {
             try {
-              console.log('🚀 Removing member:', member.id, 'userId:', member.userId);
               const response = await workspaceService.removeMemberFromWorkspace(workspaceId, member.id);
               
               if (response.success) {
@@ -328,14 +284,6 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
     );
   }
 
-  console.log('🔍 Render Debug:', {
-    currentUserRole,
-    canManageMembers: canManageMembers(),
-    invitationsLength: invitations.length,
-    membersLength: members.length,
-    currentUserId,
-    loading
-  });
 
   return (
     <View style={styles.container}>
@@ -373,7 +321,7 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: getStatusColor(invitation.status) }]}>
                     <Text style={styles.statusText}>
-                      {invitation.status.charAt(0).toUpperCase() + invitation.status.slice(1)}
+                      {(invitation.status || 'pending').charAt(0).toUpperCase() + (invitation.status || 'pending').slice(1)}
                     </Text>
                   </View>
                 </View>
@@ -420,7 +368,7 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
                   <View style={styles.memberActions}>
                     <View style={[styles.roleContainer, { backgroundColor: getRoleColor(member.role) }]}>
                       <Text style={styles.roleText}>
-                        {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                        {(member.role || 'member').charAt(0).toUpperCase() + (member.role || 'member').slice(1)}
                       </Text>
                     </View>
                     {canRemoveMember(member) && (

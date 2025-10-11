@@ -30,10 +30,6 @@ export class FirebaseService {
       const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+84${phoneNumber.substring(1)}`;
       
       // Log OTP để test - trong thực tế sẽ gửi SMS qua Twilio/AWS SNS
-      console.log(`🔥 [SMS OTP] Gửi đến ${formattedPhone}`);
-      console.log(`📱 Mã OTP: ${otpCode}`);
-      console.log(`📨 Nội dung SMS: "Mã xác thực của bạn là: ${otpCode}. Có hiệu lực trong 5 phút."`);
-      console.log(`⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}`);
       
       // Simulate SMS sending success
       return true;

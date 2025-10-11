@@ -384,6 +384,18 @@ export class ProjectsService {
       throw new NotFoundException('Project role not found');
     }
 
+    // Load project basic info for notifications/email
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { 
+        projectName: true, 
+        workspaceId: true,
+        workspace: {
+          select: { workspaceName: true }
+        }
+      }
+    });
+
     // Add member
     const member = await this.prisma.projectMember.create({
       data: {
@@ -400,6 +412,35 @@ export class ProjectsService {
         }
       }
     });
+
+    // Create in-app notification for the added member
+    try {
+      await this.prisma.projectNotification.create({
+        data: {
+          projectId,
+          receiverUserId: newUserId,
+          title: 'Added to project',
+          message: `You were added to project "${project.projectName}" in workspace "${project.workspace.workspaceName}"`,
+        },
+      });
+    } catch (e) {
+      // non-blocking
+    }
+
+    // Optional: send email notification (no accept needed)
+    try {
+      if (member.user?.email) {
+        await this.emailService.sendProjectNotification(
+          member.user.email,
+          project.projectName,
+          project.workspace.workspaceName,
+          'System',
+          'You were added to the project'
+        );
+      }
+    } catch (e) {
+      // non-blocking
+    }
 
     return member;
   }

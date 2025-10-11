@@ -135,7 +135,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                     onPress={() => handleMemberToggle(member.id)}
                   >
                     <Text style={styles.memberInitial}>
-                      {member.username.charAt(0).toUpperCase()}
+                      {(member.username || member.email || 'U').charAt(0).toUpperCase()}
                     </Text>
                   </TouchableOpacity>
                 ))}

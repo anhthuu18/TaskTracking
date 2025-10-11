@@ -14,6 +14,8 @@ import { TextInput } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import { ScreenLayout, ButtonStyles, Typography } from '../constants/Dimensions';
+import { workspaceService } from '../services';
+import { WorkspaceType } from '../types';
 
 interface CreateWorkspaceScreenProps {
   navigation: any;
@@ -26,6 +28,7 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
   const [workspaceType, setWorkspaceType] = useState<'personal' | 'group'>('group');
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleBack = () => {
     navigation.goBack();
@@ -42,22 +45,35 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleCreateWorkspace = () => {
+  const handleCreateWorkspace = async () => {
     if (!validateForm()) {
       return;
     }
 
-    // TODO: Implement workspace creation API call
-    const newWorkspace = {
-      name: workspaceName.trim(),
-      description: description.trim(),
-      type: workspaceType,
-    };
-
-    console.log('Creating workspace:', newWorkspace);
-    
-    // Navigate back to workspace selection
-    navigation.goBack();
+    try {
+      setIsLoading(true);
+      
+      const workspaceData = {
+        workspaceName: workspaceName.trim(),
+        description: description.trim() || undefined,
+        workspaceType: workspaceType === 'group' ? WorkspaceType.GROUP : WorkspaceType.PERSONAL,
+      };
+      
+      const response = await workspaceService.createWorkspace(workspaceData);
+      
+      if (response.success) {
+        // Navigate back to workspace selection with refresh
+        navigation.navigate('WorkspaceSelection', { refresh: true });
+      } else {
+        console.error('Failed to create workspace:', response.message);
+        setErrors({ general: response.message || 'Failed to create workspace' });
+      }
+    } catch (error: any) {
+      console.error('Error creating workspace:', error);
+      setErrors({ general: error.message || 'Failed to create workspace' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -186,13 +202,19 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
       {/* Create Button */}
       <View style={styles.footer}>
         <TouchableOpacity 
-          style={styles.createButton}
+          style={[styles.createButton, isLoading && styles.createButtonDisabled]}
           onPress={handleCreateWorkspace}
+          disabled={isLoading}
         >
-          <Text style={styles.createButtonText}>
-            Create
+          <Text style={[styles.createButtonText, isLoading && styles.createButtonTextDisabled]}>
+            {isLoading ? 'Creating...' : 'Create'}
           </Text>
         </TouchableOpacity>
+        
+        {/* Error Message */}
+        {errors.general && (
+          <Text style={styles.errorText}>{errors.general}</Text>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -342,6 +364,9 @@ const styles = StyleSheet.create({
   createButtonText: {
     ...Typography.buttonText,
     color: Colors.neutral.white,
+  },
+  createButtonTextDisabled: {
+    color: Colors.neutral.medium,
   },
   multilineTextInput: {
     minHeight: 120,

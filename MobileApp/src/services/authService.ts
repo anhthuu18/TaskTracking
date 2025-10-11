@@ -31,7 +31,6 @@ export const authService = {
         body: JSON.stringify(credentials),
       });
     }
-    console.log("📡 Mock API gọi với:", credentials);
 
     // Giả lập thời gian chờ API
     return new Promise((resolve) => {
@@ -78,7 +77,6 @@ export const authService = {
         body: JSON.stringify(credentials),
       });
     }
-    console.log("📡 Mock API SignUp gọi với:", credentials);
 
     // Giả lập thời gian chờ API
     return new Promise((resolve) => {
@@ -133,7 +131,6 @@ export const authService = {
         body: JSON.stringify({ idToken }),
       });
     }
-    console.log("📡 Mock API Google Sign-In gọi với:", { idToken });
 
     // Giả lập thời gian chờ API
     return new Promise((resolve) => {

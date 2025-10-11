@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { WorkspaceMember } from '../types/Project';
+import { WorkspaceMember } from '../types/Workspace';
 
 interface MemberDropdownProps {
   members: WorkspaceMember[];
@@ -20,8 +20,6 @@ interface MemberDropdownProps {
   workspaceMembers?: WorkspaceMember[];
   selectedMembers?: string[];
   onMembersChange?: (memberIds: string[]) => void;
-  inviteEmails?: string[];
-  onInviteEmailsChange?: (emails: string[]) => void;
 }
 
 const MemberDropdown: React.FC<MemberDropdownProps> = ({
@@ -32,18 +30,13 @@ const MemberDropdown: React.FC<MemberDropdownProps> = ({
   workspaceMembers,
   selectedMembers,
   onMembersChange,
-  inviteEmails = [],
-  onInviteEmailsChange,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
   
   // Use new props or fallback to legacy props
   const actualMembers = members || workspaceMembers || [];
   const actualSelectedMembers = selectedMemberIds || selectedMembers || [];
   const actualOnMembersChange = onMemberSelect || onMembersChange || (() => {});
-  const actualInviteEmails = inviteEmails || [];
-  const actualOnInviteEmailsChange = onInviteEmailsChange || (() => {});
 
   const toggleMember = (memberId: string) => {
     if (actualSelectedMembers.includes(memberId)) {
@@ -53,58 +46,19 @@ const MemberDropdown: React.FC<MemberDropdownProps> = ({
     }
   };
 
-  const handleInviteEmail = () => {
-    const email = inviteEmail.trim().toLowerCase();
-    
-    if (!email) return;
-    
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Invalid Email', 'Please enter a valid email address');
-      return;
-    }
-
-    // Check if email already exists in workspace members
-    const existingMember = actualMembers.find(member => 
-      member.email.toLowerCase() === email
-    );
-    
-    if (existingMember) {
-      Alert.alert('Member Exists', 'This user is already a member of the workspace');
-      return;
-    }
-
-    // Check if email already in invite list
-    if (actualInviteEmails.includes(email)) {
-      Alert.alert('Already Invited', 'This email has already been added to the invite list');
-      return;
-    }
-
-    actualOnInviteEmailsChange([...actualInviteEmails, email]);
-    setInviteEmail('');
-  };
-
-  const removeInviteEmail = (email: string) => {
-    actualOnInviteEmailsChange(actualInviteEmails.filter(e => e !== email));
-  };
+  // Invite-by-email flow removed for simpler dropdown
 
   const getSelectedMembersDisplay = () => {
     const selectedMemberObjects = actualMembers.filter(member => 
-      actualSelectedMembers.includes(member.id)
+      actualSelectedMembers.includes(String(member.user.id))
     );
-    
-    const totalSelected = selectedMemberObjects.length + actualInviteEmails.length;
-    
+    const totalSelected = selectedMemberObjects.length;
     if (totalSelected === 0) {
       return 'Select members';
     }
     
     if (totalSelected <= 3) {
-      const names = [
-        ...selectedMemberObjects.map(m => m.username),
-        ...actualInviteEmails.map(e => e.split('@')[0])
-      ];
+      const names = selectedMemberObjects.map(m => m.user.username);
       return names.join(', ');
     }
     
@@ -117,44 +71,7 @@ const MemberDropdown: React.FC<MemberDropdownProps> = ({
         style={styles.dropdownButton}
         onPress={() => setIsOpen(!isOpen)}
       >
-        <View style={styles.selectedMembersContainer}>
-          {/* Avatar display for selected members */}
-          <View style={styles.avatarContainer}>
-            {actualMembers
-              .filter(member => actualSelectedMembers.includes(member.id))
-              .slice(0, 3)
-              .map((member, index) => (
-                <View
-                  key={member.id}
-                  style={[
-                    styles.avatar,
-                    { marginLeft: index > 0 ? -8 : 0 }
-                  ]}
-                >
-                  <Text style={styles.avatarText}>
-                    {member.username.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              ))}
-            {actualInviteEmails.slice(0, 3 - actualSelectedMembers.length).map((email, index) => (
-              <View
-                key={email}
-                style={[
-                  styles.avatar,
-                  styles.inviteAvatar,
-                  { marginLeft: (actualSelectedMembers.length + index) > 0 ? -8 : 0 }
-                ]}
-              >
-                <Text style={styles.avatarText}>
-                  {email.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            ))}
-            <TouchableOpacity style={styles.addButton}>
-              <MaterialIcons name="add" size={16} color={Colors.neutral.medium} />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <Text style={styles.dropdownText} numberOfLines={1}>{getSelectedMembersDisplay()}</Text>
         <MaterialIcons 
           name={isOpen ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
           size={24} 
@@ -164,80 +81,29 @@ const MemberDropdown: React.FC<MemberDropdownProps> = ({
 
       {isOpen && (
         <View style={styles.dropdown}>
-          {/* Invite by email section */}
-          <View style={styles.inviteSection}>
-            <Text style={styles.sectionTitle}>Invite by email</Text>
-            <View style={styles.inviteInputContainer}>
-              <TextInput
-                style={styles.inviteInput}
-                value={inviteEmail}
-                onChangeText={setInviteEmail}
-                placeholder="Enter email address"
-                placeholderTextColor={Colors.neutral.medium}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                onSubmitEditing={handleInviteEmail}
-              />
-              <TouchableOpacity
-                style={styles.inviteButton}
-                onPress={handleInviteEmail}
-              >
-                <MaterialIcons name="send" size={20} color={Colors.primary} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Invited emails list */}
-          {actualInviteEmails.length > 0 && (
-            <View style={styles.invitedSection}>
-              <Text style={styles.sectionTitle}>Invited</Text>
-              {actualInviteEmails.map((email) => (
-                <View key={email} style={styles.memberItem}>
-                  <View style={styles.memberInfo}>
-                    <View style={[styles.avatar, styles.inviteAvatar]}>
-                      <Text style={styles.avatarText}>
-                        {email.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={styles.memberDetails}>
-                      <Text style={styles.memberName}>{email.split('@')[0]}</Text>
-                      <Text style={styles.memberEmail}>{email}</Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => removeInviteEmail(email)}
-                    style={styles.removeButton}
-                  >
-                    <MaterialIcons name="close" size={20} color={Colors.neutral.medium} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-
           {/* Workspace members list */}
           <View style={styles.membersSection}>
             <Text style={styles.sectionTitle}>Workspace Members</Text>
             <ScrollView style={styles.membersList} nestedScrollEnabled>
               {actualMembers.map((member) => (
                 <TouchableOpacity
-                  key={member.id}
+                  key={String(member.user.id)}
                   style={styles.memberItem}
-                  onPress={() => toggleMember(member.id)}
+                  onPress={() => toggleMember(String(member.user.id))}
                 >
                   <View style={styles.memberInfo}>
                     <View style={styles.avatar}>
                       <Text style={styles.avatarText}>
-                        {member.username.charAt(0).toUpperCase()}
+                        {(member.user.username || member.user.email || 'U').charAt(0).toUpperCase()}
                       </Text>
                     </View>
                     <View style={styles.memberDetails}>
-                      <Text style={styles.memberName}>{member.username}</Text>
-                      <Text style={styles.memberEmail}>{member.email}</Text>
+                      <Text style={styles.memberName}>{member.user.username}</Text>
+                      <Text style={styles.memberEmail}>{member.user.email}</Text>
                     </View>
                   </View>
                   <View style={styles.checkbox}>
-                    {actualSelectedMembers.includes(member.id) && (
+                    {actualSelectedMembers.includes(String(member.user.id)) && (
                       <MaterialIcons name="check" size={16} color={Colors.primary} />
                     )}
                   </View>
@@ -260,11 +126,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: Colors.neutral.light,
+    borderColor: Colors.neutral.medium,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: Colors.surface,
+  },
+  dropdownText: {
+    flex: 1,
+    color: Colors.neutral.medium,
   },
   selectedMembersContainer: {
     flex: 1,
@@ -311,7 +181,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.neutral.light,
+    borderColor: Colors.neutral.medium,
     maxHeight: 300,
     zIndex: 1000,
     shadowColor: Colors.neutral.dark,
@@ -319,16 +189,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
-  },
-  inviteSection: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.light,
-  },
-  invitedSection: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.light,
   },
   membersSection: {
     padding: 16,

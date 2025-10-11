@@ -88,6 +88,22 @@ export class NotificationService {
     }
   }
 
+  // Project notifications for a user (added to project, etc.)
+  async getProjectNotificationsByUser(userId: number) {
+    return this.prisma.projectNotification.findMany({
+      where: { receiverUserId: userId },
+      include: {
+        project: {
+          include: {
+            creator: { select: { id: true, username: true, email: true } },
+            workspace: { select: { id: true, workspaceName: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   // Accept an invitation
   async acceptInvitation(invitationId: number, userId: number): Promise<{ success: boolean; message: string }> {
     try {

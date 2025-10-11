@@ -16,6 +16,7 @@ import { CreateProjectModal, CreateActionDropdown, CreateTaskModal, CreateEventM
 import { CreateProjectRequest, Project, ProjectStatus } from '../types/Project';
 import { WorkspaceMember } from '../types/Workspace';
 import { projectService, workspaceService } from '../services';
+import { useToastContext } from '../context/ToastContext';
 
 interface ProjectListScreenProps {
   navigation: any;
@@ -41,6 +42,8 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const { showSuccess, showError } = useToastContext();
+  const [highlightProjectId, setHighlightProjectId] = useState<number | undefined>(undefined);
   
   // Get workspace from navigation params
   const selectedWorkspace = route?.params?.workspace;
@@ -95,26 +98,70 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
     setRefreshing(false);
   };
 
-  const handleCreateProject = async (projectData: CreateProjectRequest) => {
+  const handleCreateProject = async (projectData: CreateProjectRequest, memberUserIds: number[] = []) => {
     try {
       const response = await projectService.createProject(projectData);
       
       if (response.success) {
-        Alert.alert('Success', 'Project created successfully!');
+        showSuccess('Project created successfully');
+        setShowCreateProjectModal(false);
+        // Add assigned members for visibility across accounts
+        try {
+          const createdProjectId = Number(response.data?.id);
+          if (createdProjectId && Array.isArray(memberUserIds) && memberUserIds.length > 0) {
+            let memberRoleId: number | undefined;
+            try {
+              const details = await projectService.getProjectDetails(createdProjectId);
+              const roles = (details.data as any)?.projectRoles as any[] | undefined;
+              memberRoleId = roles?.find(r => String(r.roleName).toLowerCase() === 'member')?.id
+                || roles?.find(r => r.roleName && r.roleName !== 'Admin')?.id;
+              if (!memberRoleId) {
+                const createdRole = await projectService.createProjectRole(createdProjectId, 'Member', 'Default member role');
+                memberRoleId = createdRole?.id;
+              }
+            } catch {}
+            // Invite members by email based on workspaceMembers mapping
+            const idToEmail: Record<number, string> = {};
+            for (const m of workspaceMembers) {
+              const uid = Number(m.user.id);
+              if (!isNaN(uid)) idToEmail[uid] = m.user.email;
+            }
+            for (const uid of memberUserIds) {
+              const email = idToEmail[Number(uid)];
+              if (email) {
+                // Directly add member to project (no accept needed)
+                if (memberRoleId) {
+                  await projectService.addMemberToProject(createdProjectId, Number(uid), memberRoleId);
+                }
+              }
+            }
+            // Trigger in-app notifications for added members
+            const emails = memberUserIds.map(uid => idToEmail[Number(uid)]).filter(Boolean) as string[];
+            if (emails.length > 0) {
+              try {
+                const { notificationService } = await import('../services/notificationService');
+                await notificationService.createProjectInviteNotification({ projectId: createdProjectId, emails });
+              } catch {}
+            }
+          }
+        } catch {}
+        setHighlightProjectId(response.data?.id);
         await loadProjects(); // Refresh project list
       } else {
-        Alert.alert('Error', response.message || 'Failed to create project');
+        showError(response.message || 'Failed to create project');
       }
     } catch (error: any) {
       console.error('Error creating project:', error);
-      Alert.alert('Error', error.message || 'Failed to create project. Please try again.');
+      showError(error.message || 'Failed to create project. Please try again.');
     }
   };
 
 
 
-  // Filter projects based on search query and tab
-  const filteredProjects = projects.filter(project => {
+  // Filter + sort projects based on search query and tab
+  const filteredProjects = [...projects]
+    .sort((a, b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime())
+    .filter(project => {
     const matchesSearch = project.projectName.toLowerCase().includes(searchQuery.toLowerCase());
     
     // Filter by tab selection
@@ -189,59 +236,28 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
 
       <View style={styles.projectCardHeader}>
         <Text style={styles.projectTitle}>{project.projectName}</Text>
-        <View style={styles.teamSection}>
-          <View style={styles.teamAvatars}>
-            <View style={[styles.avatar, { backgroundColor: Colors.primary }]}>
-              <Text style={styles.avatarText}>
-                {project.user?.username?.charAt(0).toUpperCase() || 'U'}
-              </Text>
-            </View>
-            {project.memberCount && project.memberCount > 1 && (
-              <View style={[styles.avatar, styles.additionalAvatar, { marginLeft: -8 }]}>
-                <Text style={styles.additionalText}>+{project.memberCount - 1}</Text>
-              </View>
-            )}
-          </View>
-        </View>
+        <Text style={styles.memberCountText}>Members: {project.memberCount || 1}</Text>
       </View>
 
-      <View style={styles.projectDates}>
-        <View style={styles.dateItem}>
-          <MaterialIcons name="schedule" size={16} color={Colors.neutral.medium} />
-          <Text style={styles.dateText}>
-            {new Date(project.dateCreated).toLocaleDateString('en-US', { 
-              month: '2-digit', 
-              day: '2-digit', 
-              year: 'numeric' 
-            })}
-          </Text>
-        </View>
-        <View style={styles.dateSeparator}>
-          <View style={styles.separatorLine} />
-          <MaterialIcons name="arrow-forward" size={16} color={Colors.neutral.medium} />
-        </View>
-        <View style={styles.dateItem}>
-          <MaterialIcons name="event" size={16} color={Colors.primary} />
-          <Text style={styles.dateText}>
-            {new Date(project.dateModified).toLocaleDateString('en-US', { 
-              month: '2-digit', 
-              day: '2-digit', 
-              year: 'numeric' 
-            })}
+      <View style={styles.descriptionRow}>
+        <Text style={styles.projectDescription} numberOfLines={1}>
+          {project.description || 'No description'}
+        </Text>
+        <View style={styles.dateRightRow}>
+          <MaterialIcons name="schedule" size={14} color={Colors.neutral.medium} />
+          <Text style={styles.projectDateText}>
+            {new Date(project.dateCreated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           </Text>
         </View>
       </View>
 
-      <View style={styles.progressSection}>
-        <Text style={styles.progressText}>Members: {project.memberCount || 1}</Text>
-        <View style={styles.progressBar}>
-          {project.description && (
-            <Text style={styles.projectDescription} numberOfLines={1}>
-              {project.description}
-            </Text>
-          )}
+      <View style={styles.projectProgressRow}>
+        <View style={styles.progressBarMini}>
+          <View style={styles.progressFillMini} />
         </View>
+        <Text style={styles.tasksMiniText}>24/48 tasks</Text>
       </View>
+      {/* Highlight message removed; toast only */}
     </TouchableOpacity>
   );
 
@@ -348,7 +364,7 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
       <CreateProjectModal
         visible={showCreateProjectModal}
         onClose={() => setShowCreateProjectModal(false)}
-        onProjectCreated={handleCreateProject}
+        onCreateProject={handleCreateProject}
         workspaceId={String(selectedWorkspace?.id) || '0'}
         workspaceMembers={workspaceMembers}
       />
@@ -465,7 +481,7 @@ const styles = StyleSheet.create({
   projectCard: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
     shadowColor: Colors.neutral.dark,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -476,7 +492,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   projectTitle: {
     fontSize: 18,
@@ -484,84 +500,53 @@ const styles = StyleSheet.create({
     color: Colors.neutral.dark,
     flex: 1,
   },
-  teamSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  teamAvatars: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: Colors.surface,
-  },
-  avatarText: {
-    color: Colors.surface,
+  memberCountText: {
     fontSize: 12,
-    fontWeight: '600',
+    color: Colors.neutral.medium,
+    fontWeight: '500',
   },
-  additionalAvatar: {
-    backgroundColor: Colors.warning,
-  },
-  additionalText: {
-    color: Colors.surface,
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  projectDates: {
+  descriptionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
     gap: 12,
+    marginTop: 4,
+    marginBottom: 6,
   },
-  dateItem: {
+  dateRightRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  dateText: {
-    fontSize: 14,
+  projectDateText: {
+    fontSize: 12,
     color: Colors.neutral.medium,
+    fontWeight: '500',
   },
-  dateSeparator: {
+  projectProgressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    gap: 8,
+    justifyContent: 'space-between',
+    marginTop: 6,
   },
-  separatorLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.neutral.light,
-  },
-  progressSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  progressText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.primary,
-    minWidth: 40,
-  },
-  progressBar: {
+  progressBarMini: {
     flex: 1,
     height: 8,
     backgroundColor: Colors.neutral.light,
     borderRadius: 4,
+    marginRight: 12,
     overflow: 'hidden',
   },
-  progressFill: {
+  progressFillMini: {
     height: '100%',
+    width: '50%',
     backgroundColor: Colors.primary,
     borderRadius: 4,
+  },
+  tasksMiniText: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    fontWeight: '500',
   },
   taskCount: {
     fontSize: 14,

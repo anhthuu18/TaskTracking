@@ -56,6 +56,7 @@ export interface UpdateProjectRequest {
 export interface InviteProjectMemberRequest {
   email: string;
   role?: ProjectMemberRole;
+  inviteType?: 'EMAIL' | 'IN_APP';
 }
 
 export interface UpdateMemberRoleRequest {

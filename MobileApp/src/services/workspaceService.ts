@@ -232,7 +232,6 @@ class WorkspaceService {
   // ==================== MOCK METHODS ====================
   
   private async mockCreateWorkspace(workspaceData: CreateWorkspaceRequest): Promise<WorkspaceResponse> {
-    console.log('📡 Mock API: Creating workspace', workspaceData);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -263,7 +262,6 @@ class WorkspaceService {
   }
 
   private async mockGetAllWorkspaces(): Promise<WorkspaceListResponse> {
-    console.log('📡 Mock API: Getting all workspaces');
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -313,7 +311,6 @@ class WorkspaceService {
   }
 
   private async mockGetPersonalWorkspaces(): Promise<WorkspaceListResponse> {
-    console.log('📡 Mock API: Getting personal workspaces');
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -341,7 +338,6 @@ class WorkspaceService {
   }
 
   private async mockGetGroupWorkspaces(): Promise<WorkspaceListResponse> {
-    console.log('📡 Mock API: Getting group workspaces');
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -380,7 +376,6 @@ class WorkspaceService {
   }
 
   private async mockGetWorkspaceDetails(workspaceId: number): Promise<WorkspaceResponse> {
-    console.log('📡 Mock API: Getting workspace details', workspaceId);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -411,7 +406,6 @@ class WorkspaceService {
   }
 
   private async mockUpdateWorkspace(workspaceId: number, updates: UpdateWorkspaceRequest): Promise<WorkspaceResponse> {
-    console.log('📡 Mock API: Updating workspace', workspaceId, updates);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -437,7 +431,6 @@ class WorkspaceService {
   }
 
   private async mockDeleteWorkspace(workspaceId: number): Promise<DeleteWorkspaceResponse> {
-    console.log('📡 Mock API: Deleting workspace', workspaceId);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -450,7 +443,6 @@ class WorkspaceService {
   }
 
   private async mockRestoreWorkspace(workspaceId: number): Promise<DeleteWorkspaceResponse> {
-    console.log('📡 Mock API: Restoring workspace', workspaceId);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -463,7 +455,6 @@ class WorkspaceService {
   }
 
   private async mockGetDeletedWorkspaces(): Promise<WorkspaceListResponse> {
-    console.log('📡 Mock API: Getting deleted workspaces');
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -491,7 +482,6 @@ class WorkspaceService {
   }
 
   private async mockGetWorkspaceMembers(workspaceId: number): Promise<WorkspaceMemberResponse> {
-    console.log('📡 Mock API: Getting workspace members', workspaceId);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -550,7 +540,6 @@ class WorkspaceService {
   }
 
   private async mockInviteMember(workspaceId: number, inviteData: InviteMemberRequest): Promise<DeleteWorkspaceResponse> {
-    console.log('📡 Mock API: Inviting member to workspace', workspaceId, inviteData);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -563,7 +552,6 @@ class WorkspaceService {
   }
 
   private async mockGetWorkspaceInvitations(workspaceId: number): Promise<any> {
-    console.log('📡 Mock API: Getting workspace invitations', workspaceId);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -598,7 +586,6 @@ class WorkspaceService {
   }
 
   private async mockAcceptInvitation(token: string): Promise<DeleteWorkspaceResponse> {
-    console.log('📡 Mock API: Accepting invitation', token);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -650,7 +637,6 @@ class WorkspaceService {
   }
 
   private async mockRemoveMemberFromWorkspace(memberId: number): Promise<DeleteWorkspaceResponse> {
-    console.log('📡 Mock API: Removing member', memberId);
     
     return new Promise((resolve) => {
       setTimeout(() => {

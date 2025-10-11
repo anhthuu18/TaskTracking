@@ -20,8 +20,12 @@ interface Notification {
   inviterEmail: string;
   message?: string;
   createdAt: Date;
-  expiresAt: Date;
+  expiresAt?: Date; // optional for project notifications
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+  hasActions?: boolean; // for project notifications we hide actions
+  daysRemaining?: number; // calculated days remaining
+  receivedDate?: string; // formatted received date
+  isProjectNotification?: boolean; // to distinguish project notifications
 }
 
 interface NotificationModalProps {
@@ -78,18 +82,43 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
       const response = await notificationService.getUserNotifications();
       
       if (response.success) {
-        // Transform API data to match our interface
-        const transformedNotifications: Notification[] = response.data.map(notification => ({
-          id: notification.id,
-          workspaceId: notification.workspaceId,
-          workspaceName: notification.workspace.workspaceName,
-          inviterName: notification.inviter.username,
-          inviterEmail: notification.inviter.email,
-          message: notification.message,
-          createdAt: new Date(notification.createdAt),
-          expiresAt: new Date(notification.expiresAt),
-          status: notification.status,
-        }));
+        // Transform API data to match our interface; support both workspace invites and project notifications
+        const transformedNotifications: Notification[] = response.data.map((n: any) => {
+          // New project notification shape
+          if (n.type === 'PROJECT_NOTIFICATION' || (!n.workspace && n.title)) {
+            const workspaceName = n.subtitle?.replace(/^Workspace:\s*/i, '') || n.workspace?.workspaceName || 'Workspace';
+            return {
+              id: n.id,
+              workspaceId: n.workspace?.id || n.workspaceId || 0,
+              workspaceName,
+              inviterName: (n.title?.split(' by ').pop()) || 'system',
+              inviterEmail: '',
+              message: n.message || n.title,
+              createdAt: new Date(n.createdAt || Date.now()),
+              status: 'PENDING',
+              hasActions: false,
+              receivedDate: n.receivedDate,
+              isProjectNotification: true,
+            };
+          }
+
+          // Legacy workspace invitation shape
+          return {
+            id: n.id,
+            workspaceId: n.workspaceId,
+            workspaceName: n.workspace?.workspaceName || 'Workspace',
+            inviterName: n.inviter?.username || '',
+            inviterEmail: n.inviter?.email || '',
+            message: n.message,
+            createdAt: new Date(n.createdAt),
+            expiresAt: new Date(n.expiresAt),
+            status: n.status,
+            hasActions: true,
+            daysRemaining: n.daysRemaining,
+            receivedDate: n.receivedDate,
+            isProjectNotification: false,
+          };
+        });
         setNotifications(transformedNotifications);
       } else {
         console.error('Failed to load notifications:', response.message);
@@ -133,15 +162,17 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
     }
   };
 
-  const formatDate = (date: Date) => {
-    const now = new Date();
-    const diffTime = date.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const formatDate = (notification: Notification) => {
+    // For project notifications, don't show expiry
+    if (notification.isProjectNotification) {
+      return null;
+    }
     
-    if (diffDays < 0) return 'Expired';
-    if (diffDays === 0) return 'Expires today';
-    if (diffDays === 1) return 'Expires tomorrow';
-    return `Expires in ${diffDays} days`;
+    const daysRemaining = notification.daysRemaining || 0;
+    
+    if (daysRemaining <= 0) return 'Expired';
+    if (daysRemaining === 1) return 'Expires tomorrow';
+    return `Expires in ${daysRemaining} days`;
   };
 
   const getStatusColor = (status: string) => {
@@ -205,9 +236,11 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                           </Text>
                         </View>
                       </View>
-                      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(notification.status) }]}>
-                        <Text style={styles.statusText}>{notification.status}</Text>
-                      </View>
+                      {notification.hasActions !== false && (
+                        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(notification.status) }]}>
+                          <Text style={styles.statusText}>{notification.status}</Text>
+                        </View>
+                      )}
                     </View>
 
                     {notification.message && (
@@ -215,11 +248,20 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                     )}
 
                     <View style={styles.notificationFooter}>
-                      <Text style={styles.expiryText}>
-                        {formatDate(notification.expiresAt)}
-                      </Text>
+                      <View style={styles.dateInfo}>
+                        {formatDate(notification) && (
+                          <Text style={styles.expiryText}>
+                            {formatDate(notification)}
+                          </Text>
+                        )}
+                      </View>
+                      {notification.receivedDate && (
+                        <Text style={styles.receivedDateText}>
+                          {notification.receivedDate}
+                        </Text>
+                      )}
                       
-                      {notification.status === 'PENDING' && (
+                      {notification.hasActions !== false && notification.status === 'PENDING' && (
                         <View style={styles.actionButtons}>
                           <TouchableOpacity
                             style={[styles.actionButton, styles.declineButton]}
@@ -375,10 +417,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  dateInfo: {
+    flex: 1,
+  },
   expiryText: {
     fontSize: 12,
     color: Colors.neutral.medium,
-    flex: 1,
+  },
+  receivedDateText: {
+    fontSize: 11,
+    color: Colors.neutral.medium,
+    alignSelf: 'flex-end',
   },
   actionButtons: {
     flexDirection: 'row',

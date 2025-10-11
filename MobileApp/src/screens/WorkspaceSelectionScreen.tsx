@@ -22,7 +22,7 @@ import { TextInput } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import { ScreenLayout, ButtonStyles, Typography } from '../constants/Dimensions';
-import { workspaceService } from '../services';
+import { workspaceService, projectService } from '../services';
 import { Workspace, WorkspaceType } from '../types';
 import NotificationModal from '../components/NotificationModal';
 import { notificationService } from '../services/notificationService';
@@ -36,14 +36,16 @@ interface WorkspaceUI {
   id: string;
   name: string;
   memberCount: number;
+  projectCount: number;
   type: 'group' | 'personal';
   color: string;
+  createdAt?: Date;
 }
 
 const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTab, setSelectedTab] = useState<'group' | 'personal'>('group');
-  const [showAllWorkspaces, setShowAllWorkspaces] = useState(false);
+  // Removed showAllWorkspaces state - no longer needed
   const [workspaces, setWorkspaces] = useState<WorkspaceUI[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -87,6 +89,21 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     loadNotificationCount();
   }, []);
 
+  // Refresh workspaces when returning from CreateWorkspaceScreen
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Check if we need to refresh (e.g., from CreateWorkspaceScreen)
+      if (navigation.getState()?.routes) {
+        const currentRoute = navigation.getState().routes[navigation.getState().index];
+        if (currentRoute.name === 'WorkspaceSelection') {
+          loadWorkspaces();
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
   const loadUsername = async () => {
     try {
       const storedUser = await AsyncStorage.getItem('user');
@@ -105,14 +122,22 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
       const response = await workspaceService.getAllWorkspaces();
       
       if (response.success) {
-        // Convert backend workspace data to UI format
-        const uiWorkspaces: WorkspaceUI[] = response.data.map((workspace, index) => ({
-          id: workspace.id.toString(),
-          name: workspace.workspaceName,
-          memberCount: workspace.memberCount || 1,
-          type: workspace.workspaceType === WorkspaceType.GROUP ? 'group' : 'personal',
-          color: workspaceColors[index % workspaceColors.length],
-        }));
+        // Convert backend workspace data to UI format and load project counts
+        const uiWorkspaces: WorkspaceUI[] = await Promise.all(
+          response.data.map(async (workspace, index) => {
+            const projectCount = await loadProjectCount(workspace.id);
+            
+            return {
+              id: workspace.id.toString(),
+              name: workspace.workspaceName,
+              memberCount: workspace.memberCount || 1,
+              projectCount: projectCount,
+              type: (workspace.workspaceType === WorkspaceType.GROUP ? 'group' : 'personal') as 'group' | 'personal',
+              color: workspaceColors[index % workspaceColors.length],
+              createdAt: workspace.dateCreated ? new Date(workspace.dateCreated) : undefined,
+            };
+          })
+        );
         
         setWorkspaces(uiWorkspaces);
       } else {
@@ -147,22 +172,40 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     }
   };
 
+  const loadProjectCount = async (workspaceId: number): Promise<number> => {
+    try {
+      const response = await projectService.getProjectsByWorkspace(workspaceId);
+      return response.success ? response.data.length : 0;
+    } catch (error) {
+      console.error(`Error loading project count for workspace ${workspaceId}:`, error);
+      return 0;
+    }
+  };
+
   const screenWidth = Dimensions.get('window').width;
   const blockWidth = (screenWidth - 60) / 2; // 20px padding on each side + 20px gap between blocks
 
-  const filteredWorkspaces = workspaces.filter(workspace => {
-    const matchesSearch = workspace.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTab = workspace.type === selectedTab;
-    return matchesSearch && matchesTab;
-  });
+  const filteredWorkspaces = workspaces
+    .filter(workspace => {
+      const matchesSearch = workspace.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesTab = workspace.type === selectedTab;
+      return matchesSearch && matchesTab;
+    })
+    .sort((a, b) => {
+      // Sort by creation date - most recent first
+      if (a.createdAt && b.createdAt) {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      // Fallback to id comparison if createdAt is not available (higher id = more recent)
+      return parseInt(b.id) - parseInt(a.id);
+    });
 
-  // Show only first 4 workspaces unless "View more" is clicked
-  const displayedWorkspaces = showAllWorkspaces ? filteredWorkspaces : filteredWorkspaces.slice(0, 4);
+  // Always show all workspaces with scroll if more than 4
   const hasMoreWorkspaces = filteredWorkspaces.length > 4;
 
   const handleWorkspaceSelect = (workspace: WorkspaceUI) => {
     // Navigate to WorkspaceDashboard with selected workspace
-    console.log('🔍 Selecting workspace:', workspace);
+    
     navigation.navigate('WorkspaceDashboard', { 
       workspace: {
         id: parseInt(workspace.id), // Convert to number for backend
@@ -177,20 +220,15 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     navigation.navigate('CreateWorkspace');
   };
 
-  const handleViewMore = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setShowAllWorkspaces(true);
-  };
+  // Removed handleViewMore and handleViewLess - no longer needed
 
   const handleAcceptInvitation = (notificationId: number) => {
-    console.log('Accepting invitation:', notificationId);
     // Refresh workspace list and notification count
     loadWorkspaces();
     loadNotificationCount();
   };
 
   const handleDeclineInvitation = (notificationId: number) => {
-    console.log('Declining invitation:', notificationId);
     // Refresh notification count
     loadNotificationCount();
   };
@@ -223,11 +261,18 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
         <Text style={styles.workspaceName} numberOfLines={2}>
           {workspace.name}
         </Text>
-        {workspace.type === 'group' && (
-          <Text style={styles.memberCount}>
-            Member: {workspace.memberCount}
+        
+        <View style={styles.workspaceStats}>
+          {workspace.type === 'group' && (
+            <Text style={styles.statText}>
+              Members: {workspace.memberCount}
+            </Text>
+          )}
+          <Text style={styles.statText}>
+            Projects: {workspace.projectCount}
           </Text>
-        )}
+        </View>
+        
         {workspace.type === 'personal' && (
           <Text style={styles.personalInfo}>
             Personal workspace
@@ -339,38 +384,25 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
               <Text style={styles.emptyTitle}>No workspaces found</Text>
               <Text style={styles.emptySubtitle}>Create your first workspace to get started</Text>
             </View>
-          ) : showAllWorkspaces ? (
-            <ScrollView 
-              style={styles.workspacesScrollContainerExpanded}
-              showsVerticalScrollIndicator={true}
-              contentContainerStyle={styles.scrollContentContainer}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={refreshWorkspaces}
-                  colors={[Colors.primary]}
-                />
-              }
-            >
-              <View style={styles.workspacesContainer}>
-                {filteredWorkspaces.map((workspace, index) => renderWorkspaceBlock(workspace, index))}
-              </View>
-            </ScrollView>
           ) : (
-            <>
-              <View style={styles.workspacesContainer}>
-                {displayedWorkspaces.map((workspace, index) => renderWorkspaceBlock(workspace, index))}
-              </View>
-              
-              {/* View More */}
-              {hasMoreWorkspaces && (
-                <View style={styles.viewMoreContainer}>
-                  <TouchableOpacity style={styles.viewMoreButton} onPress={handleViewMore}>
-                    <Text style={styles.viewMoreText}>View more</Text>
-                  </TouchableOpacity>
+            <View style={styles.workspaceContainerFixed}>
+              <ScrollView 
+                style={styles.workspacesScrollContainer}
+                showsVerticalScrollIndicator={hasMoreWorkspaces}
+                contentContainerStyle={styles.scrollContentContainer}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={refreshWorkspaces}
+                    colors={[Colors.primary]}
+                  />
+                }
+              >
+                <View style={styles.workspacesContainer}>
+                  {filteredWorkspaces.map((workspace, index) => renderWorkspaceBlock(workspace, index))}
                 </View>
-              )}
-            </>
+              </ScrollView>
+            </View>
           )}
         </View>
       </View>
@@ -523,7 +555,10 @@ const styles = StyleSheet.create({
   workspacesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 20,
+    paddingBottom: 20,
+    minHeight: 280, // Minimum height for 4 workspaces (2 rows)
+    justifyContent: 'flex-start',
+    alignContent: 'flex-start',
   },
   workspaceBlock: {
     padding: 20,
@@ -531,7 +566,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     alignItems: 'center',
-    minHeight: 140,
+    minHeight: 140, // Back to minHeight to allow content to fit
     justifyContent: 'space-between',
     backgroundColor: Colors.background,
     borderColor: Colors.neutral.light,
@@ -558,6 +593,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
   },
+  workspaceStats: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statText: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    textAlign: 'center',
+    fontWeight: '500',
+    marginBottom: 2,
+  },
   personalInfo: {
     fontSize: 14,
     color: Colors.neutral.medium,
@@ -565,19 +611,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     fontStyle: 'italic',
   },
-  viewMoreContainer: {
-    alignItems: 'flex-end',
-    paddingVertical: 16,
-  },
-  viewMoreButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  viewMoreText: {
-    fontSize: 16,
-    color: Colors.primary,
-    fontWeight: '500',
-  },
+  // Removed viewMore and viewLess styles - no longer needed
   footer: {
     paddingHorizontal: ScreenLayout.contentHorizontalPadding,
     paddingBottom: ScreenLayout.footerBottomSpacing,
@@ -598,11 +632,13 @@ const styles = StyleSheet.create({
   workspaceSection: {
     flex: 1,
   },
-  workspacesScrollContainer: {
-    maxHeight: 280, // Fixed height for 4 workspaces (2 rows)
+  workspaceContainerFixed: {
+    height: 400, // Fixed height to always show 4 workspaces (2 rows)
+    flexDirection: 'column',
   },
-  workspacesScrollContainerExpanded: {
-    maxHeight: 320, // Fixed height equivalent to 4 workspaces (2 rows)
+  workspacesScrollContainer: {
+    flex: 1, // Take full available space in fixed container
+    maxHeight: 400, // Limit height to show 4 workspaces
   },
   scrollContentContainer: {
     paddingBottom: 20,

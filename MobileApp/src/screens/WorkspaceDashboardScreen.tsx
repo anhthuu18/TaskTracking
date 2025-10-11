@@ -15,53 +15,61 @@ import WorkspaceMembersTab from '../components/WorkspaceMembersTab';
 import InviteMemberModal from '../components/InviteMemberModal';
 
 import { projectService } from '../services/projectService';
+import { workspaceService } from '../services/workspaceService';
+import { WorkspaceMember } from '../types/Workspace';
+import { useToastContext } from '../context/ToastContext';
 
 const Tab = createBottomTabNavigator();
 
-const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded }: { navigation: any; route?: any; onInviteMember: () => void; onMemberAdded?: () => void }) => {
+const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded, reloadKey, highlightProjectId }: { navigation: any; route?: any; onInviteMember: () => void; onMemberAdded?: () => void; reloadKey?: number; highlightProjectId?: number }) => {
   const workspace = route?.params?.workspace;
   const [selectedTab, setSelectedTab] = React.useState<'overview' | 'analytics' | 'members'>('overview');
   const [projects, setProjects] = useState<any[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [taskFilter, setTaskFilter] = useState<string>('all');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  
+  // Note: We removed dynamic workspace members loading to simplify modal per requirements
 
   // Load projects when workspace changes
   useEffect(() => {
-    console.log('🔍 Workspace changed:', workspace);
     if (workspace?.id) {
       loadProjects();
     } else {
-      // If no workspace ID, load with default ID 1 for testing
-      console.log('⚠️ No workspace ID, loading with default ID 1');
       loadProjects();
     }
   }, [workspace?.id]);
+
+  // Reload projects when parent signals
+  useEffect(() => {
+    if (reloadKey) {
+      loadProjects();
+    }
+  }, [reloadKey]);
 
   const loadProjects = async () => {
     try {
       setLoadingProjects(true);
       const workspaceId = workspace?.id || 1;
-      console.log('🔍 Loading projects for workspace:', workspaceId, 'workspace object:', workspace);
       const response = await projectService.getProjectsByWorkspace(workspaceId);
-      console.log('📡 Projects response:', response);
       
       if (response.success) {
         setProjects(response.data);
-        console.log('✅ Projects loaded:', response.data.length);
       } else {
-        console.error('❌ Failed to load projects:', response.message);
         setProjects([]);
       }
     } catch (error) {
-      console.error('❌ Error loading projects:', error);
+      console.error('Error loading projects:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('❌ Failed to load projects:', errorMessage);
+      console.error('Failed to load projects:', errorMessage);
       setProjects([]);
     } finally {
       setLoadingProjects(false);
     }
   };
+
+  // Placeholder kept for future use if we decide to load members here
+  const loadWorkspaceMembers = async () => {};
 
   // Sample tasks data (will be replaced with real API)
   const allTasks = [
@@ -267,7 +275,7 @@ const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded }: 
               ) : projects.length > 0 ? (
                 <TouchableOpacity 
                   style={styles.projectCard}
-                  onPress={() => navigation.navigate('ProjectList', { workspace })}
+                  onPress={() => navigation.navigate('ProjectDetail', { project: projects[0] })}
                   activeOpacity={0.7}
                 >
                   <View style={styles.projectHeader}>
@@ -276,15 +284,34 @@ const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded }: 
                       Members: {projects[0]?.memberCount || 1}
                     </Text>
                   </View>
-                  <Text style={styles.projectDescription} numberOfLines={2}>
-                    {projects[0]?.description}
-                  </Text>
+                  
+                  {/* Project Description and Creation Date Row */}
+                  <View style={styles.projectInfoRow}>
+                    <View style={styles.projectDescriptionContainer}>
+                      <Text style={styles.projectDescription} numberOfLines={1}>
+                        {projects[0]?.description || 'No description'}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.projectDateContainer}>
+                      <MaterialIcons name="schedule" size={14} color={Colors.neutral.medium} />
+                      <Text style={styles.projectDateText}>
+                        {new Date(projects[0].dateCreated).toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric', 
+                          year: 'numeric' 
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+                  
                   <View style={styles.projectProgress}>
                     <View style={styles.progressBar}>
                       <View style={styles.progressFill} />
                     </View>
                     <Text style={styles.tasksText}>24/48 tasks</Text>
                   </View>
+                  {/* Highlight message removed per requirement; toast is sufficient */}
                 </TouchableOpacity>
               ) : (
                 <View style={styles.emptyProjectsContainer}>
@@ -369,7 +396,7 @@ const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded }: 
                     </View>
                     <View style={[styles.priorityBadge, getPriorityBadgeStyle(task.priority)]}>
                       <Text style={styles.priorityText}>
-                        {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                        {(task.priority || 'medium').charAt(0).toUpperCase() + (task.priority || 'medium').slice(1)}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -655,6 +682,10 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
   const workspace = route?.params?.workspace;
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
+  const { showSuccess, showError } = useToastContext();
+  const [reloadKey, setReloadKey] = useState(0);
+  const [highlightProjectId, setHighlightProjectId] = useState<number | undefined>(undefined);
 
 
   const handleCreateProject = () => {
@@ -666,12 +697,32 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
   };
 
   const handleMemberAdded = async () => {
-    console.log('Member added successfully');
   };
 
   const handleInviteMember = () => {
     setShowAddMemberModal(true);
   };
+
+  // Load workspace members for the modal (include owner)
+  useEffect(() => {
+    const loadMembers = async () => {
+      try {
+        if (!workspace?.id) {
+          setWorkspaceMembers([]);
+          return;
+        }
+        const res = await workspaceService.getWorkspaceMembers(Number(workspace.id));
+        if (res.success) {
+          setWorkspaceMembers(res.data);
+        } else {
+          setWorkspaceMembers([]);
+        }
+      } catch (error) {
+        setWorkspaceMembers([]);
+      }
+    };
+    loadMembers();
+  }, [workspace?.id]);
 
   return (
     <View style={styles.container}>
@@ -713,7 +764,7 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
             ),
           }}
         >
-          {() => <DashboardContent navigation={navigation} route={route} onInviteMember={handleInviteMember} onMemberAdded={handleMemberAdded} />}
+          {() => <DashboardContent navigation={navigation} route={route} onInviteMember={handleInviteMember} onMemberAdded={handleMemberAdded} reloadKey={reloadKey} highlightProjectId={highlightProjectId} />}
         </Tab.Screen>
         <Tab.Screen 
           name="Voice" 
@@ -759,11 +810,62 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
         visible={showCreateProjectModal}
         onClose={() => setShowCreateProjectModal(false)}
         workspaceId={workspace?.id || 0}
-        workspaceMembers={[]}
-        onProjectCreated={async (project: any) => {
-          setShowCreateProjectModal(false);
-          console.log('Project created:', project);
-          // Reload projects after creation
+        workspaceMembers={workspaceMembers}
+        onCreateProject={async (projectData, memberUserIds = []) => {
+          try {
+            const response = await projectService.createProject(projectData);
+            if (response.success) {
+              setShowCreateProjectModal(false);
+              showSuccess('Project created successfully');
+              setReloadKey(prev => prev + 1);
+              setHighlightProjectId(response.data?.id);
+              // Add members to the project for cross-account visibility
+              try {
+                const createdProjectId = Number(response.data?.id);
+                if (createdProjectId && memberUserIds.length > 0) {
+                  let memberRoleId: number | undefined;
+                  try {
+                    const details = await projectService.getProjectDetails(createdProjectId);
+                    const roles = (details.data as any)?.projectRoles as any[] | undefined;
+                    memberRoleId = roles?.find(r => String(r.roleName).toLowerCase() === 'member')?.id
+                      || roles?.find(r => r.roleName && r.roleName !== 'Admin')?.id;
+                    if (!memberRoleId) {
+                      const createdRole = await projectService.createProjectRole(createdProjectId, 'Member', 'Default member role');
+                      memberRoleId = createdRole?.id;
+                    }
+                  } catch {}
+                  const idToEmail: Record<number, string> = {};
+                  for (const m of workspaceMembers) {
+                    const uid = Number(m.user.id);
+                    if (!isNaN(uid)) idToEmail[uid] = m.user.email;
+                  }
+                  for (const uid of memberUserIds) {
+                    const email = idToEmail[Number(uid)];
+                    if (email) {
+                      // Directly add member to project (no accept needed)
+                      if (memberRoleId) {
+                        await projectService.addMemberToProject(createdProjectId, Number(uid), memberRoleId);
+                      }
+                    }
+                  }
+                  // Trigger in-app notifications for added members
+                  const emails = memberUserIds.map(uid => idToEmail[Number(uid)]).filter(Boolean) as string[];
+                  if (emails.length > 0) {
+                    try {
+                      const { notificationService } = await import('../services/notificationService');
+                      await notificationService.createProjectInviteNotification({ projectId: createdProjectId, emails });
+                    } catch {}
+                  }
+                }
+              } catch {}
+            } else {
+              console.error('Failed to create project:', response.message);
+              showError(response.message || 'Failed to create project');
+            }
+          } catch (error) {
+            console.error('Error creating project:', error);
+            showError('Failed to create project. Please try again.');
+          }
         }}
       />
     </View>
@@ -960,11 +1062,30 @@ const styles = StyleSheet.create({
     color: Colors.neutral.dark,
     marginBottom: 4,
   },
-  projectDescription: {
-    fontSize: 14,
-    color: Colors.neutral.medium,
-    lineHeight: 20,
+  projectInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
+  },
+  projectDescriptionContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  projectDescription: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    fontStyle: 'italic',
+  },
+  projectDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  projectDateText: {
+    fontSize: 11,
+    color: Colors.neutral.medium,
+    marginLeft: 4,
+    fontWeight: '500',
   },
   projectStats: {
     flexDirection: 'row',
@@ -983,8 +1104,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 40,
-    width: 280,
-    marginHorizontal: 10,
+    width: '100%',
   },
   emptyProjectsText: {
     fontSize: 16,

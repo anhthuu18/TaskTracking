@@ -121,7 +121,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
       <View style={styles.memberHeader}>
         <View style={[styles.memberAvatar, { backgroundColor: Colors.primary }]}>
           <Text style={styles.memberAvatarText}>
-            {member.user.username.charAt(0).toUpperCase()}
+            {(member.user.username || member.user.email || 'U').charAt(0).toUpperCase()}
           </Text>
         </View>
         <View style={styles.memberInfo}>
@@ -276,7 +276,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
           setShowCreateTaskModal(false);
           console.log('Task created:', taskData);
         }}
-        projectId={Number(project.id)}
+        projectId={String(project.id)}
         projectName={project.projectName}
         projectMembers={projectMembers}
         isPersonalWorkspace={false}

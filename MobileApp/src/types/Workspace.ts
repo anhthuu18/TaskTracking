@@ -14,6 +14,7 @@ export interface Workspace {
     email: string;
   };
   memberCount?: number;
+  projectCount?: number;
   userRole?: MemberRole;
 }
 

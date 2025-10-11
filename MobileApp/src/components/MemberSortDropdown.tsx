@@ -72,7 +72,7 @@ const MemberSortDropdown: React.FC<MemberSortDropdownProps> = ({
           >
             <View style={styles.memberAvatar}>
               <Text style={styles.avatarText}>
-                {member.name.charAt(0).toUpperCase()}
+                {(member.name || member.email || 'U').charAt(0).toUpperCase()}
               </Text>
             </View>
             <Text style={[

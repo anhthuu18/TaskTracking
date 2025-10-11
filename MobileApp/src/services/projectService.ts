@@ -37,8 +37,7 @@ class ProjectService {
         ...(options.headers as Record<string, string> || {}),
       };
 
-      console.log('🌐 Making request to:', url);
-      console.log('🔑 Using token:', token ? 'Present' : 'Missing');
+      // remove verbose request logs
 
       const response = await fetch(url, {
         ...options,
@@ -46,26 +45,26 @@ class ProjectService {
         signal: controller.signal,
       });
 
-      console.log('📡 Response status:', response.status, response.statusText);
+      // remove verbose response logs
 
       let data;
       try {
         data = await response.json();
-        console.log('📦 Response data:', data);
+        // remove verbose data logs
       } catch (jsonError) {
-        console.error('❌ Failed to parse JSON response:', jsonError);
+        console.error('Failed to parse JSON response:', jsonError);
         data = {};
       }
 
       if (!response.ok) {
         const errorMessage = data?.message || `HTTP ${response.status}: ${response.statusText}`;
-        console.error('❌ API Error:', errorMessage);
+        console.error('API Error:', errorMessage);
         throw new Error(errorMessage);
       }
 
       return data as T;
     } catch (error: any) {
-      console.error('❌ Request failed:', error);
+      console.error('Request failed:', error);
       const isAbort = error?.name === 'AbortError';
       const errorMessage = isAbort ? 'Request timeout' : (error?.message || 'Network error');
       throw new Error(errorMessage);
@@ -101,7 +100,9 @@ class ProjectService {
     }
 
     // Sử dụng endpoint list-by-workspace với workspaceId
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.LIST_BY_WORKSPACE}/${workspaceId}`);
+    const endpointsProject = (getCurrentApiConfig() as any).ENDPOINTS.PROJECT;
+    const listByWorkspace = endpointsProject.LIST_BY_WORKSPACE || endpointsProject.LIST_ALL;
+    const url = buildApiUrl(`${listByWorkspace}/${workspaceId}`);
     const backendResponse = await this.request<any[]>(url, {
         method: 'GET',
     });
@@ -131,6 +132,33 @@ class ProjectService {
       message: 'Lấy thông tin project thành công',
       data: backendResponse,
     };
+  }
+
+  // Add member directly (no accept flow, member must already be in workspace)
+  async addMemberToProject(projectId: number, userId: number, projectRoleId?: number): Promise<DeleteProjectResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return { success: true, message: 'Member added (mock)' } as any;
+    }
+
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.ADD_MEMBER}/${projectId}`);
+    const body: any = { userId, projectRoleId };
+    return this.request<DeleteProjectResponse>(url, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  // Create a project role (used to ensure 'Member' role exists)
+  async createProjectRole(projectId: number, roleName: string, description?: string, permissionIds?: number[]): Promise<any> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return { id: 2, roleName };
+    }
+
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.CREATE_ROLE}/${projectId}`);
+    return this.request<any>(url, {
+      method: 'POST',
+      body: JSON.stringify({ roleName, description, permissionIds }),
+    });
   }
 
   // Cập nhật project
@@ -226,10 +254,17 @@ class ProjectService {
       return this.mockInviteMember(projectId, inviteData);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.INVITE_MEMBER}/${projectId}`);
+    // Backend uses route: POST /projects/:id/invite-member
+    const base = getCurrentApiConfig().ENDPOINTS.PROJECT.INVITE_MEMBER;
+    const url = buildApiUrl(base.replace(':id', String(projectId)));
+    // Auto send to both CHANNELs if backend supports single value; default to IN_APP
+    const payload = { ...inviteData } as any;
+    if (!payload.inviteType) {
+      payload.inviteType = 'IN_APP';
+    }
     return this.request<DeleteProjectResponse>(url, {
       method: 'POST',
-      body: JSON.stringify(inviteData),
+      body: JSON.stringify(payload),
     });
   }
 
@@ -261,7 +296,6 @@ class ProjectService {
   // ==================== MOCK METHODS ====================
   
   private async mockCreateProject(projectData: CreateProjectRequest): Promise<ProjectResponse> {
-    console.log('📡 Mock API: Creating project', projectData);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -296,7 +330,7 @@ class ProjectService {
   }
 
   private async mockGetProjectsByWorkspace(workspaceId: number): Promise<ProjectListResponse> {
-    console.log('📡 Mock API: Getting projects by workspace', workspaceId);
+    console.log('Mock API: Getting projects by workspace', workspaceId);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -358,7 +392,7 @@ class ProjectService {
   }
 
   private async mockGetProjectDetails(projectId: number): Promise<ProjectResponse> {
-    console.log('📡 Mock API: Getting project details', projectId);
+    console.log('Mock API: Getting project details', projectId);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -393,7 +427,7 @@ class ProjectService {
   }
 
   private async mockUpdateProject(projectId: number, updates: UpdateProjectRequest): Promise<ProjectResponse> {
-    console.log('📡 Mock API: Updating project', projectId, updates);
+    console.log('Mock API: Updating project', projectId, updates);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -419,7 +453,7 @@ class ProjectService {
   }
 
   private async mockDeleteProject(projectId: number): Promise<DeleteProjectResponse> {
-    console.log('📡 Mock API: Deleting project', projectId);
+    console.log('Mock API: Deleting project', projectId);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -432,7 +466,7 @@ class ProjectService {
   }
 
   private async mockRestoreProject(projectId: number): Promise<DeleteProjectResponse> {
-    console.log('📡 Mock API: Restoring project', projectId);
+    console.log('Mock API: Restoring project', projectId);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -445,7 +479,7 @@ class ProjectService {
   }
 
   private async mockGetDeletedProjects(): Promise<ProjectListResponse> {
-    console.log('📡 Mock API: Getting deleted projects');
+    console.log('Mock API: Getting deleted projects');
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -473,7 +507,7 @@ class ProjectService {
   }
 
   private async mockGetProjectMembers(projectId: number): Promise<ProjectMemberResponse> {
-    console.log('📡 Mock API: Getting project members', projectId);
+    console.log('Mock API: Getting project members', projectId);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -526,7 +560,7 @@ class ProjectService {
   }
 
   private async mockInviteMember(projectId: number, inviteData: InviteProjectMemberRequest): Promise<DeleteProjectResponse> {
-    console.log('📡 Mock API: Inviting member to project', projectId, inviteData);
+    console.log('Mock API: Inviting member to project', projectId, inviteData);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -539,7 +573,7 @@ class ProjectService {
   }
 
   private async mockRemoveMember(projectId: number, memberId: number): Promise<DeleteProjectResponse> {
-    console.log('📡 Mock API: Removing member from project', projectId, memberId);
+    console.log('Mock API: Removing member from project', projectId, memberId);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -552,7 +586,7 @@ class ProjectService {
   }
 
   private async mockUpdateMemberRole(projectId: number, memberId: number, roleData: UpdateMemberRoleRequest): Promise<DeleteProjectResponse> {
-    console.log('📡 Mock API: Updating member role', projectId, memberId, roleData);
+    console.log('Mock API: Updating member role', projectId, memberId, roleData);
     
     return new Promise((resolve) => {
       setTimeout(() => {
