@@ -14,6 +14,7 @@ import { WorkspaceMember, WorkspaceInvitation, MemberRole } from '../types/Works
 import { workspaceService } from '../services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToastContext } from '../context/ToastContext';
+import { cardStyles, getRoleColor } from '../styles/cardStyles';
 
 interface WorkspaceMembersTabProps {
   workspaceId: number;
@@ -251,16 +252,6 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
     }
   };
 
-  const getRoleColor = (role: MemberRole) => {
-    switch (role) {
-      case MemberRole.OWNER:
-        return Colors.error;
-      case MemberRole.MEMBER:
-        return Colors.primary;
-      default:
-        return Colors.neutral.medium;
-    }
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -334,7 +325,7 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
 
       {/* Members Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitlemember}>Members ({members.length})</Text>
+        <Text style={styles.sectionTitle}>Members ({members.length})</Text>
         <ScrollView 
           style={styles.sectionScrollView}
           showsVerticalScrollIndicator={false}
@@ -348,32 +339,32 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
           ) : (
             <View style={styles.listContainer}>
               {members.map((member) => (
-                <View key={member.id} style={styles.memberCard}>
-                  <View style={styles.memberInfo}>
-                    <View style={styles.avatar}>
-                      <View style={styles.avatarPlaceholder}>
-                        <Text style={styles.avatarText}>
+                <View key={member.id} style={cardStyles.memberCard}>
+                  <View style={cardStyles.memberInfo}>
+                    <View style={cardStyles.avatar}>
+                      <View style={cardStyles.avatarPlaceholder}>
+                        <Text style={cardStyles.avatarText}>
                           {(member.user.name || member.user.username).charAt(0).toUpperCase()}
                         </Text>
                       </View>
                     </View>
-                    <View style={styles.memberDetails}>
-                      <Text style={styles.memberName}>{member.user.name || member.user.username}</Text>
-                      <Text style={styles.memberEmail}>{member.user.email}</Text>
-                      <Text style={styles.joinedDate}>
+                    <View style={cardStyles.memberDetails}>
+                      <Text style={cardStyles.memberName}>{member.user.name || member.user.username}</Text>
+                      <Text style={cardStyles.memberEmail}>{member.user.email}</Text>
+                      <Text style={cardStyles.joinedDate}>
                         Joined {new Date(member.joinedAt).toLocaleDateString()}
                       </Text>
                     </View>
                   </View>
-                  <View style={styles.memberActions}>
-                    <View style={[styles.roleContainer, { backgroundColor: getRoleColor(member.role) }]}>
-                      <Text style={styles.roleText}>
+                  <View style={cardStyles.memberActions}>
+                    <View style={[cardStyles.roleContainer, { backgroundColor: getRoleColor(member.role) }]}>
+                      <Text style={cardStyles.roleText}>
                         {(member.role || 'member').charAt(0).toUpperCase() + (member.role || 'member').slice(1)}
                       </Text>
                     </View>
                     {canRemoveMember(member) && (
                       <TouchableOpacity 
-                        style={styles.moreButton}
+                        style={{ padding: 4, borderRadius: 4 }}
                         onPress={() => showMemberActions(member)}
                       >
                         <MaterialIcons name="more-vert" size={20} color={Colors.neutral.medium} />
@@ -473,83 +464,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   
-  // Member Card Styles - Updated to match invitation style
-  sectionTitlemember: {
-    fontSize: 18,
-    fontWeight: '600',
-    paddingHorizontal: 12,
-    marginBottom: 16,
-    color: Colors.neutral.dark,
-  },
-  
-  memberCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    padding: 12,
-    borderRadius: 12,
-    shadowColor: Colors.neutral.dark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light + '40',
-  },
-  memberInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  avatar: {
-    marginRight: 12,
-  },
-  avatarImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-  },
-  avatarPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    color: Colors.surface,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  memberDetails: {
-    flex: 1,
-  },
-  memberName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.neutral.dark,
-    marginBottom: 2,
-  },
-  memberEmail: {
-    fontSize: 12,
-    color: Colors.neutral.medium,
-  },
-  joinedDate: {
-    fontSize: 12,
-    color: Colors.neutral.medium,
-  },
-  roleContainer: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  roleText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.surface,
-  },
   
   // Invitation Card Styles - Vertical Layout
   invitationCard: {
@@ -595,16 +509,6 @@ const styles = StyleSheet.create({
     color: Colors.surface,
     fontSize: 11,
     fontWeight: '600',
-  },
-  // Member actions styles
-  memberActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  moreButton: {
-    padding: 4,
-    borderRadius: 4,
   },
 });
 

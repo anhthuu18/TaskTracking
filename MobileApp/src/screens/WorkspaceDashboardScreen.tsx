@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { CreateProjectModal, AddMemberModal } from '../components';
+import { CreateProjectModal, AddMemberModal, ProjectCard } from '../components';
 import { Colors } from '../constants/Colors';
 import WorkspaceMembersTab from '../components/WorkspaceMembersTab';
 import InviteMemberModal from '../components/InviteMemberModal';
@@ -18,6 +18,7 @@ import { projectService } from '../services/projectService';
 import { workspaceService } from '../services/workspaceService';
 import { WorkspaceMember } from '../types/Workspace';
 import { useToastContext } from '../context/ToastContext';
+import { cardStyles, getPriorityBadgeStyle, getDeadlineStyle } from '../styles/cardStyles';
 
 const Tab = createBottomTabNavigator();
 
@@ -86,8 +87,8 @@ const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded, re
     {
       id: '2',
       title: 'Mobile App UI Design',
-      project: 'Mobile App',
-      projectId: 'mobile-app',
+      project: 'Mane UiKit',
+      projectId: 'mane-uikit',
       dueDate: new Date('2025-01-16'),
       priority: 'high',
       icon: 'assignment',
@@ -96,8 +97,8 @@ const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded, re
     {
       id: '3',
       title: 'Database Optimization',
-      project: 'Backend',
-      projectId: 'backend',
+      project: 'Mane UiKit',
+      projectId: 'mane-uikit',
       dueDate: new Date('2025-01-17'),
       priority: 'medium',
       icon: 'storage',
@@ -106,8 +107,8 @@ const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded, re
     {
       id: '4',
       title: 'User Authentication',
-      project: 'Backend',
-      projectId: 'backend',
+      project: 'Mane UiKit',
+      projectId: 'mane-uikit',
       dueDate: new Date('2025-01-18'),
       priority: 'high',
       icon: 'security',
@@ -126,8 +127,8 @@ const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded, re
     {
       id: '6',
       title: 'Performance Testing',
-      project: 'Mobile App',
-      projectId: 'mobile-app',
+      project: 'Mane UiKit',
+      projectId: 'mane-uikit',
       dueDate: new Date('2025-01-20'),
       priority: 'low',
       icon: 'speed',
@@ -167,21 +168,6 @@ const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded, re
     return filtered;
   };
 
-  const getPriorityBadgeStyle = (priority: string) => {
-    switch (priority) {
-      case 'urgent':
-        return styles.urgentBadge;
-      case 'high':
-        return styles.highBadge;
-      case 'medium':
-        return styles.mediumBadge;
-      case 'low':
-        return styles.lowBadge;
-      default:
-        return styles.mediumBadge;
-    }
-  };
-
   const formatDueDate = (date: Date) => {
     const today = new Date();
     const tomorrow = new Date(today);
@@ -193,20 +179,6 @@ const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded, re
       return 'Due: Tomorrow';
     } else {
       return `Due: ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-    }
-  };
-
-  const getDeadlineStyle = (date: Date) => {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    if (date.toDateString() === today.toDateString()) {
-      return styles.overdue;
-    } else if (date.toDateString() === tomorrow.toDateString()) {
-      return styles.dueSoon;
-    } else {
-      return styles.upcoming;
     }
   };
 
@@ -273,46 +245,14 @@ const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded, re
                   <Text style={styles.loadingText}>Loading projects...</Text>
                 </View>
               ) : projects.length > 0 ? (
-                <TouchableOpacity 
-                  style={styles.projectCard}
+                <ProjectCard
+                  project={projects[0]}
                   onPress={() => navigation.navigate('ProjectDetail', { project: projects[0] })}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.projectHeader}>
-                    <Text style={styles.projectName}>{projects[0].projectName}</Text>
-                    <Text style={styles.memberCount}>
-                      Members: {projects[0]?.memberCount || 1}
-                    </Text>
-                  </View>
-                  
-                  {/* Project Description and Creation Date Row */}
-                  <View style={styles.projectInfoRow}>
-                    <View style={styles.projectDescriptionContainer}>
-                      <Text style={styles.projectDescription} numberOfLines={1}>
-                        {projects[0]?.description || 'No description'}
-                      </Text>
-                    </View>
-                    
-                    <View style={styles.projectDateContainer}>
-                      <MaterialIcons name="schedule" size={14} color={Colors.neutral.medium} />
-                      <Text style={styles.projectDateText}>
-                        {new Date(projects[0].dateCreated).toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric', 
-                          year: 'numeric' 
-                        })}
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.projectProgress}>
-                    <View style={styles.progressBar}>
-                      <View style={styles.progressFill} />
-                    </View>
-                    <Text style={styles.tasksText}>24/48 tasks</Text>
-                  </View>
-                  {/* Highlight message removed per requirement; toast is sufficient */}
-                </TouchableOpacity>
+                  showProgress={true}
+                  progressPercentage={50}
+                  completedTasks={24}
+                  totalTasks={48}
+                />
               ) : (
                 <View style={styles.emptyProjectsContainer}>
                   <MaterialIcons name="folder-open" size={48} color={Colors.neutral.light} />
@@ -380,22 +320,22 @@ const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded, re
             <ScrollView style={styles.tasksScrollView} showsVerticalScrollIndicator={false}>
               <View style={styles.tasksList}>
                 {getFilteredTasks().map((task) => (
-                  <TouchableOpacity key={task.id} style={styles.taskCard} activeOpacity={0.7}>
-                    <View style={styles.taskIcon}>
+                  <TouchableOpacity key={task.id} style={cardStyles.taskCard} activeOpacity={0.7}>
+                    <View style={cardStyles.taskIcon}>
                       <MaterialIcons name={task.icon as any} size={24} color={task.color} />
                     </View>
-                    <View style={styles.taskContent}>
-                      <Text style={styles.taskTitle}>{task.title}</Text>
-                      <Text style={styles.taskProject}>{task.project}</Text>
-                      <View style={styles.taskDeadline}>
+                    <View style={cardStyles.taskContent}>
+                      <Text style={cardStyles.taskTitle}>{task.title}</Text>
+                      <Text style={cardStyles.taskProject}>{task.project}</Text>
+                      <View style={cardStyles.taskDeadline}>
                         <MaterialIcons name="schedule" size={14} color={task.color} />
-                        <Text style={[styles.deadlineText, getDeadlineStyle(task.dueDate)]}>
+                        <Text style={[cardStyles.deadlineText, getDeadlineStyle(task.dueDate)]}>
                           {formatDueDate(task.dueDate)}
                         </Text>
                       </View>
                     </View>
-                    <View style={[styles.priorityBadge, getPriorityBadgeStyle(task.priority)]}>
-                      <Text style={styles.priorityText}>
+                    <View style={[cardStyles.priorityBadge, getPriorityBadgeStyle(task.priority)]}>
+                      <Text style={cardStyles.priorityText}>
                         {(task.priority || 'medium').charAt(0).toUpperCase() + (task.priority || 'medium').slice(1)}
                       </Text>
                     </View>
@@ -1164,31 +1104,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
-  // Task Project Style
-  taskProject: {
-    fontSize: 12,
-    color: Colors.neutral.medium,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-
-  // Priority Badge Styles
-  highBadge: {
-    backgroundColor: Colors.warning + '20',
-  },
-  mediumBadge: {
-    backgroundColor: Colors.primary + '20',
-  },
-  lowBadge: {
-    backgroundColor: Colors.accent + '20',
-  },
-
-  // Deadline Styles
-  upcoming: {
-    color: Colors.neutral.medium,
-  },
-
-
   filterDropdownButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1248,74 +1163,6 @@ const styles = StyleSheet.create({
   tasksScrollView: {
     flex: 1,
     marginBottom: 20,
-  },
-
-  // Task Card Styles
-  taskCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    marginBottom: 12,
-    shadowColor: Colors.neutral.dark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light + '40',
-  },
-  taskIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: Colors.primary + '10',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  taskContent: {
-    flex: 1,
-    marginRight: 12,
-  },
-  taskTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.neutral.dark,
-    marginBottom: 4,
-  },
-  taskDeadline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  deadlineText: {
-    fontSize: 12,
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  priorityText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.neutral.dark,
-  },
-  urgentBadge: {
-    backgroundColor: Colors.error + '20',
-  },
-  dueSoon: {
-    color: Colors.warning,
-  },
-  overdue: {
-    color: Colors.error,
   },
 
   // Enhanced Analytics Styles
@@ -1528,84 +1375,6 @@ const styles = StyleSheet.create({
   },
 
 
-  projectHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  projectName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.neutral.dark,
-    flex: 1,
-  },
-  memberCount: {
-    fontSize: 14,
-    color: Colors.neutral.medium,
-    fontWeight: '500',
-  },
-  teamMembers: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  memberAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -8,
-    borderWidth: 2,
-    borderColor: Colors.surface,
-  },
-  memberAvatarText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: Colors.surface,
-  },
-  moreMembers: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.neutral.light,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -8,
-    borderWidth: 2,
-    borderColor: Colors.surface,
-  },
-  moreMembersText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: Colors.neutral.dark,
-  },
-
-  projectProgress: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: Colors.neutral.light,
-    borderRadius: 4,
-    marginRight: 12,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    width: '50%',
-    backgroundColor: Colors.primary,
-    borderRadius: 4,
-  },
-  tasksText: {
-    fontSize: 12,
-    color: Colors.neutral.medium,
-    fontWeight: '500',
-  },
 
 
 

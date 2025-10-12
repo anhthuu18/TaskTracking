@@ -1,5 +1,8 @@
 import { Project, ProjectMember, ProjectMemberRole } from '../types/Project';
 import { Task, TaskStatus, TaskPriority } from '../types/Task';
+import { WorkspaceType, MemberRole } from '../types/Workspace';
+
+// Shared Mock Data for both Dashboard and Project Detail
 
 // Mock Project Data
 export const mockProject: Project = {
@@ -88,103 +91,97 @@ export const mockProjectMembers: ProjectMember[] = [
   },
 ];
 
-// Mock Tasks Data
+// Mock Tasks Data - Same format as dashboard
 export const mockTasks: Task[] = [
   {
     id: '1',
-    title: 'Design User Interface',
-    description: 'Create wireframes and mockups for the main dashboard with modern design principles and user-friendly navigation.',
-    status: 'in_progress',
-    priority: 'high',
+    title: 'API Integration Testing',
+    project: 'Mane UiKit',
+    projectId: 'mane-uikit',
+    dueDate: new Date('2025-01-15'),
+    priority: 'urgent',
+    icon: 'assignment',
+    color: '#FF5252',
+    status: TaskStatus.IN_PROGRESS,
     assignee: 'jane_smith',
-    dueDate: new Date('2024-01-20'),
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-10'),
-    tags: ['design', 'ui', 'dashboard'],
+    tags: ['backend', 'api', 'testing'],
   },
   {
     id: '2',
-    title: 'Implement Authentication',
-    description: 'Set up JWT authentication system with secure login, registration, and password reset functionality.',
-    status: 'todo',
-    priority: 'urgent',
+    title: 'Mobile App UI Design',
+    project: 'Mane UiKit',
+    projectId: 'mane-uikit',
+    dueDate: new Date('2025-01-16'),
+    priority: 'high',
+    icon: 'assignment',
+    color: '#FF9800',
+    status: TaskStatus.TODO,
     assignee: 'mike_johnson',
-    dueDate: new Date('2024-01-25'),
     createdAt: new Date('2024-01-02'),
     updatedAt: new Date('2024-01-02'),
-    tags: ['backend', 'auth', 'security'],
+    tags: ['design', 'ui', 'mobile'],
   },
   {
     id: '3',
-    title: 'Write Unit Tests',
-    description: 'Add comprehensive test coverage for all components including edge cases and error handling.',
-    status: 'done',
+    title: 'Database Optimization',
+    project: 'Mane UiKit',
+    projectId: 'mane-uikit',
+    dueDate: new Date('2025-01-17'),
     priority: 'medium',
+    icon: 'storage',
+    color: '#2196F3',
+    status: TaskStatus.TODO,
     assignee: 'sarah_wilson',
-    dueDate: new Date('2024-01-15'),
     createdAt: new Date('2024-01-03'),
-    updatedAt: new Date('2024-01-14'),
-    tags: ['testing', 'quality', 'coverage'],
+    updatedAt: new Date('2024-01-03'),
+    tags: ['database', 'optimization', 'performance'],
   },
   {
     id: '4',
-    title: 'Setup CI/CD Pipeline',
-    description: 'Configure automated testing, building, and deployment pipeline for continuous integration.',
-    status: 'in_progress',
+    title: 'User Authentication',
+    project: 'Mane UiKit',
+    projectId: 'mane-uikit',
+    dueDate: new Date('2025-01-18'),
     priority: 'high',
+    icon: 'security',
+    color: '#FF9800',
+    status: TaskStatus.IN_PROGRESS,
     assignee: 'alex_brown',
-    dueDate: new Date('2024-01-22'),
-    createdAt: new Date('2024-01-05'),
+    createdAt: new Date('2024-01-04'),
     updatedAt: new Date('2024-01-12'),
-    tags: ['devops', 'ci-cd', 'automation'],
+    tags: ['auth', 'security', 'backend'],
   },
   {
     id: '5',
-    title: 'Database Schema Design',
-    description: 'Design and implement database schema with proper relationships and indexing for optimal performance.',
-    status: 'todo',
+    title: 'Component Library Update',
+    project: 'Mane UiKit',
+    projectId: 'mane-uikit',
+    dueDate: new Date('2025-01-19'),
     priority: 'medium',
+    icon: 'widgets',
+    color: '#2196F3',
+    status: TaskStatus.DONE,
     assignee: 'john_doe',
-    dueDate: new Date('2024-01-18'),
-    createdAt: new Date('2024-01-06'),
-    updatedAt: new Date('2024-01-06'),
-    tags: ['database', 'schema', 'performance'],
+    createdAt: new Date('2024-01-05'),
+    updatedAt: new Date('2024-01-14'),
+    tags: ['components', 'ui', 'library'],
   },
   {
     id: '6',
-    title: 'API Documentation',
-    description: 'Create comprehensive API documentation with examples and interactive testing interface.',
-    status: 'done',
+    title: 'Performance Testing',
+    project: 'Mane UiKit',
+    projectId: 'mane-uikit',
+    dueDate: new Date('2025-01-20'),
     priority: 'low',
+    icon: 'speed',
+    color: '#9C27B0',
+    status: TaskStatus.TODO,
     assignee: 'jane_smith',
-    dueDate: new Date('2024-01-12'),
-    createdAt: new Date('2024-01-07'),
-    updatedAt: new Date('2024-01-11'),
-    tags: ['documentation', 'api', 'swagger'],
-  },
-  {
-    id: '7',
-    title: 'Mobile App Optimization',
-    description: 'Optimize mobile app performance, reduce bundle size, and improve loading times.',
-    status: 'in_progress',
-    priority: 'high',
-    assignee: 'mike_johnson',
-    dueDate: new Date('2024-01-28'),
-    createdAt: new Date('2024-01-08'),
-    updatedAt: new Date('2024-01-13'),
-    tags: ['mobile', 'optimization', 'performance'],
-  },
-  {
-    id: '8',
-    title: 'User Feedback System',
-    description: 'Implement user feedback collection system with rating and comment functionality.',
-    status: 'todo',
-    priority: 'low',
-    assignee: 'sarah_wilson',
-    dueDate: new Date('2024-02-01'),
-    createdAt: new Date('2024-01-09'),
-    updatedAt: new Date('2024-01-09'),
-    tags: ['feedback', 'user-experience', 'rating'],
+    createdAt: new Date('2024-01-06'),
+    updatedAt: new Date('2024-01-06'),
+    tags: ['testing', 'performance', 'optimization'],
   },
 ];
 
@@ -198,27 +195,24 @@ export const mockWorkspace = {
   projectCount: 3,
 };
 
-// Helper function to get tasks by status
+// Helper functions
 export const getTasksByStatus = (status: TaskStatus): Task[] => {
   return mockTasks.filter(task => task.status === status);
 };
 
-// Helper function to get tasks by assignee
 export const getTasksByAssignee = (assignee: string): Task[] => {
   return mockTasks.filter(task => task.assignee === assignee);
 };
 
-// Helper function to get member by role
 export const getMembersByRole = (role: ProjectMemberRole): ProjectMember[] => {
   return mockProjectMembers.filter(member => member.role === role);
 };
 
-// Helper function to get project statistics
 export const getProjectStats = () => {
   const totalTasks = mockTasks.length;
-  const completedTasks = mockTasks.filter(task => task.status === 'done').length;
-  const inProgressTasks = mockTasks.filter(task => task.status === 'in_progress').length;
-  const todoTasks = mockTasks.filter(task => task.status === 'todo').length;
+  const completedTasks = mockTasks.filter(task => task.status === TaskStatus.DONE).length;
+  const inProgressTasks = mockTasks.filter(task => task.status === TaskStatus.IN_PROGRESS).length;
+  const todoTasks = mockTasks.filter(task => task.status === TaskStatus.TODO).length;
   
   return {
     totalTasks,

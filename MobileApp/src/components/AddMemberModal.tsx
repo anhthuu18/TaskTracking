@@ -1,174 +1,246 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, FlatList, Image } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { workspaceService } from '../services';
-import { InviteMemberRequest } from '../types/Workspace';
-import { useToastContext } from '../context/ToastContext';
+import { WorkspaceMember, MemberRole } from '../types/Workspace';
+import { ProjectMember, ProjectMemberRole } from '../types/Project';
 
 interface AddMemberModalProps {
   visible: boolean;
   onClose: () => void;
-  workspaceId: number;
-  onMemberAdded?: () => void;
+  onAddMember: (memberId: number, role: ProjectMemberRole) => void;
+  workspaceMembers: WorkspaceMember[];
+  projectMembers: ProjectMember[];
 }
 
 const AddMemberModal: React.FC<AddMemberModalProps> = ({
   visible,
   onClose,
-  workspaceId,
-  onMemberAdded,
+  onAddMember,
+  workspaceMembers,
+  projectMembers,
 }) => {
-  const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { showSuccess, showError, showWarning } = useToastContext();
+  const [selectedMember, setSelectedMember] = useState<WorkspaceMember | null>(null);
+  const [selectedRole, setSelectedRole] = useState<ProjectMemberRole>(ProjectMemberRole.MEMBER);
+  const [showMemberDropdown, setShowMemberDropdown] = useState(false);
+  const [showRoleDropdown, setShowRoleDropdown] = useState(false);
 
-  const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+  // Filter out members who are already in the project
+  const availableMembers = workspaceMembers?.filter(workspaceMember => 
+    !projectMembers?.some(projectMember => projectMember.userId === workspaceMember.userId)
+  ) || [];
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(word => word.charAt(0))
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
-  const handleInviteMember = async () => {
-    if (!email.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập email');
-      return;
+  const getRoleColor = (role: ProjectMemberRole) => {
+    switch (role) {
+      case ProjectMemberRole.ADMIN:
+        return Colors.primary;
+      case ProjectMemberRole.MEMBER:
+        return Colors.warning;
+      default:
+        return Colors.neutral.medium;
     }
+  };
 
-    if (!validateEmail(email.trim())) {
-      Alert.alert('Lỗi', 'Email không hợp lệ');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      const inviteData: InviteMemberRequest = {
-        email: email.trim(),
-        inviteType: 'EMAIL',
-        message: message.trim() || undefined,
-      };
-
-      const response = await workspaceService.inviteMemberToWorkspace(workspaceId, inviteData);
-      
-      if (response.success) {
-        setEmail('');
-        setMessage('');
-        onMemberAdded?.();
-        // Close modal first, then show success toast
-        onClose();
-        setTimeout(() => {
-          showSuccess(`Đã gửi lời mời đến ${email}`);
-        }, 100);
-      } else {
-        onClose();
-        setTimeout(() => {
-          showError(response.message || 'Không thể gửi lời mời');
-        }, 100);
-      }
-    } catch (error: any) {
-      // Close modal first to ensure toast is visible
+  const handleAddMember = () => {
+    if (selectedMember) {
+      onAddMember(selectedMember.userId, selectedRole);
+      setSelectedMember(null);
+      setSelectedRole(ProjectMemberRole.MEMBER);
       onClose();
-      
-      // Show appropriate toast message
-      setTimeout(() => {
-        if (error.message && error.message.includes('active invitation')) {
-          showWarning('Email này đã có lời mời đang chờ xử lý. Vui lòng đợi lời mời hết hạn trước khi gửi lại.');
-        } else {
-          showError(error.message || 'Có lỗi xảy ra khi gửi lời mời');
-        }
-      }, 100);
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleClose = () => {
-    setEmail('');
-    setMessage('');
+    setSelectedMember(null);
+    setSelectedRole(ProjectMemberRole.MEMBER);
+    setShowMemberDropdown(false);
+    setShowRoleDropdown(false);
     onClose();
   };
 
   return (
     <Modal
       visible={visible}
-      transparent
+      transparent={true}
       animationType="fade"
       onRequestClose={handleClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
           {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Mời thành viên</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-              <MaterialIcons name="close" size={24} color={Colors.neutral.dark} />
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Mời thành viên</Text>
+            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+              <MaterialIcons name="close" size={24} color={Colors.neutral.medium} />
             </TouchableOpacity>
           </View>
 
-          {/* Content */}
-          <View style={styles.content}>
-            <Text style={styles.label}>Email *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nhập email của thành viên"
-              placeholderTextColor={Colors.neutral.medium}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-            />
-            
-            <Text style={styles.label}>Tin nhắn (tùy chọn)</Text>
-            <TextInput
-              style={[styles.input, styles.messageInput]}
-              placeholder="Thêm tin nhắn cá nhân..."
-              placeholderTextColor={Colors.neutral.medium}
-              value={message}
-              onChangeText={setMessage}
-              multiline={true}
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-            
-            <Text style={styles.hint}>
-              Lời mời sẽ được gửi qua email và có hiệu lực trong 7 ngày.
-            </Text>
+          {/* Member Selection */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>Thành viên *</Text>
+            <TouchableOpacity
+              style={styles.memberDropdown}
+              onPress={() => setShowMemberDropdown(!showMemberDropdown)}
+            >
+              <View style={styles.memberDropdownContent}>
+                {selectedMember ? (
+                  <>
+                    <View style={styles.memberAvatar}>
+                      {selectedMember.user.avatar ? (
+                        <Image 
+                          source={{ uri: selectedMember.user.avatar }} 
+                          style={styles.avatarImage}
+                        />
+                      ) : (
+                        <View style={styles.avatarPlaceholder}>
+                          <Text style={styles.avatarText}>
+                            {getInitials(selectedMember.user.name || selectedMember.user.username)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.memberInfo}>
+                      <Text style={styles.memberName}>
+                        {selectedMember.user.name || selectedMember.user.username}
+                      </Text>
+                      <Text style={styles.memberEmail}>
+                        {selectedMember.user.email}
+                      </Text>
+                    </View>
+                  </>
+                ) : (
+                  <Text style={styles.placeholderText}>Chọn thành viên từ workspace</Text>
+                )}
+              </View>
+              <MaterialIcons 
+                name={showMemberDropdown ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
+                size={24} 
+                color={Colors.neutral.medium} 
+              />
+            </TouchableOpacity>
+
+            {showMemberDropdown && (
+              <View style={styles.memberDropdownMenu}>
+                <FlatList
+                  data={availableMembers}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.memberItem}
+                      onPress={() => {
+                        setSelectedMember(item);
+                        setShowMemberDropdown(false);
+                      }}
+                    >
+                      <View style={styles.memberAvatar}>
+                        {item.user.avatar ? (
+                          <Image 
+                            source={{ uri: item.user.avatar }} 
+                            style={styles.avatarImage}
+                          />
+                        ) : (
+                          <View style={styles.avatarPlaceholder}>
+                            <Text style={styles.avatarText}>
+                              {getInitials(item.user.name || item.user.username)}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.memberInfo}>
+                        <Text style={styles.memberName}>
+                          {item.user.name || item.user.username}
+                        </Text>
+                        <Text style={styles.memberEmail}>
+                          {item.user.email}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  style={styles.memberList}
+                />
+              </View>
+            )}
           </View>
 
-          {/* Actions */}
-          <View style={styles.actions}>
+          {/* Role Selection */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>Vai trò *</Text>
             <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
+              style={styles.roleDropdown}
+              onPress={() => setShowRoleDropdown(!showRoleDropdown)}
+            >
+              <View style={styles.roleDropdownContent}>
+                <View style={[
+                  styles.roleIndicator,
+                  { backgroundColor: getRoleColor(selectedRole) }
+                ]} />
+                <Text style={styles.roleDropdownText}>
+                  {selectedRole === ProjectMemberRole.ADMIN ? 'Admin' : 'Member'}
+                </Text>
+              </View>
+              <MaterialIcons 
+                name={showRoleDropdown ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
+                size={24} 
+                color={Colors.neutral.medium} 
+              />
+            </TouchableOpacity>
+
+            {showRoleDropdown && (
+              <View style={styles.roleDropdownMenu}>
+                <TouchableOpacity
+                  style={styles.roleDropdownItem}
+                  onPress={() => {
+                    setSelectedRole(ProjectMemberRole.ADMIN);
+                    setShowRoleDropdown(false);
+                  }}
+                >
+                  <View style={[styles.roleIndicator, { backgroundColor: Colors.primary }]} />
+                  <Text style={styles.roleDropdownItemText}>Admin</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.roleDropdownItem}
+                  onPress={() => {
+                    setSelectedRole(ProjectMemberRole.MEMBER);
+                    setShowRoleDropdown(false);
+                  }}
+                >
+                  <View style={[styles.roleIndicator, { backgroundColor: Colors.warning }]} />
+                  <Text style={styles.roleDropdownItemText}>Member</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* Info Text */}
+          <Text style={styles.infoText}>
+            Thông báo sẽ được gửi qua email và có hiệu lực trong 7 ngày.
+          </Text>
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.cancelButton}
               onPress={handleClose}
-              disabled={loading}
             >
               <Text style={styles.cancelButtonText}>Hủy</Text>
             </TouchableOpacity>
-            
             <TouchableOpacity
-              style={[styles.button, styles.inviteButton]}
-              onPress={handleInviteMember}
-              disabled={loading || !email.trim()}
+              style={[styles.sendButton, !selectedMember && styles.sendButtonDisabled]}
+              onPress={handleAddMember}
+              disabled={!selectedMember}
             >
-              {loading ? (
-                <ActivityIndicator size="small" color={Colors.surface} />
-              ) : (
-                <>
-                  <MaterialIcons name="send" size={16} color={Colors.surface} />
-                  <Text style={styles.inviteButtonText}>Gửi lời mời</Text>
-                </>
-              )}
+              <MaterialIcons name="notifications" size={20} color={Colors.surface} />
+              <Text style={styles.sendButtonText}>Gửi thông báo</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -178,103 +250,232 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  overlay: {
+  modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
   },
-  modal: {
+  modalContainer: {
     backgroundColor: Colors.surface,
     borderRadius: 12,
+    padding: 20,
     width: '100%',
-    maxWidth: 320,
+    maxWidth: 380,
     shadowColor: Colors.neutral.dark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  header: {
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.light,
+    marginBottom: 20,
   },
-  title: {
-    fontSize: 16,
+  modalTitle: {
+    fontSize: 18,
     fontWeight: '600',
     color: Colors.neutral.dark,
   },
   closeButton: {
-    padding: 2,
+    padding: 4,
   },
-  content: {
-    padding: 16,
+  fieldContainer: {
+    marginBottom: 16,
   },
-  label: {
+  fieldLabel: {
     fontSize: 14,
     fontWeight: '500',
     color: Colors.neutral.dark,
     marginBottom: 6,
-    marginTop: 12,
   },
-  input: {
-    borderWidth: 1.5,
-    borderColor: Colors.neutral.medium + '60',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: Colors.neutral.dark,
-    backgroundColor: Colors.surface,
-  },
-  messageInput: {
-    minHeight: 60,
-    textAlignVertical: 'top',
-  },
-  hint: {
-    fontSize: 11,
-    color: Colors.neutral.medium,
-    marginTop: 6,
-    lineHeight: 14,
-  },
-  actions: {
+  memberDropdown: {
     flexDirection: 'row',
-    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: Colors.background,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+  },
+  memberDropdownContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  memberAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginRight: 10,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.surface,
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: Colors.neutral.dark,
+    marginBottom: 1,
+  },
+  memberEmail: {
+    fontSize: 13,
+    color: Colors.neutral.medium,
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: Colors.neutral.medium,
+  },
+  memberDropdownMenu: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 1000,
+    maxHeight: 200,
+  },
+  memberList: {
+    maxHeight: 200,
+  },
+  memberItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light,
+  },
+  roleDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: Colors.background,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+  },
+  roleDropdownContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  roleIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  roleDropdownText: {
+    fontSize: 16,
+    color: Colors.neutral.dark,
+    fontWeight: '500',
+  },
+  roleDropdownMenu: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 1000,
+  },
+  roleDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light,
+  },
+  roleDropdownItemText: {
+    fontSize: 16,
+    color: Colors.neutral.dark,
+    fontWeight: '500',
+  },
+  infoText: {
+    fontSize: 13,
+    color: Colors.neutral.medium,
+    textAlign: 'center',
+    marginBottom: 20,
+    fontStyle: 'italic',
+  },
+  actionButtons: {
+    flexDirection: 'row',
     gap: 10,
   },
-  button: {
+  cancelButton: {
     flex: 1,
     paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: Colors.neutral.medium,
+  },
+  sendButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    backgroundColor: Colors.primary,
     gap: 6,
   },
-  cancelButton: {
+  sendButtonDisabled: {
     backgroundColor: Colors.neutral.light,
   },
-  cancelButtonText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: Colors.neutral.dark,
-  },
-  inviteButton: {
-    backgroundColor: Colors.primary,
-  },
-  inviteButtonText: {
-    fontSize: 13,
+  sendButtonText: {
+    fontSize: 15,
     fontWeight: '500',
     color: Colors.surface,
   },
 });
 
 export default AddMemberModal;
-
-

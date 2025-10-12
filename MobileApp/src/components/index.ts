@@ -1,7 +1,10 @@
 export { default as CreateProjectModal } from './CreateProjectModal';
 export { default as FloatingActionMenu } from './FloatingActionMenu';
+export { default as MemberCard } from './MemberCard';
 export { default as MemberDropdown } from './MemberDropdown';
 export { default as CreateActionDropdown } from './CreateActionDropdown';
+export { default as CreateProjectDropdown } from './CreateProjectDropdown';
+export { default as CreateTaskEventDropdown } from './CreateTaskEventDropdown';
 export { default as AddMemberModal } from './AddMemberModal';
 export { default as WorkspaceActionDropdown } from './WorkspaceActionDropdown';
 export { default as CreateTaskModal } from './CreateTaskModal';
@@ -9,3 +12,7 @@ export { default as CreateEventModal } from './CreateEventModal';
 export { default as MoreActionsDropdown } from './MoreActionsDropdown';
 export { default as MemberSortDropdown } from './MemberSortDropdown';
 export { default as StatusSortDropdown } from './StatusSortDropdown';
+export { default as ProjectCard } from './ProjectCard';
+export { default as TaskCard } from './TaskCard';
+export { default as ProjectSettingModal } from './ProjectSettingModal';
+export { default as SwipeableMemberCard } from './SwipeableMemberCard';

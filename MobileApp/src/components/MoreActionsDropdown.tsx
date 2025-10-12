@@ -12,35 +12,28 @@ interface MoreActionsDropdownProps {
   visible: boolean;
   onClose: () => void;
   onAction: (action: string) => void;
+  isAdmin?: boolean;
 }
 
 const MoreActionsDropdown: React.FC<MoreActionsDropdownProps> = ({
   visible,
   onClose,
   onAction,
+  isAdmin = false,
 }) => {
   if (!visible) return null;
 
-  const actions = [
+  const allActions = [
     { 
-      id: 'check_done', 
-      title: 'Check done', 
-      icon: 'check_circle',
+      id: 'project_setting', 
+      title: 'Project setting', 
+      icon: 'settings',
       color: Colors.neutral.dark,
-    },
-    { 
-      id: 'share', 
-      title: 'Share', 
-      icon: 'share',
-      color: Colors.neutral.dark,
-    },
-    { 
-      id: 'delete', 
-      title: 'Delete project', 
-      icon: 'delete',
-      color: Colors.error,
+      adminOnly: true,
     },
   ];
+
+  const actions = isAdmin ? allActions : [];
 
   const handleActionPress = (actionId: string) => {
     onAction(actionId);
@@ -86,7 +79,7 @@ const styles = StyleSheet.create({
   },
   dropdown: {
     position: 'absolute',
-    top: 50,
+    top: 60,
     right: 16,
     backgroundColor: Colors.surface,
     borderRadius: 12,

@@ -12,11 +12,12 @@ import {
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { CreateProjectModal, CreateActionDropdown, CreateTaskModal, CreateEventModal } from '../components';
+import { CreateProjectModal, ProjectCard } from '../components';
 import { CreateProjectRequest, Project, ProjectStatus } from '../types/Project';
 import { WorkspaceMember } from '../types/Workspace';
 import { projectService, workspaceService } from '../services';
 import { useToastContext } from '../context/ToastContext';
+import { cardStyles } from '../styles/cardStyles';
 
 interface ProjectListScreenProps {
   navigation: any;
@@ -35,9 +36,6 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
   const [longPressedProject, setLongPressedProject] = useState<number | null>(null);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
-  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -191,27 +189,7 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
   };
 
   const renderProjectCard = (project: Project) => (
-    <TouchableOpacity 
-      key={project.id} 
-      style={[
-        styles.projectCard,
-        longPressedProject === project.id && styles.projectCardPressed
-      ]}
-      onLongPress={() => {
-        setLongPressedProject(Number(project.id));
-      }}
-      onPress={() => {
-        if (longPressedProject === Number(project.id)) {
-          setLongPressedProject(null);
-        } else {
-          // Navigate to project detail screen with correct data structure
-          navigation.navigate('ProjectDetail', { 
-            project: project
-          });
-        }
-      }}
-      delayLongPress={500}
-    >
+    <View key={project.id} style={styles.projectCardWrapper}>
       {/* Delete Overlay */}
       {longPressedProject === Number(project.id) && (
         <View style={styles.deleteOverlay}>
@@ -234,31 +212,21 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
         </View>
       )}
 
-      <View style={styles.projectCardHeader}>
-        <Text style={styles.projectTitle}>{project.projectName}</Text>
-        <Text style={styles.memberCountText}>Members: {project.memberCount || 1}</Text>
-      </View>
-
-      <View style={styles.descriptionRow}>
-        <Text style={styles.projectDescription} numberOfLines={1}>
-          {project.description || 'No description'}
-        </Text>
-        <View style={styles.dateRightRow}>
-          <MaterialIcons name="schedule" size={14} color={Colors.neutral.medium} />
-          <Text style={styles.projectDateText}>
-            {new Date(project.dateCreated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.projectProgressRow}>
-        <View style={styles.progressBarMini}>
-          <View style={styles.progressFillMini} />
-        </View>
-        <Text style={styles.tasksMiniText}>24/48 tasks</Text>
-      </View>
-      {/* Highlight message removed; toast only */}
-    </TouchableOpacity>
+      <ProjectCard
+        project={project}
+        onPress={() => {
+          if (longPressedProject === Number(project.id)) {
+            setLongPressedProject(null);
+          } else {
+            navigation.navigate('ProjectDetail', { project: project });
+          }
+        }}
+        showProgress={true}
+        progressPercentage={50}
+        completedTasks={24}
+        totalTasks={48}
+      />
+    </View>
   );
 
   return (
@@ -276,7 +244,7 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
         </Text>
         <TouchableOpacity 
           style={styles.addButton}
-          onPress={() => setShowDropdown(true)}
+          onPress={() => setShowCreateProjectModal(true)}
         >
           <MaterialIcons name="add" size={24} color={Colors.surface} />
         </TouchableOpacity>
@@ -294,6 +262,9 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
             onChangeText={setSearchQuery}
           />
         </View>
+        <TouchableOpacity style={styles.filterButton}>
+          <MaterialIcons name="tune" size={20} color={Colors.neutral.medium} />
+        </TouchableOpacity>
       </View>
 
       {/* Tabs */}
@@ -320,7 +291,7 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
       {/* Content */}
       <ScrollView 
         style={styles.scrollContent} 
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -351,14 +322,6 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
 
 
 
-      {/* Create Action Dropdown */}
-      <CreateActionDropdown
-        visible={showDropdown}
-        onClose={() => setShowDropdown(false)}
-        onCreateProject={() => setShowCreateProjectModal(true)}
-        onCreateTask={() => setShowCreateTaskModal(true)}
-        onCreateEvent={() => setShowCreateEventModal(true)}
-      />
 
       {/* Create Project Modal */}
       <CreateProjectModal
@@ -369,27 +332,6 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
         workspaceMembers={workspaceMembers}
       />
 
-      {/* Create Task Modal */}
-      <CreateTaskModal
-        visible={showCreateTaskModal}
-        onClose={() => setShowCreateTaskModal(false)}
-        onCreateTask={(taskData: any) => {
-          setShowCreateTaskModal(false);
-          console.log('Task created:', taskData);
-        }}
-        isPersonalWorkspace={false}
-        projectMembers={workspaceMembers}
-      />
-
-      {/* Create Event Modal */}
-      <CreateEventModal
-        visible={showCreateEventModal}
-        onClose={() => setShowCreateEventModal(false)}
-        onCreateEvent={(eventData: any) => {
-          setShowCreateEventModal(false);
-          console.log('Event created:', eventData);
-        }}
-      />
     </View>
   );
 };
@@ -397,7 +339,7 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -427,41 +369,54 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   searchSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: Colors.surface,
   },
   searchContainer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.neutral.light,
+    backgroundColor: Colors.background,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 4,
+    marginRight: 12,
   },
   searchIcon: {
-    marginRight: 12,
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     color: Colors.neutral.dark,
   },
+  filterButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   tabSection: {
     flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: Colors.surface,
-    gap: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light,
   },
   tabButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-    backgroundColor: Colors.neutral.light,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 12,
   },
   activeTabButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primary + '20',
   },
   tabButtonText: {
     fontSize: 14,
@@ -469,93 +424,19 @@ const styles = StyleSheet.create({
     color: Colors.neutral.medium,
   },
   activeTabButtonText: {
-    color: Colors.surface,
+    color: Colors.primary,
+    fontWeight: '600',
   },
   scrollContent: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
   projectList: {
     padding: 20,
-    gap: 20,
-  },
-  projectCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: Colors.neutral.dark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  projectCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  projectTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.neutral.dark,
-    flex: 1,
-  },
-  memberCountText: {
-    fontSize: 12,
-    color: Colors.neutral.medium,
-    fontWeight: '500',
-  },
-  descriptionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginTop: 4,
-    marginBottom: 6,
-  },
-  dateRightRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 6,
   },
-  projectDateText: {
-    fontSize: 12,
-    color: Colors.neutral.medium,
-    fontWeight: '500',
-  },
-  projectProgressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 6,
-  },
-  progressBarMini: {
-    flex: 1,
-    height: 8,
-    backgroundColor: Colors.neutral.light,
-    borderRadius: 4,
-    marginRight: 12,
-    overflow: 'hidden',
-  },
-  progressFillMini: {
-    height: '100%',
-    width: '50%',
-    backgroundColor: Colors.primary,
-    borderRadius: 4,
-  },
-  tasksMiniText: {
-    fontSize: 12,
-    color: Colors.neutral.medium,
-    fontWeight: '500',
-  },
-  taskCount: {
-    fontSize: 14,
-    color: Colors.neutral.medium,
-    minWidth: 80,
-    textAlign: 'right',
-  },
-  projectCardPressed: {
-    opacity: 0.8,
+  projectCardWrapper: {
+    position: 'relative',
   },
   deleteOverlay: {
     position: 'absolute',
