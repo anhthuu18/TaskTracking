@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { CreateProjectModal, AddMemberModal, ProjectCard } from '../components';
+import { CreateProjectModal, ProjectCard } from '../components';
 import { Colors } from '../constants/Colors';
 import WorkspaceMembersTab from '../components/WorkspaceMembersTab';
 import InviteMemberModal from '../components/InviteMemberModal';
@@ -22,7 +22,7 @@ import { cardStyles, getPriorityBadgeStyle, getDeadlineStyle } from '../styles/c
 
 const Tab = createBottomTabNavigator();
 
-const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded, reloadKey, highlightProjectId }: { navigation: any; route?: any; onInviteMember: () => void; onMemberAdded?: () => void; reloadKey?: number; highlightProjectId?: number }) => {
+const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highlightProjectId }: { navigation: any; route?: any; onInviteMember: () => void; reloadKey?: number; highlightProjectId?: number }) => {
   const workspace = route?.params?.workspace;
   const [selectedTab, setSelectedTab] = React.useState<'overview' | 'analytics' | 'members'>('overview');
   const [projects, setProjects] = useState<any[]>([]);
@@ -537,7 +537,6 @@ const DashboardContent = ({ navigation, route, onInviteMember, onMemberAdded, re
             <WorkspaceMembersTab 
               workspaceId={workspace?.id || 1} 
               onInviteMember={onInviteMember}
-              onMemberAdded={onMemberAdded}
             />
           </View>
         )}
@@ -621,7 +620,7 @@ const NotificationScreen = () => (
 const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; route?: any }) => {
   const workspace = route?.params?.workspace;
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
-  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [showInviteMemberModal, setShowInviteMemberModal] = useState(false);
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
   const { showSuccess, showError } = useToastContext();
   const [reloadKey, setReloadKey] = useState(0);
@@ -632,15 +631,12 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
     setShowCreateProjectModal(true);
   };
 
-  const handleAddMember = () => {
-    setShowAddMemberModal(true);
-  };
-
-  const handleMemberAdded = async () => {
-  };
-
   const handleInviteMember = () => {
-    setShowAddMemberModal(true);
+    setShowInviteMemberModal(true);
+  };
+
+  const handleInviteSent = () => {
+    setReloadKey(prev => prev + 1);
   };
 
   // Load workspace members for the modal (include owner)
@@ -704,7 +700,7 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
             ),
           }}
         >
-          {() => <DashboardContent navigation={navigation} route={route} onInviteMember={handleInviteMember} onMemberAdded={handleMemberAdded} reloadKey={reloadKey} highlightProjectId={highlightProjectId} />}
+          {() => <DashboardContent navigation={navigation} route={route} onInviteMember={handleInviteMember} reloadKey={reloadKey} highlightProjectId={highlightProjectId} />}
         </Tab.Screen>
         <Tab.Screen 
           name="Voice" 
@@ -739,11 +735,11 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
       </Tab.Navigator>
       
       {/* Modals */}
-      <AddMemberModal
-        visible={showAddMemberModal}
-        onClose={() => setShowAddMemberModal(false)}
+      <InviteMemberModal
+        visible={showInviteMemberModal}
+        onClose={() => setShowInviteMemberModal(false)}
         workspaceId={workspace?.id || 0}
-        onMemberAdded={handleMemberAdded}
+        onInviteSent={handleInviteSent}
       />
 
       <CreateProjectModal

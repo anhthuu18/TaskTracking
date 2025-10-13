@@ -15,7 +15,7 @@ import { Colors } from '../constants/Colors';
 import { Project, ProjectMember, ProjectMemberRole } from '../types/Project';
 import { MemberRole } from '../types/Workspace';
 import { Task, TaskStatus } from '../types/Task';
-import { CreateTaskEventDropdown, CreateTaskModal, CreateEventModal, CreateProjectModal, MemberSortDropdown, TaskCard, AddMemberModal, ProjectSettingModal, SwipeableMemberCard } from '../components';
+import { CreateTaskEventDropdown, CreateTaskModal, CreateEventModal, CreateProjectModal, MemberSortDropdown, TaskCard, AddMemberModal, ProjectSettingModal, SwipeableMemberCard, TaskFilterDropdown } from '../components';
 import ProjectNotificationModal from '../components/ProjectNotificationModal';
 import { projectService } from '../services';
 import { mockProject, mockProjectMembers, mockTasks } from '../services/sharedMockData';
@@ -150,6 +150,62 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
   const [showProjectNotificationModal, setShowProjectNotificationModal] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const [showProjectSettingModal, setShowProjectSettingModal] = useState(false);
+  const [showTaskFilter, setShowTaskFilter] = useState(false);
+  const [taskFilter, setTaskFilter] = useState({ priority: 'All', dueDate: 'All', assigneeId: null } as any);
+
+  const getFilteredTasks = () => {
+    const tasks = projectTasks;
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 7);
+
+    return tasks.filter((t) => {
+      // priority
+      if (taskFilter.priority !== 'All') {
+        const p = String(t.priority || '').toLowerCase();
+        const want = String(taskFilter.priority || '').toLowerCase();
+        if (p !== want) return false;
+      }
+      // assignee
+      if (taskFilter.assigneeId) {
+        if (String(t.assignee || '') !== String(taskFilter.assigneeId)) return false;
+      }
+      // due date
+      const due = t.dueDate ? new Date(t.dueDate) : null;
+      switch (taskFilter.dueDate) {
+        case 'Overdue':
+          if (!(due && due < new Date(now.getFullYear(), now.getMonth(), now.getDate()))) return false;
+          break;
+        case 'Today':
+          if (!(due && due.toDateString() === new Date().toDateString())) return false;
+          break;
+        case 'Tomorrow': {
+          const tm = new Date();
+          tm.setDate(tm.getDate() + 1);
+          if (!(due && due.toDateString() === tm.toDateString())) return false;
+          break;
+        }
+        case 'ThisWeek':
+          if (!(due && due >= startOfWeek && due < endOfWeek)) return false;
+          break;
+        case 'NextWeek': {
+          const ns = new Date(endOfWeek);
+          const ne = new Date(endOfWeek);
+          ne.setDate(ne.getDate() + 7);
+          if (!(due && due >= ns && due < ne)) return false;
+          break;
+        }
+        case 'NoDue':
+          if (due) return false;
+          break;
+        default:
+          break;
+      }
+      return true;
+    });
+  };
 
   // Mock: Set current user as admin for testing
   const isCurrentUserAdmin = true;
@@ -361,6 +417,13 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     if (activeTab === 'tasks') {
       return (
         <View style={styles.tabContent}>
+          {/* Single filter chip */}
+          <View style={styles.filterBar}>
+            <TouchableOpacity style={styles.filterChip} onPress={() => setShowTaskFilter(true)}>
+              <MaterialIcons name="filter-alt" size={16} color={Colors.primary} />
+              <Text style={styles.filterChipText}>Filter</Text>
+            </TouchableOpacity>
+          </View>
           {projectTasks.length === 0 ? (
             <View style={styles.emptyContainer}>
               <MaterialIcons name="assignment" size={32} color={Colors.neutral.medium} />
@@ -368,19 +431,34 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
               <Text style={styles.emptySubtitle}>Create your first task to get started</Text>
             </View>
           ) : (
+            (() => {
+              const filtered = getFilteredTasks();
+              if (filtered.length === 0) {
+                return (
+                  <View style={styles.emptyContainer}>
+                    <MaterialIcons name="filter-list" size={32} color={Colors.neutral.medium} />
+                    <Text style={styles.emptyTitle}>No tasks match current filters</Text>
+                    <TouchableOpacity style={styles.clearFilterBtn} onPress={() => setTaskFilter({ priority: 'All', dueDate: 'All', assigneeId: null } as any)}>
+                      <Text style={styles.clearFilterText}>Clear filter</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              }
+              return (
             <View style={styles.tasksList}>
-              {projectTasks.map((task) => (
+                  {filtered.map((task) => (
                 <TaskCard
                   key={task.id}
                   task={task}
                   onPress={() => {
-                    // TODO: Navigate to task detail
                     console.log('Task pressed:', task.id);
                   }}
-                  onStatusChange={() => {}} // Not used anymore
+                      onStatusChange={() => {}}
                 />
               ))}
             </View>
+              );
+            })()
           )}
         </View>
       );
@@ -530,9 +608,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
           console.log('Task created:', taskData);
         }}
         projectId={String(project.id)}
-        projectName={project.projectName}
         projectMembers={projectMembers}
-        isPersonalWorkspace={false}
       />
 
       {/* Create Event Modal */}
@@ -543,6 +619,15 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
           setShowCreateEventModal(false);
           console.log('Event created:', eventData);
         }}
+      />
+
+      {/* Task Filter Dropdown */}
+      <TaskFilterDropdown
+        visible={showTaskFilter}
+        onClose={() => setShowTaskFilter(false)}
+        value={taskFilter}
+        onChange={setTaskFilter}
+        assignees={projectMembers.map(m => ({ id: String(m.user.id), name: m.user.username }))}
       />
 
       {/* Member Sort Dropdown */}
@@ -884,6 +969,17 @@ const styles = StyleSheet.create({
     color: Colors.neutral.medium,
     textAlign: 'center',
   },
+  clearFilterBtn: {
+    marginTop: 12,
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  clearFilterText: {
+    color: Colors.surface,
+    fontWeight: '600',
+  },
   tabSection: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -918,6 +1014,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 16,
     gap: 8,
+  },
+  filterBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+  },
+  filterChipText: {
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  filterClearIcon: {
+    marginLeft: 4,
   },
   projectLeft: {
     flexDirection: 'row',

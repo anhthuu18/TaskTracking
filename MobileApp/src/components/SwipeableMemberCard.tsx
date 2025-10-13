@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -25,6 +25,7 @@ const SwipeableMemberCard: React.FC<SwipeableMemberCardProps> = ({
 }) => {
   const translateX = useRef(new Animated.Value(0)).current;
   const deleteOpacity = useRef(new Animated.Value(0)).current;
+  const [showDeleteAction, setShowDeleteAction] = useState(false);
 
   const formatJoinedDate = (date: Date | string) => {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
@@ -57,7 +58,7 @@ const SwipeableMemberCard: React.FC<SwipeableMemberCardProps> = ({
             duration: 200,
             useNativeDriver: true,
           }),
-        ]).start();
+        ]).start(() => setShowDeleteAction(true));
       } else {
         // Reset position
         Animated.parallel([
@@ -71,9 +72,27 @@ const SwipeableMemberCard: React.FC<SwipeableMemberCardProps> = ({
             duration: 200,
             useNativeDriver: true,
           }),
-        ]).start();
+        ]).start(() => setShowDeleteAction(false));
       }
     }
+  };
+
+  const handleOpenEditRole = () => {
+    // Ensure any swipe-to-delete UI is reset before opening the edit role modal
+    Animated.parallel([
+      Animated.timing(translateX, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(deleteOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onEditRole?.();
+    });
   };
 
   const handleDelete = () => {
@@ -90,16 +109,19 @@ const SwipeableMemberCard: React.FC<SwipeableMemberCardProps> = ({
         useNativeDriver: true,
       }),
     ]).start(() => {
+      setShowDeleteAction(false);
       onRemove?.();
     });
   };
 
   const renderRightActions = () => (
-    <Animated.View style={[styles.rightActions, { opacity: deleteOpacity }]}>
-      <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-        <MaterialIcons name="delete" size={24} color={Colors.error} />
-      </TouchableOpacity>
-    </Animated.View>
+    showDeleteAction ? (
+      <Animated.View style={[styles.rightActions, { opacity: deleteOpacity }]}>
+        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
+          <MaterialIcons name="delete" size={24} color={Colors.error} />
+        </TouchableOpacity>
+      </Animated.View>
+    ) : null
   );
 
   return (
@@ -140,7 +162,7 @@ const SwipeableMemberCard: React.FC<SwipeableMemberCardProps> = ({
                   </Text>
                 </View>
                 <TouchableOpacity 
-                  onPress={onEditRole}
+                  onPress={handleOpenEditRole}
                 >
                   <MaterialIcons name="more-vert" size={20} color={Colors.neutral.medium} />
                 </TouchableOpacity>

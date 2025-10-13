@@ -205,15 +205,19 @@ class WorkspaceService {
   }
 
   // Gửi lời mời member
-  async inviteMember(workspaceId: number, email: string, role: string): Promise<any> {
+  async inviteMember(workspaceId: number, email: string, role: string, message?: string): Promise<any> {
     if (API_CONFIG.USE_MOCK_API) {
-      return this.mockInviteMember(workspaceId, { email, inviteType: 'EMAIL' });
+      return this.mockInviteMember(workspaceId, { email, inviteType: 'EMAIL', message });
     }
 
-    const url = buildApiUrl(`/workspace/${workspaceId}/invite`);
+    const url = buildApiUrl(`/workspace/${workspaceId}/invite-member`);
     return this.request<any>(url, {
       method: 'POST',
-      body: JSON.stringify({ email, role }),
+      body: JSON.stringify({ 
+        email, 
+        inviteType: 'EMAIL', 
+        message 
+      }),
     });
   }
 
@@ -543,9 +547,10 @@ class WorkspaceService {
     
     return new Promise((resolve) => {
       setTimeout(() => {
+        const message = inviteData.message ? ` với tin nhắn: "${inviteData.message}"` : '';
         resolve({
           success: true,
-          message: `Đã gửi lời mời đến ${inviteData.email}`,
+          message: `Đã gửi lời mời đến ${inviteData.email}${message}`,
         });
       }, API_CONFIG.MOCK_DELAY);
     });

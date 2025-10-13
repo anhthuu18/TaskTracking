@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Alert,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
@@ -15,6 +14,7 @@ import { CreateProjectRequest, ProjectLabel } from '../types/Project';
 import { WorkspaceMember, MemberRole } from '../types/Workspace';
 import MemberDropdown from './MemberDropdown';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useToastContext } from '../context/ToastContext';
 
 interface CreateProjectModalProps {
   visible: boolean;
@@ -39,6 +39,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [labels, setLabels] = useState<Omit<ProjectLabel, 'id'>[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const { showSuccess, showError } = useToastContext();
 
   useEffect(() => {
     const loadUser = async () => {
@@ -81,7 +82,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
   const handleCreate = async () => {
     if (!projectName.trim()) {
-      Alert.alert('Error', 'Please enter a project name');
+      showError('Please enter a project name');
       return;
     }
 
@@ -115,10 +116,11 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         onProjectCreated(mockProject);
       }
       
+      showSuccess('Project created successfully!');
       handleClose();
     } catch (error) {
       console.error('Error creating project:', error);
-      Alert.alert('Error', 'Failed to create project. Please try again.');
+      showError('Failed to create project. Please try again.');
     } finally {
       setIsLoading(false);
     }

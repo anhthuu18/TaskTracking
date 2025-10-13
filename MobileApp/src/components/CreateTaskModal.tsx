@@ -3,382 +3,827 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Modal,
-  TextInput,
+  TouchableOpacity,
   ScrollView,
-  Alert,
+  TextInput,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { TaskPriority } from '../types';
+import { useToastContext } from '../context/ToastContext';
+import { ProjectMember } from '../types/Project';
+
+// Project Member Dropdown Component
+interface ProjectMemberDropdownProps {
+  members: ProjectMember[];
+  selectedMemberIds: string[];
+  onMemberSelect: (memberIds: string[]) => void;
+}
+
+const ProjectMemberDropdown: React.FC<ProjectMemberDropdownProps> = ({
+  members,
+  selectedMemberIds,
+  onMemberSelect,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const toggleMember = (memberId: string) => {
+    if (selectedMemberIds.includes(memberId)) {
+      onMemberSelect(selectedMemberIds.filter(id => id !== memberId));
+    } else {
+      onMemberSelect([...selectedMemberIds, memberId]);
+    }
+  };
+
+  const getSelectedMembersDisplay = () => {
+    const selectedMemberObjects = members.filter(member => 
+      selectedMemberIds.includes(String(member.id))
+    );
+    const totalSelected = selectedMemberObjects.length;
+    if (totalSelected === 0) {
+      return 'Select members';
+    }
+    
+    if (totalSelected <= 3) {
+      const names = selectedMemberObjects.map(m => m.user.username);
+      return names.join(', ');
+    }
+    
+    return `${totalSelected} members selected`;
+  };
+
+  return (
+    <View style={dropdownStyles.container}>
+      <TouchableOpacity
+        style={dropdownStyles.dropdownButton}
+        onPress={() => setIsOpen(!isOpen)}
+      >
+        <Text style={dropdownStyles.dropdownText} numberOfLines={1}>{getSelectedMembersDisplay()}</Text>
+        <MaterialIcons 
+          name={isOpen ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
+          size={24} 
+          color={Colors.neutral.medium} 
+        />
+      </TouchableOpacity>
+
+      {isOpen && (
+        <View style={dropdownStyles.dropdown}>
+          <View style={dropdownStyles.membersSection}>
+            <Text style={dropdownStyles.sectionTitle}>Project Members</Text>
+            <ScrollView style={dropdownStyles.membersList} nestedScrollEnabled>
+              {members.map((member) => (
+                <TouchableOpacity
+                  key={String(member.id)}
+                  style={dropdownStyles.memberItem}
+                  onPress={() => toggleMember(String(member.id))}
+                >
+                  <View style={dropdownStyles.memberInfo}>
+                    <View style={dropdownStyles.avatar}>
+                      <Text style={dropdownStyles.avatarText}>
+                        {(member.user.username || member.user.email || 'U').charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={dropdownStyles.memberDetails}>
+                      <Text style={dropdownStyles.memberName}>
+                        {member.user.username || member.user.email}
+                      </Text>
+                      <Text style={dropdownStyles.memberEmail}>
+                        {member.user.email}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={dropdownStyles.checkbox}>
+                    {selectedMemberIds.includes(String(member.id)) && (
+                      <MaterialIcons name="check" size={20} color={Colors.primary} />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+};
+
+// Priority Dropdown Component
+interface PriorityDropdownProps {
+  selectedPriority: string;
+  onPrioritySelect: (priority: string) => void;
+}
+
+const PriorityDropdown: React.FC<PriorityDropdownProps> = ({
+  selectedPriority,
+  onPrioritySelect,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const priorityOptions = [
+    { value: 'urgent', label: 'Urgent', color: Colors.error },
+    { value: 'high', label: 'High', color: Colors.warning },
+    { value: 'medium', label: 'Medium', color: Colors.primary },
+    { value: 'low', label: 'Low', color: Colors.accent },
+    { value: 'lowest', label: 'Lowest', color: Colors.neutral.medium },
+  ];
+
+  const getDisplayText = () => {
+    if (!selectedPriority) return 'Select priority';
+    const option = priorityOptions.find(opt => opt.value === selectedPriority);
+    return option ? option.label : 'Select priority';
+  };
+
+  return (
+    <View style={dropdownStyles.container}>
+      <TouchableOpacity
+        style={dropdownStyles.dropdownButton}
+        onPress={() => setIsOpen(!isOpen)}
+      >
+        <Text style={dropdownStyles.dropdownText}>{getDisplayText()}</Text>
+        <MaterialIcons 
+          name={isOpen ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
+          size={24} 
+          color={Colors.neutral.medium} 
+        />
+      </TouchableOpacity>
+
+      {isOpen && (
+        <View style={dropdownStyles.dropdown}>
+          {priorityOptions.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={dropdownStyles.option}
+              onPress={() => {
+                onPrioritySelect(option.value);
+                setIsOpen(false);
+              }}
+            >
+              <View style={[dropdownStyles.priorityIndicator, { backgroundColor: option.color + '20' }]}>
+                <View style={[dropdownStyles.priorityDot, { backgroundColor: option.color }]} />
+              </View>
+              <Text style={dropdownStyles.optionText}>{option.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+};
+
+// Status Dropdown Component
+interface StatusDropdownProps {
+  selectedStatus: string;
+  onStatusSelect: (status: string) => void;
+}
+
+const StatusDropdown: React.FC<StatusDropdownProps> = ({
+  selectedStatus,
+  onStatusSelect,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const statusOptions = [
+    { value: 'todo', label: 'To Do' },
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'waiting_for_review', label: 'Waiting for Review' },
+    { value: 'waiting_for_test', label: 'Waiting for Test' },
+    { value: 'done', label: 'Done' },
+  ];
+
+  const getDisplayText = () => {
+    if (!selectedStatus) return 'Select status';
+    const option = statusOptions.find(opt => opt.value === selectedStatus);
+    return option ? option.label : 'Select status';
+  };
+
+  return (
+    <View style={dropdownStyles.container}>
+      <TouchableOpacity
+        style={dropdownStyles.dropdownButton}
+        onPress={() => setIsOpen(!isOpen)}
+      >
+        <Text style={dropdownStyles.dropdownText}>{getDisplayText()}</Text>
+        <MaterialIcons 
+          name={isOpen ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
+          size={24} 
+          color={Colors.neutral.medium} 
+        />
+      </TouchableOpacity>
+
+      {isOpen && (
+        <View style={dropdownStyles.dropdown}>
+          {statusOptions.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={dropdownStyles.option}
+              onPress={() => {
+                onStatusSelect(option.value);
+                setIsOpen(false);
+              }}
+            >
+              <Text style={dropdownStyles.optionText}>{option.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+};
 
 interface CreateTaskModalProps {
   visible: boolean;
   onClose: () => void;
   onCreateTask: (taskData: any) => void;
+  projectMembers?: ProjectMember[];
   projectId?: string;
-  projectName?: string;
-  projectMembers?: any[];
-  isPersonalWorkspace?: boolean;
 }
 
 const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   visible,
   onClose,
   onCreateTask,
-  projectId,
-  projectName,
   projectMembers = [],
-  isPersonalWorkspace = false,
+  projectId,
 }) => {
   const [taskName, setTaskName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
-  const [startDate] = useState(new Date());
-  const [endDate] = useState(new Date());
-  const [priority, setPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
+  const [priority, setPriority] = useState('');
+  const [status, setStatus] = useState('todo');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [estimatedDuration, setEstimatedDuration] = useState('');
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringRule, setRecurringRule] = useState('');
+  const [showRecurringOptions, setShowRecurringOptions] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { showSuccess, showError } = useToastContext();
 
-  const priorityOptions = [
-    { value: TaskPriority.URGENT, label: 'Urgent', color: Colors.priority.urgent },
-    { value: TaskPriority.HIGH, label: 'High', color: Colors.priority.high },
-    { value: TaskPriority.MEDIUM, label: 'Medium', color: Colors.priority.medium },
-    { value: TaskPriority.LOW, label: 'Low', color: Colors.priority.low },
-    { value: TaskPriority.LOWEST, label: 'Lowest', color: Colors.priority.lowest },
-  ];
-
-  const handleMemberToggle = (memberId: string) => {
-    setSelectedMembers(prev => 
-      prev.includes(memberId) 
-        ? prev.filter(id => id !== memberId)
-        : [...prev, memberId]
-    );
+  const resetForm = () => {
+    setTaskName('');
+    setDescription('');
+    setSelectedMembers([]);
+    setPriority('');
+    setStatus('todo');
+    setStartTime('');
+    setEndTime('');
+    setEstimatedDuration('');
+    setIsRecurring(false);
+    setRecurringRule('');
+    setShowRecurringOptions(false);
+    setIsLoading(false);
   };
 
-  const handleCreate = () => {
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const handleMemberSelect = (memberIds: string[]) => {
+    setSelectedMembers(memberIds);
+  };
+
+  const handleCreate = async () => {
     if (!taskName.trim()) {
-      Alert.alert('Error', 'Please enter a task name');
+      showError('Please enter a task name');
+      return;
+    }
+
+    if (!priority) {
+      showError('Please select a priority');
+      return;
+    }
+
+    if (!status) {
+      showError('Please select a status');
       return;
     }
 
     const taskData = {
-      name: taskName,
-      description,
-      projectId,
-      assignedMembers: isPersonalWorkspace ? [] : selectedMembers,
-      startDate,
-      endDate,
+      taskName: taskName.trim(),
+      description: description.trim() || undefined,
+      projectId: projectId || undefined,
+      assignedMembers: selectedMembers,
       priority,
+      status,
+      startTime: startTime || undefined,
+      endTime: endTime || undefined,
+      estimatedDuration: estimatedDuration ? parseInt(estimatedDuration) : undefined,
+      isRecurring,
+      recurringRule: isRecurring ? recurringRule : undefined,
     };
 
-    onCreateTask(taskData);
-    
-    // Reset form
-    setTaskName('');
-    setDescription('');
-    setSelectedMembers([]);
-    setPriority(TaskPriority.MEDIUM);
+    try {
+      setIsLoading(true);
+      await onCreateTask(taskData);
+      showSuccess('Task created successfully!');
+      handleClose();
+    } catch (error) {
+      console.error('Error creating task:', error);
+      showError('Failed to create task');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="formSheet"
-      onRequestClose={onClose}
-    >
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose}>
-            <MaterialIcons name="close" size={24} color={Colors.neutral.dark} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create task</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Project Selection */}
-          {projectName && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Project</Text>
-              <View style={styles.projectSelector}>
-                <Text style={styles.projectName}>{projectName}</Text>
-                <MaterialIcons name="keyboard-arrow-down" size={20} color={Colors.primary} />
-              </View>
+    <>
+      <Modal
+        visible={visible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={handleClose}
+      >
+        <View style={styles.overlay}>
+          <View style={styles.modalCard}>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.title}>Create task</Text>
+              <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+                <MaterialIcons name="close" size={24} color={Colors.neutral.dark} />
+              </TouchableOpacity>
             </View>
-          )}
 
-          {/* Task Name */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Name</Text>
-            <TextInput
-              style={styles.textInput}
-              value={taskName}
-              onChangeText={setTaskName}
-              placeholder="Text"
-              placeholderTextColor={Colors.primary}
-            />
-          </View>
+            {/* Content */}
+            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+              {/* Task Name */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Name</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Task name"
+                  placeholderTextColor={Colors.neutral.medium}
+                  value={taskName}
+                  onChangeText={setTaskName}
+                  maxLength={100}
+                />
+              </View>
 
-          {/* Add Member - Only show for project tasks */}
-          {!isPersonalWorkspace && projectMembers.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Add member</Text>
-              <View style={styles.membersRow}>
-                {projectMembers.slice(0, 1).map((member) => (
+              {/* Description */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Description</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea]}
+                  placeholder="Task description"
+                  placeholderTextColor={Colors.neutral.medium}
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              {/* Assigned Members */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Assigned to</Text>
+                <ProjectMemberDropdown
+                  members={projectMembers}
+                  selectedMemberIds={selectedMembers}
+                  onMemberSelect={handleMemberSelect}
+                />
+              </View>
+
+              {/* Priority */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Priority</Text>
+                <PriorityDropdown
+                  selectedPriority={priority}
+                  onPrioritySelect={setPriority}
+                />
+              </View>
+
+              {/* Status */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Status</Text>
+                <StatusDropdown
+                  selectedStatus={status}
+                  onStatusSelect={setStatus}
+                />
+              </View>
+
+              {/* Start Time */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Start time</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="dd/mm/yyyy hh:mm (e.g., 15/12/2024 10:00)"
+                  placeholderTextColor={Colors.neutral.medium}
+                  value={startTime}
+                  onChangeText={setStartTime}
+                />
+              </View>
+
+              {/* End Time */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>End time (Optional)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="dd/mm/yyyy hh:mm (e.g., 15/12/2024 18:00)"
+                  placeholderTextColor={Colors.neutral.medium}
+                  value={endTime}
+                  onChangeText={setEndTime}
+                />
+              </View>
+
+              {/* Estimated Duration */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Estimated duration (minutes)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter estimated duration"
+                  placeholderTextColor={Colors.neutral.medium}
+                  value={estimatedDuration}
+                  onChangeText={setEstimatedDuration}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* Recurring Toggle */}
+              <View style={styles.section}>
+                <View style={styles.toggleContainer}>
+                  <Text style={styles.sectionTitle}>Repeat</Text>
                   <TouchableOpacity
-                    key={member.id}
-                    style={[
-                      styles.memberAvatar,
-                      selectedMembers.includes(member.id) && styles.selectedMemberAvatar
-                    ]}
-                    onPress={() => handleMemberToggle(member.id)}
+                    style={[styles.toggleButton, isRecurring && styles.toggleButtonActive]}
+                    onPress={() => {
+                      setIsRecurring(!isRecurring);
+                      if (!isRecurring) {
+                        setShowRecurringOptions(true);
+                      } else {
+                        setShowRecurringOptions(false);
+                      }
+                    }}
                   >
-                    <Text style={styles.memberInitial}>
-                      {(member.username || member.email || 'U').charAt(0).toUpperCase()}
-                    </Text>
+                    <View style={[styles.toggleCircle, isRecurring && styles.toggleCircleActive]} />
                   </TouchableOpacity>
-                ))}
-                <TouchableOpacity style={styles.addMemberButton}>
-                  <MaterialIcons name="add" size={20} color={Colors.primary} />
-                </TouchableOpacity>
+                </View>
+                
+                {isRecurring && (
+                  <View style={styles.recurringSection}>
+                    <TouchableOpacity
+                      style={styles.textInput}
+                      onPress={() => setShowRecurringOptions(!showRecurringOptions)}
+                    >
+                      <View style={styles.dropdownInput}>
+                        <Text style={[
+                          styles.dropdownText,
+                          !recurringRule && styles.placeholderText
+                        ]}>
+                          {recurringRule || 'Select repeat frequency'}
+                        </Text>
+                        <MaterialIcons name="keyboard-arrow-down" size={20} color={Colors.neutral.medium} />
+                      </View>
+                    </TouchableOpacity>
+                    
+                    {showRecurringOptions && (
+                      <View style={styles.recurringDropdown}>
+                        <TouchableOpacity
+                          style={styles.recurringOption}
+                          onPress={() => {
+                            setRecurringRule('Daily');
+                            setShowRecurringOptions(false);
+                          }}
+                        >
+                          <Text style={styles.recurringOptionText}>Daily</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.recurringOption}
+                          onPress={() => {
+                            setRecurringRule('Weekly');
+                            setShowRecurringOptions(false);
+                          }}
+                        >
+                          <Text style={styles.recurringOptionText}>Weekly</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.recurringOption}
+                          onPress={() => {
+                            setRecurringRule('Monthly');
+                            setShowRecurringOptions(false);
+                          }}
+                        >
+                          <Text style={styles.recurringOptionText}>Monthly</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.recurringOption}
+                          onPress={() => {
+                            setRecurringRule('Yearly');
+                            setShowRecurringOptions(false);
+                          }}
+                        >
+                          <Text style={styles.recurringOptionText}>Yearly</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                )}
               </View>
-            </View>
-          )}
+            </ScrollView>
 
-          {/* Calendar */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Calendar</Text>
-            <View style={styles.dateContainer}>
-              <TouchableOpacity style={styles.dateButton}>
-                <MaterialIcons name="event" size={20} color={Colors.surface} />
-                <Text style={styles.dateText}>Jan 1 2021</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.dateButton, styles.endDateButton]}>
-                <MaterialIcons name="event" size={20} color={Colors.surface} />
-                <Text style={styles.dateText}>Jan 1 2021</Text>
+            {/* Footer Create Button */}
+            <View style={styles.footer}>
+              <TouchableOpacity 
+                style={[styles.createButton, isLoading && styles.createButtonDisabled]}
+                onPress={handleCreate}
+                disabled={isLoading}
+              >
+                <Text style={styles.createButtonText}>
+                  {isLoading ? 'Creating...' : 'Create task'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
-
-          {/* Priority */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Priority</Text>
-            <View style={styles.priorityContainer}>
-              {priorityOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.priorityOption,
-                    priority === option.value && styles.selectedPriorityOption
-                  ]}
-                  onPress={() => setPriority(option.value)}
-                >
-                  <View style={[styles.priorityDot, { backgroundColor: option.color }]} />
-                  <Text style={[
-                    styles.priorityText,
-                    priority === option.value && styles.selectedPriorityText
-                  ]}>
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Description */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Description</Text>
-            <TextInput
-              style={[styles.textInput, styles.descriptionInput]}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Text"
-              placeholderTextColor={Colors.primary}
-              multiline
-              numberOfLines={4}
-            />
-          </View>
-        </ScrollView>
-
-        {/* Create Button */}
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.createButton} onPress={handleCreate}>
-            <Text style={styles.createButtonText}>Create</Text>
-            <MaterialIcons name="arrow-forward" size={20} color={Colors.surface} />
-          </TouchableOpacity>
         </View>
-      </View>
-    </Modal>
-   );
+      </Modal>
+    </>
+  );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  overlay: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  modalCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingTop: 60,
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral.light,
   },
-  headerTitle: {
-    fontSize: 18,
+  title: {
+    fontSize: 20,
     fontWeight: '600',
-    color: Colors.neutral.dark,
+    color: Colors.text,
   },
-  headerSpacer: {
-    width: 24,
+  closeButton: {
+    padding: 4,
   },
   content: {
-    flex: 1,
     paddingHorizontal: 20,
+    paddingVertical: 20,
   },
   section: {
-    marginVertical: 16,
+    marginBottom: 20,
   },
-  sectionLabel: {
+  sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: Colors.neutral.dark,
-    marginBottom: 12,
+    fontWeight: '500',
+    color: Colors.text,
+    marginBottom: 8,
   },
-  projectSelector: {
+  textInput: {
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: Colors.text,
+    backgroundColor: Colors.neutral.light + '20',
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  toggleButton: {
+    width: 50,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.neutral.light,
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  toggleButtonActive: {
+    backgroundColor: Colors.primary,
+  },
+  toggleCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: Colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleCircleActive: {
+    transform: [{ translateX: 20 }],
+  },
+  recurringSection: {
+    marginTop: 12,
+    position: 'relative',
+    zIndex: 1000,
+  },
+  dropdownInput: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
   },
-  projectName: {
+  dropdownText: {
     fontSize: 16,
-    color: Colors.primary,
-    fontWeight: '500',
+    color: Colors.text,
+    flex: 1,
   },
-  textInput: {
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 16,
+  placeholderText: {
+    color: Colors.neutral.medium,
+  },
+  recurringDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    borderRadius: 8,
+    marginTop: 4,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 1001,
+  },
+  recurringOption: {
     paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light + '50',
+  },
+  recurringOptionText: {
     fontSize: 16,
     color: Colors.neutral.dark,
   },
-  descriptionInput: {
-    height: 100,
-    textAlignVertical: 'top',
+  footer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral.light,
   },
-  priorityContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+  createButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  priorityOption: {
+  createButtonDisabled: {
+    backgroundColor: Colors.neutral.medium,
+  },
+  createButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: Colors.surface,
+  },
+});
+
+// Dropdown styles
+const dropdownStyles = StyleSheet.create({
+  container: {
+    position: 'relative',
+    zIndex: 1000,
+  },
+  dropdownButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderWidth: 1,
     borderColor: Colors.neutral.light,
-    backgroundColor: Colors.surface,
-    gap: 8,
+    borderRadius: 8,
+    backgroundColor: Colors.neutral.light + '20',
   },
-  selectedPriorityOption: {
-    backgroundColor: Colors.primary + '20',
-    borderColor: Colors.primary,
+  dropdownText: {
+    fontSize: 16,
+    color: Colors.text,
+    flex: 1,
+  },
+  dropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    borderRadius: 8,
+    marginTop: 4,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 1001,
+  },
+  membersSection: {
+    paddingVertical: 8,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: Colors.neutral.light + '30',
+  },
+  membersList: {
+    maxHeight: 200,
+  },
+  memberItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light + '50',
+  },
+  memberInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.surface,
+  },
+  memberDetails: {
+    flex: 1,
+  },
+  memberName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: Colors.neutral.dark,
+  },
+  memberEmail: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light + '50',
+  },
+  optionText: {
+    fontSize: 16,
+    color: Colors.neutral.dark,
+    marginLeft: 12,
+  },
+  priorityIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   priorityDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-  },
-  priorityText: {
-    fontSize: 14,
-    color: Colors.neutral.dark,
-    fontWeight: '500',
-  },
-  selectedPriorityText: {
-    color: Colors.primary,
-  },
-  membersRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  memberAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectedMemberAvatar: {
-    borderWidth: 2,
-    borderColor: Colors.primary,
-  },
-  memberInitial: {
-    color: Colors.surface,
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  addMemberButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surface,
-  },
-
-  dateContainer: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  dateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: Colors.neutral.dark,
-    borderRadius: 20,
-    gap: 8,
-  },
-  endDateButton: {
-    backgroundColor: Colors.primary,
-  },
-  dateText: {
-    color: Colors.surface,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  footer: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    paddingBottom: 40,
-  },
-  createButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.primary,
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  createButtonText: {
-    color: Colors.surface,
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
 

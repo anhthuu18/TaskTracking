@@ -19,10 +19,9 @@ import { cardStyles, getRoleColor } from '../styles/cardStyles';
 interface WorkspaceMembersTabProps {
   workspaceId: number;
   onInviteMember: () => void;
-  onMemberAdded?: () => void;
 }
 
-const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, onInviteMember, onMemberAdded }) => {
+const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, onInviteMember }) => {
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,11 +117,6 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
   }, [currentUserId, workspaceId]);
 
   // Refresh data when member is added
-  useEffect(() => {
-    if (onMemberAdded) {
-      loadMembersAndInvitations();
-    }
-  }, [onMemberAdded]);
 
   const loadCurrentUserInfo = async () => {
     try {

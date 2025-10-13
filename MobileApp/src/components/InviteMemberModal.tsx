@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import { workspaceService } from '../services/workspaceService';
+import { useToastContext } from '../context/ToastContext';
 
 interface InviteMemberModalProps {
   visible: boolean;
@@ -27,8 +27,9 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
   onInviteSent,
 }) => {
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'member' | 'admin'>('member');
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const { showSuccess, showError } = useToastContext();
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -37,31 +38,31 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
 
   const handleInvite = async () => {
     if (!email.trim()) {
-      Alert.alert('Error', 'Please enter an email address');
+      showError('Please enter an email address');
       return;
     }
 
     if (!validateEmail(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      showError('Please enter a valid email address');
       return;
     }
 
     try {
       setLoading(true);
-      const response = await workspaceService.inviteMember(workspaceId, email, role);
+      const response = await workspaceService.inviteMember(workspaceId, email, 'member', message);
       
       if (response.success) {
-        Alert.alert('Success', 'Invitation sent successfully!');
+        showSuccess('Invitation sent successfully!');
         setEmail('');
-        setRole('member');
+        setMessage('');
         onInviteSent?.();
         onClose();
       } else {
-        Alert.alert('Error', response.message || 'Failed to send invitation');
+        showError(response.message || 'Failed to send invitation');
       }
     } catch (error) {
       console.error('Error sending invitation:', error);
-      Alert.alert('Error', 'Failed to send invitation. Please try again.');
+      showError('Failed to send invitation. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -69,7 +70,7 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
 
   const handleClose = () => {
     setEmail('');
-    setRole('member');
+    setMessage('');
     onClose();
   };
 
@@ -84,7 +85,7 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
         <View style={styles.modal}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Invite Member</Text>
+            <Text style={styles.title}>Mời thành viên</Text>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <MaterialIcons name="close" size={24} color={Colors.neutral.dark} />
             </TouchableOpacity>
@@ -94,69 +95,36 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
           <View style={styles.content}>
             {/* Email Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email Address</Text>
+              <Text style={styles.label}>Email *</Text>
               <TextInput
                 style={styles.input}
                 value={email}
                 onChangeText={setEmail}
-                placeholder="Enter email address"
+                placeholder="Nhập email của thành viên"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>
 
-            {/* Role Selection */}
+            {/* Message Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Role</Text>
-              <View style={styles.roleContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.roleOption,
-                    role === 'member' && styles.roleOptionSelected,
-                  ]}
-                  onPress={() => setRole('member')}
-                >
-                  <MaterialIcons 
-                    name="person" 
-                    size={20} 
-                    color={role === 'member' ? Colors.primary : Colors.neutral.medium} 
-                  />
-                  <Text style={[
-                    styles.roleText,
-                    role === 'member' && styles.roleTextSelected,
-                  ]}>
-                    Member
-                  </Text>
-                  <Text style={styles.roleDescription}>
-                    Can view and edit projects
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.roleOption,
-                    role === 'admin' && styles.roleOptionSelected,
-                  ]}
-                  onPress={() => setRole('admin')}
-                >
-                  <MaterialIcons 
-                    name="manage-accounts" 
-                    size={20} 
-                    color={role === 'admin' ? Colors.primary : Colors.neutral.medium} 
-                  />
-                  <Text style={[
-                    styles.roleText,
-                    role === 'admin' && styles.roleTextSelected,
-                  ]}>
-                    Admin
-                  </Text>
-                  <Text style={styles.roleDescription}>
-                    Can manage members and settings
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <Text style={styles.label}>Tin nhắn (tùy chọn)</Text>
+              <TextInput
+                style={[styles.input, styles.messageInput]}
+                value={message}
+                onChangeText={setMessage}
+                placeholder="Thêm tin nhắn cá nhân..."
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
             </View>
+
+            {/* Info Text */}
+            <Text style={styles.infoText}>
+              Lời mời sẽ được gửi qua email và có hiệu lực trong 7 ngày.
+            </Text>
           </View>
 
           {/* Actions */}
@@ -166,7 +134,7 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
               onPress={handleClose}
               disabled={loading}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>Hủy</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -179,7 +147,7 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
               ) : (
                 <>
                   <MaterialIcons name="send" size={16} color={Colors.neutral.white} />
-                  <Text style={styles.inviteButtonText}>Send Invite</Text>
+                  <Text style={styles.inviteButtonText}>Gửi lời mời</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -247,38 +215,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: Colors.text,
-    backgroundColor: Colors.neutral.white,
+    backgroundColor: Colors.neutral.light + '20',
   },
-  roleContainer: {
-    gap: 12,
+  messageInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
-  roleOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
-    borderRadius: 8,
-    backgroundColor: Colors.neutral.white,
-  },
-  roleOptionSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '10',
-  },
-  roleText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: Colors.text,
-    marginLeft: 12,
-    flex: 1,
-  },
-  roleTextSelected: {
-    color: Colors.primary,
-  },
-  roleDescription: {
+  infoText: {
     fontSize: 12,
     color: Colors.neutral.medium,
-    marginLeft: 'auto',
+    marginTop: 8,
+    lineHeight: 16,
   },
   actions: {
     flexDirection: 'row',

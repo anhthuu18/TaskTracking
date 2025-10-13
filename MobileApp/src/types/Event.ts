@@ -33,5 +33,8 @@ export interface CreateEventData {
   endTime?: string;
   location?: string;
   assignedMembers: string[];
+  memberIds?: number[];
+  isRecurring?: boolean;
+  recurringType?: 'daily' | 'weekly' | 'monthly' | 'yearly';
   projectId?: string;
 }
