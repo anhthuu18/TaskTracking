@@ -8,6 +8,7 @@ import {
   StatusBar,
   ScrollView,
   Modal,
+  Alert,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
 // @ts-ignore
@@ -29,6 +30,10 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [isLoading, setIsLoading] = useState(false);
+  
+  // States for member invitation (only for group workspace)
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteMessage, setInviteMessage] = useState('');
 
   const handleBack = () => {
     navigation.goBack();
@@ -39,6 +44,11 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
     
     if (!workspaceName.trim()) {
       newErrors.workspaceName = 'Workspace name is required';
+    }
+
+    // Validate email only for group workspace
+    if (workspaceType === 'group' && inviteEmail.trim() && !/\S+@\S+\.\S+/.test(inviteEmail.trim())) {
+      newErrors.inviteEmail = 'Please enter a valid email address';
     }
 
     setErrors(newErrors);
@@ -62,8 +72,56 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
       const response = await workspaceService.createWorkspace(workspaceData);
       
       if (response.success) {
-        // Navigate back to workspace selection with refresh
-        navigation.navigate('WorkspaceSelection', { refresh: true });
+        // If it's a group workspace and email is provided, send invitation
+        if (workspaceType === 'group' && inviteEmail.trim()) {
+          try {
+            const inviteResponse = await workspaceService.inviteMember(
+              response.data.id,
+              inviteEmail.trim(),
+              'MEMBER',
+              inviteMessage.trim() || undefined
+            );
+            
+            if (inviteResponse.success) {
+              Alert.alert(
+                'Success',
+                `Workspace created and invitation sent to ${inviteEmail}`,
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => navigation.navigate('WorkspaceSelection', { refresh: true })
+                  }
+                ]
+              );
+            } else {
+              Alert.alert(
+                'Workspace Created',
+                'Workspace created successfully, but failed to send invitation.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => navigation.navigate('WorkspaceSelection', { refresh: true })
+                  }
+                ]
+              );
+            }
+          } catch (inviteError: any) {
+            console.error('Error sending invitation:', inviteError);
+            Alert.alert(
+              'Workspace Created',
+              'Workspace created successfully, but failed to send invitation.',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => navigation.navigate('WorkspaceSelection', { refresh: true })
+                }
+              ]
+            );
+          }
+        } else {
+          // Navigate back to workspace selection
+          navigation.navigate('WorkspaceSelection', { refresh: true });
+        }
       } else {
         console.error('Failed to create workspace:', response.message);
         setErrors({ general: response.message || 'Failed to create workspace' });
@@ -191,11 +249,76 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
             }}
             left={
               <TextInput.Icon 
-                icon={() => <MaterialIcons name="mail-outline" size={20} color={Colors.neutral.medium} />}
+                icon={() => <MaterialIcons name="description" size={20} color={Colors.neutral.medium} />}
               />
             }
           />
         </View>
+
+        {/* Member Invitation - Only for Group Workspace */}
+        {workspaceType === 'group' && (
+          <>
+            <View style={styles.inputSection}>
+              <Text style={styles.sectionLabel}>Invite Member (Optional)</Text>
+              <TextInput
+                mode="outlined"
+                placeholder="Enter email address..."
+                value={inviteEmail}
+                onChangeText={setInviteEmail}
+                style={[
+                  styles.textInput,
+                  errors.inviteEmail && styles.textInputError
+                ]}
+                outlineStyle={[
+                  styles.inputOutline,
+                  errors.inviteEmail && styles.inputOutlineError
+                ]}
+                theme={{
+                  colors: {
+                    primary: errors.inviteEmail ? Colors.semantic.error : Colors.primary,
+                    outline: errors.inviteEmail ? Colors.semantic.error : Colors.neutral.light,
+                    onSurface: Colors.text,
+                  },
+                }}
+                left={
+                  <TextInput.Icon 
+                    icon={() => <MaterialIcons name="email" size={20} color={Colors.neutral.medium} />}
+                  />
+                }
+              />
+              {errors.inviteEmail && (
+                <Text style={styles.errorText}>{errors.inviteEmail}</Text>
+              )}
+            </View>
+
+            <View style={styles.inputSection}>
+              <Text style={styles.sectionLabel}>Invitation Message (Optional)</Text>
+              <TextInput
+                mode="outlined"
+                placeholder="Add a personal message..."
+                value={inviteMessage}
+                onChangeText={setInviteMessage}
+                multiline
+                numberOfLines={3}
+                style={[styles.textInput, styles.multilineTextInput]}
+                outlineStyle={styles.inputOutline}
+                contentStyle={styles.multilineContent}
+                theme={{
+                  colors: {
+                    primary: Colors.primary,
+                    outline: Colors.neutral.light,
+                    onSurface: Colors.text,
+                  },
+                }}
+                left={
+                  <TextInput.Icon 
+                    icon={() => <MaterialIcons name="message" size={20} color={Colors.neutral.medium} />}
+                  />
+                }
+              />
+            </View>
+          </>
+        )}
       </ScrollView>
 
 
@@ -216,6 +339,7 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
           <Text style={styles.errorText}>{errors.general}</Text>
         )}
       </View>
+
     </SafeAreaView>
   );
 };
