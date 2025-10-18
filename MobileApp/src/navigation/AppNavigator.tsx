@@ -15,7 +15,9 @@ import {
   TaskListScreen,
   WorkspaceDashboardScreen,
   ProjectListScreen,
-  ProjectDetailScreen
+  ProjectDetailScreen,
+  CreateTaskScreen,
+  CreateEventScreen
 } from '../screens';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
 
@@ -33,6 +35,8 @@ export type RootStackParamList = {
   TaskList: { workspace?: any };
   ProjectList: { workspace?: any };
   ProjectDetail: { project: any };
+  CreateTask: { projectMembers?: any[]; projectId?: string };
+  CreateEvent: { projectMembers?: any[]; projectId?: string };
   AcceptInvitation: { token: string };
 };
 
@@ -162,6 +166,20 @@ const AppNavigator: React.FC = () => {
               }}
             />
             <Stack.Screen
+              name="CreateTask"
+              component={CreateTaskScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="CreateEvent"
+              component={CreateEventScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="AcceptInvitation"
               component={AcceptInvitationScreen}
               options={{
@@ -209,6 +227,20 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen
               name="ProjectDetail"
               component={ProjectDetailScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="CreateTask"
+              component={CreateTaskScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="CreateEvent"
+              component={CreateEventScreen}
               options={{
                 headerShown: false,
               }}

@@ -7,8 +7,6 @@ export { default as CreateProjectDropdown } from './CreateProjectDropdown';
 export { default as CreateTaskEventDropdown } from './CreateTaskEventDropdown';
 export { default as AddMemberModal } from './AddMemberModal';
 export { default as WorkspaceActionDropdown } from './WorkspaceActionDropdown';
-export { default as CreateTaskModal } from './CreateTaskModal';
-export { default as CreateEventModal } from './CreateEventModal';
 export { default as MoreActionsDropdown } from './MoreActionsDropdown';
 export { default as MemberSortDropdown } from './MemberSortDropdown';
 export { default as StatusSortDropdown } from './StatusSortDropdown';

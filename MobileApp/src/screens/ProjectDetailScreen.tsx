@@ -15,7 +15,7 @@ import { Colors } from '../constants/Colors';
 import { Project, ProjectMember, ProjectMemberRole } from '../types/Project';
 import { MemberRole } from '../types/Workspace';
 import { Task, TaskStatus } from '../types/Task';
-import { CreateTaskEventDropdown, CreateTaskModal, CreateEventModal, CreateProjectModal, MemberSortDropdown, TaskCard, AddMemberModal, ProjectSettingModal, SwipeableMemberCard, TaskFilterDropdown } from '../components';
+import { CreateTaskEventDropdown, CreateProjectModal, MemberSortDropdown, TaskCard, AddMemberModal, ProjectSettingModal, SwipeableMemberCard, TaskFilterDropdown } from '../components';
 import ProjectNotificationModal from '../components/ProjectNotificationModal';
 import { projectService } from '../services';
 import { mockProject, mockProjectMembers, mockTasks } from '../services/sharedMockData';
@@ -34,8 +34,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
   // Use mock data for testing UI
   const [project, setProject] = useState<Project>(mockProject);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
-  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
+  // Removed modal states - now using navigation
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [showMemberSort, setShowMemberSort] = useState(false);
 
@@ -585,8 +584,14 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
       <CreateTaskEventDropdown
         visible={showDropdown}
         onClose={() => setShowDropdown(false)}
-        onCreateTask={() => setShowCreateTaskModal(true)}
-        onCreateEvent={() => setShowCreateEventModal(true)}
+        onCreateTask={() => navigation.navigate('CreateTask', { 
+          projectMembers: projectMembers, 
+          projectId: String(project.id) 
+        })}
+        onCreateEvent={() => navigation.navigate('CreateEvent', { 
+          projectMembers: projectMembers, 
+          projectId: String(project.id) 
+        })}
       />
 
       {/* Create Project Modal */}
@@ -599,27 +604,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         }}
       />
 
-      {/* Create Task Modal */}
-      <CreateTaskModal
-        visible={showCreateTaskModal}
-        onClose={() => setShowCreateTaskModal(false)}
-        onCreateTask={(taskData: any) => {
-          setShowCreateTaskModal(false);
-          console.log('Task created:', taskData);
-        }}
-        projectId={String(project.id)}
-        projectMembers={projectMembers}
-      />
-
-      {/* Create Event Modal */}
-      <CreateEventModal
-        visible={showCreateEventModal}
-        onClose={() => setShowCreateEventModal(false)}
-        onCreateEvent={(eventData: any) => {
-          setShowCreateEventModal(false);
-          console.log('Event created:', eventData);
-        }}
-      />
+      {/* Create Task and Event are now separate screens */}
 
       {/* Task Filter Dropdown */}
       <TaskFilterDropdown
