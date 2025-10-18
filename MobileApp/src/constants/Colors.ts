@@ -62,6 +62,10 @@ export const LightTheme = {
   border: '#EFF1F3',
   divider: '#A29FB6',
   
+  // Additional colors for better compatibility
+  white: '#FFFFFF',
+  black: '#1C1243',
+  
   // Aliases for backward compatibility
   error: '#FF6A5D',
   success: '#47C272',

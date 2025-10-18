@@ -88,6 +88,11 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
         // Show success toast
         showSuccess('Đăng nhập thành công!');
         
+        // Call onLoginSuccess to update app state
+        if (onLoginSuccess) {
+          onLoginSuccess();
+        }
+        
         // Navigate to workspace selection after a short delay for toast to show
         setTimeout(() => {
           navigation.navigate('WorkspaceSelection');
@@ -166,6 +171,11 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
           
           // Show success toast with short duration
           showSuccess('Đăng nhập Google thành công!');
+          
+          // Call onLoginSuccess to update app state
+          if (onLoginSuccess) {
+            onLoginSuccess();
+          }
           
           // Navigate to workspace selection after very short delay
           setTimeout(() => {

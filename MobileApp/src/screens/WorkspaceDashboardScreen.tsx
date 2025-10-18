@@ -233,9 +233,9 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
             {/* Projects Section */}
             <View style={styles.sectionContainer}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>All Projects</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('ProjectList', { workspace })}>
-                  <MaterialIcons name="chevron-right" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitle}>Projects</Text>
+                <TouchableOpacity style={styles.newProjectButton}>
+                  <Text style={styles.newProjectButtonText}>+ New Project</Text>
                 </TouchableOpacity>
               </View>
               
@@ -245,14 +245,19 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
                   <Text style={styles.loadingText}>Loading projects...</Text>
                 </View>
               ) : projects.length > 0 ? (
-                <ProjectCard
-                  project={projects[0]}
-                  onPress={() => navigation.navigate('ProjectDetail', { project: projects[0] })}
-                  showProgress={true}
-                  progressPercentage={50}
-                  completedTasks={24}
-                  totalTasks={48}
-                />
+                <View style={styles.projectsList}>
+                  {projects.slice(0, 2).map((project, index) => (
+                    <View key={project.id} style={[
+                      styles.projectCardSimple,
+                      index === 0 && styles.projectCardActive
+                    ]}>
+                      <View style={styles.projectCardContent}>
+                        <View style={styles.projectDot} />
+                        <Text style={styles.projectCardName}>{project.projectName}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
               ) : (
                 <View style={styles.emptyProjectsContainer}>
                   <MaterialIcons name="folder-open" size={48} color={Colors.neutral.light} />
@@ -262,15 +267,54 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
               )}
             </View>
 
-            {/* Tasks Due Soon Section */}
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionTitleRow}>
-                <MaterialIcons name="schedule" size={20} color={Colors.warning} />
-                <Text style={styles.sectionTitle}>Tasks Due Soon</Text>
+            {/* Tasks Section */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Tasks</Text>
+                <View style={styles.taskButtonsContainer}>
+                  <TouchableOpacity style={styles.aiScheduleButton}>
+                    <MaterialIcons name="auto-awesome" size={16} color={Colors.neutral.white} />
+                    <Text style={styles.aiScheduleButtonText}>AI Schedule</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.newTaskButton}>
+                    <Text style={styles.newTaskButtonText}>+ New Task</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <TouchableOpacity>
-                <Text style={styles.seeAllText}>See all</Text>
-              </TouchableOpacity>
+              
+              {getFilteredTasks().length === 0 ? (
+                <View style={styles.emptyTasksContainer}>
+                  <Text style={styles.emptyTasksText}>No tasks yet</Text>
+                  <TouchableOpacity style={styles.createFirstTaskButton}>
+                    <Text style={styles.createFirstTaskButtonText}>Create Your First Task</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.tasksList}>
+                  {getFilteredTasks().map((task) => (
+                    <TouchableOpacity key={task.id} style={cardStyles.taskCard} activeOpacity={0.7}>
+                      <View style={cardStyles.taskIcon}>
+                        <MaterialIcons name={task.icon as any} size={24} color={task.color} />
+                      </View>
+                      <View style={cardStyles.taskContent}>
+                        <Text style={cardStyles.taskTitle}>{task.title}</Text>
+                        <Text style={cardStyles.taskProject}>{task.project}</Text>
+                        <View style={cardStyles.taskDeadline}>
+                          <MaterialIcons name="schedule" size={14} color={task.color} />
+                          <Text style={[cardStyles.deadlineText, getDeadlineStyle(task.dueDate)]}>
+                            {formatDueDate(task.dueDate)}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={[cardStyles.priorityBadge, getPriorityBadgeStyle(task.priority)]}>
+                        <Text style={cardStyles.priorityText}>
+                          {(task.priority || 'medium').charAt(0).toUpperCase() + (task.priority || 'medium').slice(1)}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
 
             {/* Project Filter Dropdown */}
@@ -617,7 +661,7 @@ const NotificationScreen = () => (
   </ScrollView>
 );
 
-const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; route?: any }) => {
+const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogout }: { navigation: any; route?: any; onSwitchWorkspace?: () => void; onLogout?: () => void }) => {
   const workspace = route?.params?.workspace;
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [showInviteMemberModal, setShowInviteMemberModal] = useState(false);
@@ -625,6 +669,7 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
   const { showSuccess, showError } = useToastContext();
   const [reloadKey, setReloadKey] = useState(0);
   const [highlightProjectId, setHighlightProjectId] = useState<number | undefined>(undefined);
+  const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
 
 
   const handleCreateProject = () => {
@@ -637,6 +682,22 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
 
   const handleInviteSent = () => {
     setReloadKey(prev => prev + 1);
+  };
+
+  const handleSwitchWorkspace = () => {
+    setShowWorkspaceMenu(false);
+    if (onSwitchWorkspace) {
+      onSwitchWorkspace();
+    } else {
+      navigation.navigate('WorkspaceSelection');
+    }
+  };
+
+  const handleLogout = () => {
+    setShowWorkspaceMenu(false);
+    if (onLogout) {
+      onLogout();
+    }
   };
 
   // Load workspace members for the modal (include owner)
@@ -666,12 +727,16 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.workspaceInfo}>
-            <View style={styles.dashboardIcon}>
-              <MaterialIcons name="dashboard" size={24} color={Colors.primary} />
-            </View>
+            
+          <TouchableOpacity 
+            style={styles.workspaceMenuButton}
+            onPress={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
+          >
+            <MaterialIcons name="menu" size={24} color={Colors.neutral.dark} />
+          </TouchableOpacity>
             <View style={styles.headerTextContainer}>
-              <Text style={styles.dashboardTitle}>Dashboard</Text>
-              <Text style={styles.welcomeSubtitle}>Welcome, {workspace?.name || 'Workspace'}</Text>
+              {/* <Text style={styles.dashboardTitle}>Dashboard</Text> */}
+              <Text style={styles.welcomeSubtitle}>Workspace {workspace?.workspaceName || 'Workspace'}</Text>
             </View>
           </View>
         </View>
@@ -682,6 +747,40 @@ const WorkspaceDashboardScreen = ({ navigation, route }: { navigation: any; rout
           <MaterialIcons name="add" size={24} color={Colors.surface} />
         </TouchableOpacity>
       </View>
+
+      {/* Workspace Menu Dropdown */}
+      {showWorkspaceMenu && (
+        <View style={styles.workspaceMenu}>
+          <TouchableOpacity 
+            style={styles.workspaceMenuItem}
+            onPress={handleSwitchWorkspace}
+          >
+            <MaterialIcons name="swap-horiz" size={20} color={Colors.primary} />
+            <Text style={styles.workspaceMenuItemText}>Switch Workspace</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.workspaceMenuItem}
+            onPress={() => setShowWorkspaceMenu(false)}
+          >
+            <MaterialIcons name="settings" size={20} color={Colors.neutral.medium} />
+            <Text style={styles.workspaceMenuItemText}>Settings</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.workspaceMenuItem}
+            onPress={() => setShowWorkspaceMenu(false)}
+          >
+            <MaterialIcons name="help" size={20} color={Colors.neutral.medium} />
+            <Text style={styles.workspaceMenuItemText}>Help & Support</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.workspaceMenuItem, styles.logoutMenuItem]}
+            onPress={handleLogout}
+          >
+            <MaterialIcons name="logout" size={20} color={Colors.semantic.error} />
+            <Text style={[styles.workspaceMenuItemText, styles.logoutMenuItemText]}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       
       <Tab.Navigator
         screenOptions={{
@@ -1460,6 +1559,192 @@ const styles = StyleSheet.create({
   membersTabContainer: {
     flex: 1,
     marginTop: -20, // Adjust to align with other content
+  },
+  
+  // Workspace Menu Styles
+  workspaceMenuButton: {
+    padding: 8,
+    marginRight: 12,
+  },
+  workspaceMenu: {
+    position: 'absolute',
+    top: 90,
+    left: 20,
+    right: 20,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 1000,
+  },
+  workspaceMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light,
+  },
+  workspaceMenuItemText: {
+    fontSize: 16,
+    color: Colors.neutral.dark,
+    marginLeft: 12,
+    fontWeight: '500',
+  },
+  logoutMenuItem: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral.light,
+    marginTop: 8,
+    paddingTop: 16,
+  },
+  logoutMenuItemText: {
+    color: Colors.semantic.error,
+  },
+  
+  // Welcome Banner Styles
+  welcomeBanner: {
+    backgroundColor: Colors.primary,
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 20,
+    borderRadius: 16,
+    padding: 20,
+    position: 'relative',
+  },
+  welcomeBannerContent: {
+    marginBottom: 16,
+  },
+  welcomeTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  welcomeBannerTitle: {
+    fontSize: 16,
+    color: Colors.neutral.white,
+    fontWeight: '500',
+    flex: 1,
+    lineHeight: 22,
+    marginRight: 12,
+  },
+  waveIcon: {
+    marginLeft: 8,
+  },
+  workspaceIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.neutral.white + '20',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  workspaceIndicatorText: {
+    fontSize: 16,
+    color: Colors.neutral.white,
+    fontWeight: '600',
+    marginRight: 4,
+  },
+  
+  // Project and Task Styles
+  newProjectButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  newProjectButtonText: {
+    color: Colors.neutral.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  projectsList: {
+    gap: 12,
+  },
+  projectCardSimple: {
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+  },
+  projectCardActive: {
+    borderColor: Colors.semantic.info,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.semantic.info,
+  },
+  projectCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  projectDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.semantic.error,
+    marginRight: 12,
+  },
+  projectCardName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+  },
+  taskButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  aiScheduleButton: {
+    backgroundColor: Colors.accent,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  aiScheduleButtonText: {
+    color: Colors.neutral.white,
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  newTaskButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  newTaskButtonText: {
+    color: Colors.neutral.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyTasksContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyTasksText: {
+    fontSize: 16,
+    color: Colors.neutral.medium,
+    marginBottom: 16,
+  },
+  createFirstTaskButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  createFirstTaskButtonText: {
+    color: Colors.neutral.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

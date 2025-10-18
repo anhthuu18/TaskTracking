@@ -5,19 +5,11 @@ import { generateId } from '../utils/helpers';
  * Service for managing tasks
  */
 class TaskService {
-  private static instance: TaskService;
   private tasks: Task[] = [];
 
-  private constructor() {
+  constructor() {
     // Initialize with mock data
     this.initializeMockData();
-  }
-
-  public static getInstance(): TaskService {
-    if (!TaskService.instance) {
-      TaskService.instance = new TaskService();
-    }
-    return TaskService.instance;
   }
 
   private initializeMockData() {
@@ -77,7 +69,7 @@ class TaskService {
    */
   public async getAllTasks(): Promise<Task[]> {
     // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise<void>(resolve => setTimeout(resolve, 300));
     return [...this.tasks];
   }
 
@@ -85,7 +77,7 @@ class TaskService {
    * Get task by ID
    */
   public async getTaskById(id: string): Promise<Task | null> {
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise<void>(resolve => setTimeout(resolve, 200));
     return this.tasks.find(task => task.id === id) || null;
   }
 
@@ -93,7 +85,7 @@ class TaskService {
    * Create new task
    */
   public async createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> {
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise<void>(resolve => setTimeout(resolve, 500));
     
     const newTask: Task = {
       ...taskData,
@@ -110,7 +102,7 @@ class TaskService {
    * Update task
    */
   public async updateTask(id: string, updates: Partial<Task>): Promise<Task | null> {
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise<void>(resolve => setTimeout(resolve, 500));
     
     const taskIndex = this.tasks.findIndex(task => task.id === id);
     if (taskIndex === -1) return null;
@@ -128,7 +120,7 @@ class TaskService {
    * Delete task
    */
   public async deleteTask(id: string): Promise<boolean> {
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise<void>(resolve => setTimeout(resolve, 300));
     
     const taskIndex = this.tasks.findIndex(task => task.id === id);
     if (taskIndex === -1) return false;
@@ -148,7 +140,7 @@ class TaskService {
    * Search tasks
    */
   public async searchTasks(query: string): Promise<Task[]> {
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise<void>(resolve => setTimeout(resolve, 200));
     
     const lowercaseQuery = query.toLowerCase();
     return this.tasks.filter(task =>
@@ -163,9 +155,55 @@ class TaskService {
    * Filter tasks by status
    */
   public async filterTasksByStatus(status: TaskStatus): Promise<Task[]> {
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise<void>(resolve => setTimeout(resolve, 200));
     return this.tasks.filter(task => task.status === status);
+  }
+
+  /**
+   * Get tasks by workspace ID (for compatibility with new dashboard)
+   */
+  public async getTasksByWorkspace(workspaceId: string): Promise<{ success: boolean; data?: Task[]; message?: string }> {
+    try {
+      await new Promise<void>(resolve => setTimeout(resolve, 500));
+      return {
+        success: true,
+        data: [...this.tasks],
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to fetch tasks',
+      };
+    }
+  }
+
+  /**
+   * Get upcoming tasks (for compatibility with new dashboard)
+   */
+  public async getUpcomingTasks(workspaceId: string, days: number = 7): Promise<{ success: boolean; data?: Task[]; message?: string }> {
+    try {
+      await new Promise<void>(resolve => setTimeout(resolve, 500));
+      
+      const now = new Date();
+      const futureDate = new Date();
+      futureDate.setDate(now.getDate() + days);
+      
+      const upcomingTasks = this.tasks.filter(task => {
+        if (!task.dueDate) return false;
+        return task.dueDate >= now && task.dueDate <= futureDate && task.status !== TaskStatus.DONE;
+      });
+      
+      return {
+        success: true,
+        data: upcomingTasks,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to fetch upcoming tasks',
+      };
+    }
   }
 }
 
-export default TaskService;
+export const taskService = new TaskService();

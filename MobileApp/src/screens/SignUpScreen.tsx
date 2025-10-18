@@ -24,9 +24,10 @@ import { useToast } from '../hooks';
 
 interface SignUpScreenProps {
   navigation: any;
+  onLoginSuccess?: () => void;
 }
 
-const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
+const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, onLoginSuccess }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -194,6 +195,11 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
           // Save token to AsyncStorage for persistence
           await AsyncStorage.setItem('authToken', response.data.token);
           await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+          
+          // Call onLoginSuccess to update app state
+          if (onLoginSuccess) {
+            onLoginSuccess();
+          }
           
           // Navigate directly to main screen (TaskList)
           navigation.navigate('TaskList');

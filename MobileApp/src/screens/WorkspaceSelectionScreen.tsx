@@ -330,21 +330,68 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   // Always show all workspaces with scroll if more than 4
   const hasMoreWorkspaces = filteredWorkspaces.length > 4;
 
-  const handleWorkspaceSelect = (workspace: WorkspaceUI) => {
-    // Save as last used workspace with timestamp
-    const now = new Date();
-    saveLastUsedWorkspace(workspace.id);
-    saveLastUsedTimestamp(workspace.id, now);
-    
-    // Navigate to WorkspaceDashboard with selected workspace
-    navigation.navigate('WorkspaceDashboard', { 
-      workspace: {
-        id: parseInt(workspace.id), // Convert to number for backend
-        name: workspace.name,
-        memberCount: workspace.memberCount,
-        type: workspace.type
+  const handleWorkspaceSelect = async (workspace: WorkspaceUI) => {
+    try {
+      // Clear any existing last used workspace first
+      await AsyncStorage.removeItem('lastUsedWorkspaceId');
+      
+      // Save as last used workspace with timestamp
+      const now = new Date();
+      await saveLastUsedWorkspace(workspace.id);
+      await saveLastUsedTimestamp(workspace.id, now);
+      
+      // Navigate to Main with selected workspace
+      navigation.navigate('Main', { 
+        workspace: {
+          id: parseInt(workspace.id), // Convert to number for backend
+          workspaceName: workspace.name,
+          memberCount: workspace.memberCount,
+          workspaceType: workspace.type === 'group' ? 'GROUP' : 'PERSONAL',
+          description: workspace.description,
+          dateCreated: workspace.createdAt,
+          dateModified: new Date(),
+          userId: 1, // Mock user ID
+          userRole: 'OWNER' as any,
+        }
+      });
+    } catch (error) {
+      console.error('Error selecting workspace:', error);
+      // Still navigate even if saving fails
+      navigation.navigate('Main', { 
+        workspace: {
+          id: parseInt(workspace.id),
+          workspaceName: workspace.name,
+          memberCount: workspace.memberCount,
+          workspaceType: workspace.type === 'group' ? 'GROUP' : 'PERSONAL',
+          description: workspace.description,
+          dateCreated: workspace.createdAt,
+          dateModified: new Date(),
+          userId: 1, // Mock user ID
+          userRole: 'OWNER' as any,
+        }
+      });
+    }
+  };
+
+  // Function to get workspace details for navigation
+  const getWorkspaceDetails = async (workspaceId: string) => {
+    try {
+      const response = await workspaceService.getAllWorkspaces();
+      if (response.success) {
+        const workspace = response.data.find(w => w.id.toString() === workspaceId);
+        if (workspace) {
+          return {
+            id: workspace.id,
+            name: workspace.workspaceName,
+            memberCount: workspace.memberCount || 1,
+            type: workspace.workspaceType === 'GROUP' ? 'group' : 'personal'
+          };
+        }
       }
-    });
+    } catch (error) {
+      console.error('Error fetching workspace details:', error);
+    }
+    return null;
   };
 
   const handleCreateWorkspace = () => {

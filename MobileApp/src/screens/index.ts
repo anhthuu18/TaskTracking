@@ -22,3 +22,8 @@ export { default as ProjectDetailScreen } from './ProjectDetailScreen';
 // Create Screens
 export { default as CreateTaskScreen } from './CreateTaskScreen';
 export { default as CreateEventScreen } from './CreateEventScreen';
+
+// New Screens
+export { default as CalendarScreen } from './CalendarScreen';
+export { default as CreateScreen } from './CreateScreen';
+export { default as SettingsScreen } from './SettingsScreen';

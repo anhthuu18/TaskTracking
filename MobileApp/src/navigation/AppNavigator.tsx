@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { workspaceService } from '../services/workspaceService';
 
 import {
   SplashScreen,
@@ -20,6 +22,7 @@ import {
   CreateEventScreen
 } from '../screens';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
+import MainNavigator from './MainNavigator';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -31,6 +34,7 @@ export type RootStackParamList = {
   ResetPassword: { phoneNumber: string; otp: string };
   WorkspaceSelection: undefined;
   CreateWorkspace: undefined;
+  Main: { workspace?: any };
   WorkspaceDashboard: { workspace: any };
   TaskList: { workspace?: any };
   ProjectList: { workspace?: any };
@@ -46,31 +50,131 @@ const AppNavigator: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [lastUsedWorkspace, setLastUsedWorkspace] = useState<any>(null);
+  const [shouldNavigateToWorkspace, setShouldNavigateToWorkspace] = useState(false);
+  const [navigationKey, setNavigationKey] = useState(0);
+
+  // Load app state from AsyncStorage on mount
+  useEffect(() => {
+    const loadAppState = async () => {
+      try {
+        // Load onboarding state
+        const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
+        if (hasSeenOnboarding === 'true') {
+          setShowOnboarding(false);
+        }
+
+        // Load authentication state
+        const authToken = await AsyncStorage.getItem('authToken');
+        const userData = await AsyncStorage.getItem('user');
+        
+        if (authToken && userData) {
+          setIsAuthenticated(true);
+          
+          // Load last used workspace if authenticated
+          const lastUsedWorkspaceId = await AsyncStorage.getItem('lastUsedWorkspaceId');
+          if (lastUsedWorkspaceId) {
+            try {
+              // Fetch workspace details from API
+              const response = await workspaceService.getAllWorkspaces();
+              if (response.success) {
+                const workspace = response.data.find(w => w.id.toString() === lastUsedWorkspaceId);
+                if (workspace) {
+                  setLastUsedWorkspace({
+                    id: workspace.id,
+                    name: workspace.workspaceName,
+                    memberCount: workspace.memberCount || 1,
+                    type: workspace.workspaceType === 'GROUP' ? 'group' : 'personal'
+                  });
+                  setShouldNavigateToWorkspace(true);
+                }
+              }
+            } catch (error) {
+              console.error('Error loading last used workspace:', error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading app state:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadAppState();
+  }, []);
 
   const handleSplashFinish = () => {
     setIsLoading(false);
   };
 
-  const handleOnboardingFinish = () => {
-    setShowOnboarding(false);
+  const handleOnboardingFinish = async () => {
+    try {
+      await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+      setShowOnboarding(false);
+    } catch (error) {
+      console.error('Error saving onboarding state:', error);
+      setShowOnboarding(false);
+    }
   };
 
-  const handleBackToOnboarding = () => {
-    setShowOnboarding(true);
+  const handleBackToOnboarding = async () => {
+    try {
+      await AsyncStorage.removeItem('hasSeenOnboarding');
+      setShowOnboarding(true);
+    } catch (error) {
+      console.error('Error resetting onboarding state:', error);
+      setShowOnboarding(true);
+    }
   };
 
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
   };
 
+  const handleSwitchWorkspace = async () => {
+    try {
+      // Clear last used workspace from AsyncStorage
+      await AsyncStorage.removeItem('lastUsedWorkspaceId');
+      
+      // Reset state
+      setShouldNavigateToWorkspace(false);
+      setLastUsedWorkspace(null);
+      
+      // Force navigation re-render
+      setNavigationKey(prev => prev + 1);
+    } catch (error) {
+      console.error('Error clearing last used workspace:', error);
+      // Still reset state even if AsyncStorage fails
+      setShouldNavigateToWorkspace(false);
+      setLastUsedWorkspace(null);
+      setNavigationKey(prev => prev + 1);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      // Clear all stored data
+      await AsyncStorage.multiRemove(['authToken', 'user', 'lastUsedWorkspaceId', 'hasSeenOnboarding']);
+      
+      // Reset state
+      setIsAuthenticated(false);
+      setShowOnboarding(true);
+      setLastUsedWorkspace(null);
+      setShouldNavigateToWorkspace(false);
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
+  };
+
   return (
-    <NavigationContainer>
+    <NavigationContainer key={navigationKey}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
           gestureEnabled: false,
         }}
-        initialRouteName={isLoading ? "Splash" : showOnboarding ? "Onboarding" : "SignIn"}
+        initialRouteName={isLoading ? "Splash" : showOnboarding ? "Onboarding" : isAuthenticated ? (shouldNavigateToWorkspace && lastUsedWorkspace ? "Main" : "WorkspaceSelection") : "SignIn"}
       >
         {isLoading ? (
           <Stack.Screen name="Splash">
@@ -187,6 +291,73 @@ const AppNavigator: React.FC = () => {
               }}
             />
           </>
+        ) : shouldNavigateToWorkspace && lastUsedWorkspace ? (
+          <>
+            <Stack.Screen
+              name="Main"
+              options={{
+                headerShown: false,
+              }}
+            >
+              {(props) => <MainNavigator {...props} workspace={lastUsedWorkspace} onSwitchWorkspace={handleSwitchWorkspace} onLogout={handleLogout} />}
+            </Stack.Screen>
+            <Stack.Screen
+              name="WorkspaceSelection"
+              component={WorkspaceSelectionScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="CreateWorkspace"
+              component={CreateWorkspaceScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="TaskList"
+              component={TaskListScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="ProjectList"
+              component={ProjectListScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="ProjectDetail"
+              component={ProjectDetailScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="CreateTask"
+              component={CreateTaskScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="CreateEvent"
+              component={CreateEventScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="AcceptInvitation"
+              component={AcceptInvitationScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+          </>
         ) : (
           <>
             <Stack.Screen
@@ -203,6 +374,14 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             />
+            <Stack.Screen
+              name="Main"
+              options={{
+                headerShown: false,
+              }}
+            >
+              {(props) => <MainNavigator {...props} onSwitchWorkspace={handleSwitchWorkspace} onLogout={handleLogout} />}
+            </Stack.Screen>
             <Stack.Screen
               name="WorkspaceDashboard"
               component={WorkspaceDashboardScreen}

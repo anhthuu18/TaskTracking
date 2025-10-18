@@ -15,3 +15,7 @@ export { default as TaskCard } from './TaskCard';
 export { default as ProjectSettingModal } from './ProjectSettingModal';
 export { default as SwipeableMemberCard } from './SwipeableMemberCard';
 export { default as TaskFilterDropdown } from './TaskFilterDropdown';
+export { default as CustomFooter } from './CustomFooter';
+export { default as WorkspaceStatsCard } from './WorkspaceStatsCard';
+export { default as ProjectCardModern } from './ProjectCardModern';
+export { default as TaskCardModern } from './TaskCardModern';
