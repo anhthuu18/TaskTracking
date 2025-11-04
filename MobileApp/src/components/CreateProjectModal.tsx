@@ -7,37 +7,37 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { CreateProjectRequest, ProjectLabel } from '../types/Project';
-import { WorkspaceMember, MemberRole } from '../types/Workspace';
+import { CreateProjectRequest } from '../types/Project';
+import { WorkspaceMember } from '../types/Workspace';
 import MemberDropdown from './MemberDropdown';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToastContext } from '../context/ToastContext';
 
+import { projectService, workspaceService } from '../services';
+
 interface CreateProjectModalProps {
   visible: boolean;
   onClose: () => void;
-  onCreateProject?: (projectData: CreateProjectRequest, memberUserIds: number[]) => Promise<void> | void;
-  onProjectCreated?: (project: any) => void;
-  workspaceId?: string;
-  workspaceMembers?: WorkspaceMember[];
+  onProjectCreated: () => void; // Simplified callback
+  workspaceId: number;
 }
 
 const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   visible,
   onClose,
-  onCreateProject,
   onProjectCreated,
-  workspaceId = '',
-  workspaceMembers = [],
+  workspaceId,
 }) => {
   const [projectName, setProjectName] = useState('');
   const [description, setDescription] = useState('');
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
-  const [labels, setLabels] = useState<Omit<ProjectLabel, 'id'>[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingMembers, setIsFetchingMembers] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const { showSuccess, showError } = useToastContext();
 
@@ -54,10 +54,32 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     loadUser();
   }, []);
 
-  const workspaceOwner: WorkspaceMember | undefined = useMemo(
-    () => workspaceMembers.find(m => m.role === MemberRole.OWNER),
-    [workspaceMembers]
-  );
+  // Load workspace members when modal opens
+  useEffect(() => {
+    if (visible && workspaceId) {
+      loadWorkspaceMembers();
+    }
+  }, [visible, workspaceId]);
+
+  const loadWorkspaceMembers = async () => {
+    try {
+      setIsFetchingMembers(true);
+      const response = await workspaceService.getWorkspaceMembers(workspaceId);
+      
+      if (response.success && response.data) {
+        setWorkspaceMembers(response.data);
+      } else {
+        setWorkspaceMembers([]);
+        showError('Failed to load workspace members');
+      }
+    } catch (error) {
+      console.error('Error loading workspace members:', error);
+      setWorkspaceMembers([]);
+      showError('Failed to load workspace members');
+    } finally {
+      setIsFetchingMembers(false);
+    }
+  };
 
   // Hide the creator (current user) from dropdown; they will be admin by default on backend
   const filteredMembers: WorkspaceMember[] = useMemo(() => {
@@ -71,7 +93,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     setProjectName('');
     setDescription('');
     setSelectedMembers([]);
-    setLabels([]);
+    setWorkspaceMembers([]);
     setIsLoading(false);
   };
 
@@ -80,47 +102,79 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     onClose();
   };
 
-  const handleCreate = async () => {
+  const validateForm = () => {
     if (!projectName.trim()) {
       showError('Please enter a project name');
+      return false;
+    }
+
+    if (projectName.trim().length < 3) {
+      showError('Project name must be at least 3 characters');
+      return false;
+    }
+
+    if (projectName.trim().length > 100) {
+      showError('Project name must not exceed 100 characters');
+      return false;
+    }
+
+    if (description.trim().length > 500) {
+      showError('Description must not exceed 500 characters');
+      return false;
+    }
+
+    if (!workspaceId || isNaN(workspaceId)) {
+      showError('Invalid workspace. Please try again.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleCreate = async () => {
+    if (!validateForm()) {
       return;
     }
 
     const projectData: CreateProjectRequest = {
       projectName: projectName.trim(),
       description: description.trim() || undefined,
-      workspaceId: Number(workspaceId),
+      workspaceId: workspaceId,
     };
 
     try {
       setIsLoading(true);
       
-      if (onCreateProject) {
-        const memberUserIds = selectedMembers.map(id => Number(id)).filter(n => !isNaN(n));
-        await onCreateProject(projectData, memberUserIds);
-      }
+      // Step 1: Create the project
+      const createResponse = await projectService.createProject(projectData);
       
-      if (onProjectCreated) {
-        // Mock project for onProjectCreated callback
-        const mockProject = {
-          id: Date.now().toString(),
-          ...projectData,
-          members: [],
-          status: 'active',
-          progress: 0,
-          completedTasks: 0,
-          totalTasks: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        onProjectCreated(mockProject);
+      if (!createResponse.success || !createResponse.data) {
+        throw new Error(createResponse.message || 'Failed to create project');
+      }
+
+      const newProject = createResponse.data;
+      
+      // Step 2: Add selected members to the project (if any)
+      if (selectedMembers.length > 0) {
+        const memberUserIds = selectedMembers.map(id => Number(id)).filter(n => !isNaN(n));
+        
+        for (const userId of memberUserIds) {
+          try {
+            await projectService.addMemberToProject(newProject.id, userId);
+          } catch (memberError) {
+            console.error(`Failed to add member ${userId}:`, memberError);
+            // Continue adding other members even if one fails
+          }
+        }
       }
       
       showSuccess('Project created successfully!');
+      onProjectCreated(); // Trigger parent to reload projects
       handleClose();
     } catch (error) {
       console.error('Error creating project:', error);
-      showError('Failed to create project. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create project';
+      showError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -128,10 +182,6 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
   const handleMemberSelect = (memberIds: string[]) => {
     setSelectedMembers(memberIds);
-  };
-
-  const handleLabelChange = (newLabels: Omit<ProjectLabel, 'id'>[]) => {
-    setLabels(newLabels);
   };
 
   return (
@@ -169,17 +219,23 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             {/* Add Members */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Add member</Text>
-            {/* Owner card removed per requirement; dropdown shows only workspace members except creator */}
-              <MemberDropdown
-                members={filteredMembers}
-                selectedMemberIds={selectedMembers}
-                onMemberSelect={handleMemberSelect}
-              />
+              {isFetchingMembers ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.loadingText}>Loading members...</Text>
+                </View>
+              ) : (
+                <MemberDropdown
+                  members={filteredMembers}
+                  selectedMemberIds={selectedMembers}
+                  onMemberSelect={handleMemberSelect}
+                />
+              )}
             </View>
 
             {/* Description */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Description</Text>
+              <Text style={styles.sectionTitle}>Description (Optional)</Text>
               <TextInput
                 style={[styles.textInput, styles.descriptionInput]}
                 placeholder="Project description"
@@ -191,6 +247,9 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 textAlignVertical="top"
                 maxLength={500}
               />
+              <Text style={styles.characterCount}>
+                {description.length}/500 characters
+              </Text>
             </View>
           </ScrollView>
 
@@ -308,7 +367,28 @@ const styles = StyleSheet.create({
   },
   descriptionInput: {
     minHeight: 100,
-  }
+  },
+  characterCount: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    marginTop: 4,
+    textAlign: 'right',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: Colors.neutral.medium,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+  },
+  loadingText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: Colors.neutral.medium,
+  },
 });
 
 export default CreateProjectModal;

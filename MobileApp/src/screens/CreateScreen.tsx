@@ -10,7 +10,11 @@ import {
 } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 
-const CreateScreen: React.FC = () => {
+interface CreateScreenProps {
+  navigation?: any;
+}
+
+const CreateScreen: React.FC<CreateScreenProps> = ({ navigation }) => {
   const { colors } = useTheme();
   const [showCreateModal, setShowCreateModal] = useState(false);
 

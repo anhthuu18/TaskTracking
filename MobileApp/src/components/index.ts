@@ -19,3 +19,6 @@ export { default as CustomFooter } from './CustomFooter';
 export { default as WorkspaceStatsCard } from './WorkspaceStatsCard';
 export { default as ProjectCardModern } from './ProjectCardModern';
 export { default as TaskCardModern } from './TaskCardModern';
+export { default as WorkspaceMembersTab } from './WorkspaceMembersTab';
+export { default as ProjectMembersTab } from './ProjectMembersTab';
+export { default as InviteMemberModal } from './InviteMemberModal';

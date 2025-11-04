@@ -9,16 +9,14 @@ import {
 } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { CreateProjectModal, ProjectCard } from '../components';
+import { CreateProjectModal, ProjectCard, TaskCardModern } from '../components';
 import { Colors } from '../constants/Colors';
 import WorkspaceMembersTab from '../components/WorkspaceMembersTab';
 import InviteMemberModal from '../components/InviteMemberModal';
 
 import { projectService } from '../services/projectService';
-import { workspaceService } from '../services/workspaceService';
-import { WorkspaceMember } from '../types/Workspace';
 import { useToastContext } from '../context/ToastContext';
-import { cardStyles, getPriorityBadgeStyle, getDeadlineStyle } from '../styles/cardStyles';
+
 
 const Tab = createBottomTabNavigator();
 
@@ -292,26 +290,31 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
               ) : (
                 <View style={styles.tasksList}>
                   {getFilteredTasks().map((task) => (
-                    <TouchableOpacity key={task.id} style={cardStyles.taskCard} activeOpacity={0.7}>
-                      <View style={cardStyles.taskIcon}>
-                        <MaterialIcons name={task.icon as any} size={24} color={task.color} />
-                      </View>
-                      <View style={cardStyles.taskContent}>
-                        <Text style={cardStyles.taskTitle}>{task.title}</Text>
-                        <Text style={cardStyles.taskProject}>{task.project}</Text>
-                        <View style={cardStyles.taskDeadline}>
-                          <MaterialIcons name="schedule" size={14} color={task.color} />
-                          <Text style={[cardStyles.deadlineText, getDeadlineStyle(task.dueDate)]}>
-                            {formatDueDate(task.dueDate)}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={[cardStyles.priorityBadge, getPriorityBadgeStyle(task.priority)]}>
-                        <Text style={cardStyles.priorityText}>
-                          {(task.priority || 'medium').charAt(0).toUpperCase() + (task.priority || 'medium').slice(1)}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
+                    <TaskCardModern
+                      key={task.id}
+                      task={{
+                        id: task.id,
+                        title: task.title,
+                        description: task.description || '',
+                        status: task.status || 'todo',
+                        priority: task.priority || 'medium',
+                        dueDate: task.dueDate,
+                        projectName: task.project,
+                        assigneeName: task.assignee || '',
+                        tags: task.tags || [],
+                        estimatedHours: (task as any).estimatedHours,
+                        actualHours: (task as any).actualHours,
+                      } as any}
+                      onPress={() => {
+                        console.log('Task pressed:', task.id);
+                      }}
+                      onStatusPress={() => {
+                        console.log('Status pressed:', task.id);
+                      }}
+                      onAssigneePress={() => {
+                        console.log('Assignee pressed:', task.id);
+                      }}
+                    />
                   ))}
                 </View>
               )}
@@ -364,26 +367,31 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
             <ScrollView style={styles.tasksScrollView} showsVerticalScrollIndicator={false}>
               <View style={styles.tasksList}>
                 {getFilteredTasks().map((task) => (
-                  <TouchableOpacity key={task.id} style={cardStyles.taskCard} activeOpacity={0.7}>
-                    <View style={cardStyles.taskIcon}>
-                      <MaterialIcons name={task.icon as any} size={24} color={task.color} />
-                    </View>
-                    <View style={cardStyles.taskContent}>
-                      <Text style={cardStyles.taskTitle}>{task.title}</Text>
-                      <Text style={cardStyles.taskProject}>{task.project}</Text>
-                      <View style={cardStyles.taskDeadline}>
-                        <MaterialIcons name="schedule" size={14} color={task.color} />
-                        <Text style={[cardStyles.deadlineText, getDeadlineStyle(task.dueDate)]}>
-                          {formatDueDate(task.dueDate)}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={[cardStyles.priorityBadge, getPriorityBadgeStyle(task.priority)]}>
-                      <Text style={cardStyles.priorityText}>
-                        {(task.priority || 'medium').charAt(0).toUpperCase() + (task.priority || 'medium').slice(1)}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
+                  <TaskCardModern
+                    key={task.id}
+                    task={{
+                      id: task.id,
+                      title: task.title,
+                      description: task.description || '',
+                      status: task.status || 'todo',
+                      priority: task.priority || 'medium',
+                      dueDate: task.dueDate,
+                      projectName: task.project,
+                      assigneeName: task.assignee || '',
+                      tags: task.tags || [],
+                      estimatedHours: (task as any).estimatedHours,
+                      actualHours: (task as any).actualHours,
+                    } as any}
+                    onPress={() => {
+                      console.log('Task pressed:', task.id);
+                    }}
+                    onStatusPress={() => {
+                      console.log('Status pressed:', task.id);
+                    }}
+                    onAssigneePress={() => {
+                      console.log('Assignee pressed:', task.id);
+                    }}
+                  />
                 ))}
               </View>
             </ScrollView>
@@ -665,7 +673,6 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
   const workspace = route?.params?.workspace;
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [showInviteMemberModal, setShowInviteMemberModal] = useState(false);
-  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
   const { showSuccess, showError } = useToastContext();
   const [reloadKey, setReloadKey] = useState(0);
   const [highlightProjectId, setHighlightProjectId] = useState<number | undefined>(undefined);
@@ -700,26 +707,7 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
     }
   };
 
-  // Load workspace members for the modal (include owner)
-  useEffect(() => {
-    const loadMembers = async () => {
-      try {
-        if (!workspace?.id) {
-          setWorkspaceMembers([]);
-          return;
-        }
-        const res = await workspaceService.getWorkspaceMembers(Number(workspace.id));
-        if (res.success) {
-          setWorkspaceMembers(res.data);
-        } else {
-          setWorkspaceMembers([]);
-        }
-      } catch (error) {
-        setWorkspaceMembers([]);
-      }
-    };
-    loadMembers();
-  }, [workspace?.id]);
+
 
   return (
     <View style={styles.container}>
@@ -845,62 +833,8 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
         visible={showCreateProjectModal}
         onClose={() => setShowCreateProjectModal(false)}
         workspaceId={workspace?.id || 0}
-        workspaceMembers={workspaceMembers}
-        onCreateProject={async (projectData, memberUserIds = []) => {
-          try {
-            const response = await projectService.createProject(projectData);
-            if (response.success) {
-              setShowCreateProjectModal(false);
-              showSuccess('Project created successfully');
-              setReloadKey(prev => prev + 1);
-              setHighlightProjectId(response.data?.id);
-              // Add members to the project for cross-account visibility
-              try {
-                const createdProjectId = Number(response.data?.id);
-                if (createdProjectId && memberUserIds.length > 0) {
-                  let memberRoleId: number | undefined;
-                  try {
-                    const details = await projectService.getProjectDetails(createdProjectId);
-                    const roles = (details.data as any)?.projectRoles as any[] | undefined;
-                    memberRoleId = roles?.find(r => String(r.roleName).toLowerCase() === 'member')?.id
-                      || roles?.find(r => r.roleName && r.roleName !== 'Admin')?.id;
-                    if (!memberRoleId) {
-                      const createdRole = await projectService.createProjectRole(createdProjectId, 'Member', 'Default member role');
-                      memberRoleId = createdRole?.id;
-                    }
-                  } catch {}
-                  const idToEmail: Record<number, string> = {};
-                  for (const m of workspaceMembers) {
-                    const uid = Number(m.user.id);
-                    if (!isNaN(uid)) idToEmail[uid] = m.user.email;
-                  }
-                  for (const uid of memberUserIds) {
-                    const email = idToEmail[Number(uid)];
-                    if (email) {
-                      // Directly add member to project (no accept needed)
-                      if (memberRoleId) {
-                        await projectService.addMemberToProject(createdProjectId, Number(uid), memberRoleId);
-                      }
-                    }
-                  }
-                  // Trigger in-app notifications for added members
-                  const emails = memberUserIds.map(uid => idToEmail[Number(uid)]).filter(Boolean) as string[];
-                  if (emails.length > 0) {
-                    try {
-                      const { notificationService } = await import('../services/notificationService');
-                      await notificationService.createProjectInviteNotification({ projectId: createdProjectId, emails });
-                    } catch {}
-                  }
-                }
-              } catch {}
-            } else {
-              console.error('Failed to create project:', response.message);
-              showError(response.message || 'Failed to create project');
-            }
-          } catch (error) {
-            console.error('Error creating project:', error);
-            showError('Failed to create project. Please try again.');
-          }
+        onProjectCreated={() => {
+          setReloadKey(prev => prev + 1);
         }}
       />
     </View>

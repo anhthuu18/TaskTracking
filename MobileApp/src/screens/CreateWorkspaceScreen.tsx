@@ -10,6 +10,7 @@ import {
   Modal,
   Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TextInput } from 'react-native-paper';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -44,11 +45,23 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
     
     if (!workspaceName.trim()) {
       newErrors.workspaceName = 'Workspace name is required';
+    } else if (workspaceName.trim().length < 3) {
+      newErrors.workspaceName = 'Workspace name must be at least 3 characters';
+    } else if (workspaceName.trim().length > 100) {
+      newErrors.workspaceName = 'Workspace name must not exceed 100 characters';
     }
 
     // Validate email only for group workspace
-    if (workspaceType === 'group' && inviteEmail.trim() && !/\S+@\S+\.\S+/.test(inviteEmail.trim())) {
-      newErrors.inviteEmail = 'Please enter a valid email address';
+    if (workspaceType === 'group' && inviteEmail.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(inviteEmail.trim())) {
+        newErrors.inviteEmail = 'Please enter a valid email address';
+      }
+    }
+
+    // Validate description length
+    if (description.trim().length > 500) {
+      newErrors.description = 'Description must not exceed 500 characters';
     }
 
     setErrors(newErrors);
@@ -72,39 +85,41 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
       const response = await workspaceService.createWorkspace(workspaceData);
       
       if (response.success) {
+        // Save workspace to AsyncStorage
+        await AsyncStorage.setItem('lastUsedWorkspaceId', response.data.id.toString());
+        
+        // Prepare workspace object for navigation
+        const workspaceForNav = {
+          id: response.data.id,
+          name: response.data.workspaceName,
+          workspaceName: response.data.workspaceName,
+          memberCount: response.data.memberCount || 1,
+          type: workspaceType,
+        };
+        
         // If it's a group workspace and email is provided, send invitation
         if (workspaceType === 'group' && inviteEmail.trim()) {
           try {
-            const inviteResponse = await workspaceService.inviteMember(
+            await workspaceService.inviteMember(
               response.data.id,
               inviteEmail.trim(),
               'MEMBER',
               inviteMessage.trim() || undefined
             );
             
-            if (inviteResponse.success) {
-              Alert.alert(
-                'Success',
-                `Workspace created and invitation sent to ${inviteEmail}`,
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => navigation.navigate('WorkspaceSelection', { refresh: true })
+            Alert.alert(
+              'Success',
+              `Workspace created and invitation sent to ${inviteEmail}`,
+              [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    // Navigate to Main with the new workspace
+                    navigation.navigate('Main', { workspace: workspaceForNav });
                   }
-                ]
-              );
-            } else {
-              Alert.alert(
-                'Workspace Created',
-                'Workspace created successfully, but failed to send invitation.',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => navigation.navigate('WorkspaceSelection', { refresh: true })
-                  }
-                ]
-              );
-            }
+                }
+              ]
+            );
           } catch (inviteError: any) {
             console.error('Error sending invitation:', inviteError);
             Alert.alert(
@@ -113,14 +128,17 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
               [
                 {
                   text: 'OK',
-                  onPress: () => navigation.navigate('WorkspaceSelection', { refresh: true })
+                  onPress: () => {
+                    // Navigate to Main with the new workspace
+                    navigation.navigate('Main', { workspace: workspaceForNav });
+                  }
                 }
               ]
             );
           }
         } else {
-          // Navigate back to workspace selection
-          navigation.navigate('WorkspaceSelection', { refresh: true });
+          // Navigate directly to Main with the new workspace
+          navigation.navigate('Main', { workspace: workspaceForNav });
         }
       } else {
         console.error('Failed to create workspace:', response.message);
@@ -128,7 +146,33 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
       }
     } catch (error: any) {
       console.error('Error creating workspace:', error);
-      setErrors({ general: error.message || 'Failed to create workspace' });
+      
+      // Handle Unauthorized error
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
+        // Clear invalid token
+        try {
+          await AsyncStorage.removeItem('authToken');
+          await AsyncStorage.removeItem('user');
+        } catch (e) {
+          console.error('Error clearing tokens:', e);
+        }
+        
+        Alert.alert(
+          'Session Expired',
+          'Your session has expired. Please log in again.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                navigation.navigate('SignIn');
+              },
+            },
+          ]
+        );
+      } else {
+        setErrors({ general: error.message || 'Failed to create workspace' });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -229,7 +273,7 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
 
         {/* Description */} 
         <View style={styles.inputSection}>
-          <Text style={styles.sectionLabel}>Description</Text>
+          <Text style={styles.sectionLabel}>Description (Optional)</Text>
           <TextInput
             mode="outlined"
             placeholder="Workspace description..."
@@ -237,13 +281,20 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
             onChangeText={setDescription}
             multiline
             numberOfLines={5}
-            style={[styles.textInput, styles.multilineTextInput]}
-            outlineStyle={styles.inputOutline}
+            style={[
+              styles.textInput, 
+              styles.multilineTextInput,
+              errors.description && styles.textInputError
+            ]}
+            outlineStyle={[
+              styles.inputOutline,
+              errors.description && styles.inputOutlineError
+            ]}
             contentStyle={styles.multilineContent}
             theme={{  
               colors: {
-                primary: Colors.primary,
-                outline: Colors.neutral.light,
+                primary: errors.description ? Colors.semantic.error : Colors.primary,
+                outline: errors.description ? Colors.semantic.error : Colors.neutral.light,
                 onSurface: Colors.text,
               },
             }}
@@ -253,6 +304,12 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
               />
             }
           />
+          {errors.description && (
+            <Text style={styles.errorText}>{errors.description}</Text>
+          )}
+          <Text style={styles.characterCount}>
+            {description.length}/500 characters
+          </Text>
         </View>
 
         {/* Member Invitation - Only for Group Workspace */}
@@ -498,6 +555,13 @@ const styles = StyleSheet.create({
   multilineContent: {
     paddingTop: 12,
     textAlignVertical: 'top',
+  },
+  characterCount: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    marginTop: 4,
+    marginLeft: 12,
+    textAlign: 'right',
   },
 });
 

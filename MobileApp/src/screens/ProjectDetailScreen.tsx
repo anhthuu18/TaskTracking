@@ -5,21 +5,20 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
-  FlatList,
   Modal,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import { Project, ProjectMember, ProjectMemberRole } from '../types/Project';
 import { MemberRole } from '../types/Workspace';
-import { Task, TaskStatus } from '../types/Task';
-import { CreateTaskEventDropdown, CreateProjectModal, MemberSortDropdown, TaskCard, AddMemberModal, ProjectSettingModal, SwipeableMemberCard, TaskFilterDropdown } from '../components';
+import { Task } from '../types/Task';
+import { CreateTaskEventDropdown, CreateProjectModal, MemberSortDropdown, AddMemberModal, ProjectSettingModal, SwipeableMemberCard, TaskFilterDropdown, TaskCardModern } from '../components';
 import ProjectNotificationModal from '../components/ProjectNotificationModal';
 import { projectService } from '../services';
-import { mockProject, mockProjectMembers, mockTasks } from '../services/sharedMockData';
-import { getRoleColor, getDeadlineStyle } from '../styles/cardStyles';
+import { mockProject, mockTasks } from '../services/sharedMockData';
+import { getRoleColor } from '../styles/cardStyles';
+import { Event } from '../types/Event';
 
 interface ProjectDetailScreenProps {
   navigation: any;
@@ -31,113 +30,21 @@ interface ProjectDetailScreenProps {
 }
 
 const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, route }) => {
-  // Use mock data for testing UI
-  const [project, setProject] = useState<Project>(mockProject);
+  const initialProject = route.params?.project;
+  const [project, setProject] = useState<Project | null>(initialProject);
+  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
+  const [projectTasks, setProjectTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showDropdown, setShowDropdown] = useState(false);
-  // Removed modal states - now using navigation
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [showMemberSort, setShowMemberSort] = useState(false);
-
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
-  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>(mockProjectMembers);
-  const [projectTasks, setProjectTasks] = useState<Task[]>(mockTasks);
-  const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'tasks' | 'members'>('tasks');
-  
-  // Mock workspace members for AddMemberModal
-  const [workspaceMembers] = useState([
-    {
-      id: 1,
-      workspaceId: 1,
-      userId: 1,
-      role: MemberRole.OWNER,
-      joinedAt: new Date('2024-01-01'),
-      user: {
-        id: 1,
-        username: 'john_doe',
-        email: 'john.doe@example.com',
-        name: 'John Doe',
-      }
-    },
-    {
-      id: 2,
-      workspaceId: 1,
-      userId: 2,
-      role: MemberRole.MEMBER,
-      joinedAt: new Date('2024-01-02'),
-      user: {
-        id: 2,
-        username: 'jane_smith',
-        email: 'jane.smith@example.com',
-        name: 'Jane Smith',
-      }
-    },
-    {
-      id: 3,
-      workspaceId: 1,
-      userId: 3,
-      role: MemberRole.MEMBER,
-      joinedAt: new Date('2024-01-03'),
-      user: {
-        id: 3,
-        username: 'mike_johnson',
-        email: 'mike.johnson@example.com',
-        name: 'Mike Johnson',
-      }
-    },
-    {
-      id: 4,
-      workspaceId: 1,
-      userId: 4,
-      role: MemberRole.MEMBER,
-      joinedAt: new Date('2024-01-05'),
-      user: {
-        id: 4,
-        username: 'sarah_wilson',
-        email: 'sarah.wilson@example.com',
-        name: 'Sarah Wilson',
-      }
-    },
-    {
-      id: 5,
-      workspaceId: 1,
-      userId: 5,
-      role: MemberRole.MEMBER,
-      joinedAt: new Date('2024-01-08'),
-      user: {
-        id: 5,
-        username: 'alex_brown',
-        email: 'alex.brown@example.com',
-        name: 'Alex Brown',
-      }
-    },
-    {
-      id: 6,
-      workspaceId: 1,
-      userId: 6,
-      role: MemberRole.MEMBER,
-      joinedAt: new Date('2024-01-10'),
-      user: {
-        id: 6,
-        username: 'emma_davis',
-        email: 'emma.davis@example.com',
-        name: 'Emma Davis',
-      }
-    },
-    {
-      id: 7,
-      workspaceId: 1,
-      userId: 7,
-      role: MemberRole.MEMBER,
-      joinedAt: new Date('2024-01-12'),
-      user: {
-        id: 7,
-        username: 'david_miller',
-        email: 'david.miller@example.com',
-        name: 'David Miller',
-      }
-    }
-  ]);
+  const [activeTab, setActiveTab] = useState<'tasks' | 'members' | 'calendar'>('tasks');
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [events, setEvents] = useState<Event[]>([]);
+  const [workspaceMembers, setWorkspaceMembers] = useState<ProjectMember[]>([]);
   
   // Member management modals
   const [showEditRoleModal, setShowEditRoleModal] = useState(false);
@@ -209,16 +116,19 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
   // Mock: Set current user as admin for testing
   const isCurrentUserAdmin = true;
 
-  // Load project details, members and tasks on component mount
   useEffect(() => {
-    // Using mock data, no need to load from API
-    // loadProjectDetails();
-    
-    // Load notification count
-    loadNotificationCount();
-    // loadProjectMembers();
-    // loadProjectTasks();
-  }, []);
+    if (initialProject?.id) {
+      setLoading(true);
+      Promise.all([
+        loadProjectDetails(initialProject.id),
+        loadNotificationCount(),
+      ]).finally(() => {
+        // Keep using mock data for tasks for now
+        setProjectTasks(mockTasks);
+        setLoading(false);
+      });
+    }
+  }, [initialProject?.id]);
 
   const loadNotificationCount = async () => {
     try {
@@ -234,43 +144,20 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     }
   };
 
-  const loadProjectDetails = async () => {
+  const loadProjectDetails = async (projectId: number | string) => {
     try {
-      const response = await projectService.getProjectDetails(Number(project.id));
-      
-      if (response.success) {
+      const response = await projectService.getProjectDetails(Number(projectId));
+      if (response.success && response.data) {
         setProject(response.data);
+        // API returns members inside project details
+        if (response.data.members) {
+          setProjectMembers(response.data.members);
+        }
       } else {
         console.error('Failed to load project details:', response.message);
       }
     } catch (error: any) {
       console.error('Error loading project details:', error);
-    }
-  };
-
-  const loadProjectMembers = async () => {
-    try {
-      setLoading(true);
-      const response = await projectService.getProjectMembers(Number(project.id));
-      
-      if (response.success) {
-        setProjectMembers(response.data);
-      } else {
-        console.error('Failed to load project members:', response.message);
-      }
-    } catch (error: any) {
-      console.error('Error loading project members:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadProjectTasks = async () => {
-    try {
-      // Using mock data from mockData.ts
-      setProjectTasks(mockTasks);
-    } catch (error: any) {
-      console.error('Error loading project tasks:', error);
     }
   };
 
@@ -401,16 +288,296 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     );
   };
 
-  const renderTaskCard = ({ item }: { item: Task }) => (
-    <TaskCard
-      task={item}
-      onPress={() => {
-        // TODO: Navigate to task detail
-        console.log('Task pressed:', item.id);
-      }}
-      onStatusChange={() => {}} // Not used anymore
-    />
-  );
+  // Calendar helper functions
+  const getDaysInMonth = (month: number, year: number) => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (month: number, year: number) => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    if (direction === 'prev') {
+      if (currentMonth === 0) {
+        setCurrentMonth(11);
+        setCurrentYear(currentYear - 1);
+      } else {
+        setCurrentMonth(currentMonth - 1);
+      }
+    } else {
+      if (currentMonth === 11) {
+        setCurrentMonth(0);
+        setCurrentYear(currentYear + 1);
+      } else {
+        setCurrentMonth(currentMonth + 1);
+      }
+    }
+  };
+
+  const getMonthName = (month: number) => {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return months[month];
+  };
+
+  const getWeekdayName = (day: number) => {
+    const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    return weekdays[day];
+  };
+
+  const getEventsForSelectedDate = () => {
+    return mockEvents.filter(event => {
+      const eventDate = new Date(event.startDate);
+      return eventDate.getDate() === selectedDate.getDate() &&
+             eventDate.getMonth() === selectedDate.getMonth() &&
+             eventDate.getFullYear() === selectedDate.getFullYear();
+    });
+  };
+
+  const formatEventDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const renderCalendarDays = () => {
+    const daysInMonth = getDaysInMonth(currentMonth, currentYear);
+    const firstDay = getFirstDayOfMonth(currentMonth, currentYear);
+    const days = [];
+    
+    // Add empty cells for days before the first day of the month
+    for (let i = 0; i < firstDay; i++) {
+      days.push(
+        <View key={`empty-${i}`} style={styles.calendarDay} />
+      );
+    }
+    
+    // Add days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isSelected = selectedDate.getDate() === day && 
+                        selectedDate.getMonth() === currentMonth && 
+                        selectedDate.getFullYear() === currentYear;
+      const today = new Date();
+      const isToday = today.getDate() === day && 
+                     today.getMonth() === currentMonth && 
+                     today.getFullYear() === currentYear;
+      
+      // Check if there are events on this day
+      const hasEvents = mockEvents.some(event => {
+        const eventDate = new Date(event.startDate);
+        return eventDate.getDate() === day &&
+               eventDate.getMonth() === currentMonth &&
+               eventDate.getFullYear() === currentYear;
+      });
+      
+      days.push(
+        <TouchableOpacity
+          key={day}
+          style={[
+            styles.calendarDay,
+            isToday && styles.calendarDayToday,
+            isSelected && styles.calendarDaySelected
+          ]}
+          onPress={() => {
+            const newDate = new Date(currentYear, currentMonth, day);
+            setSelectedDate(newDate);
+          }}
+        >
+          <Text style={[
+            styles.calendarDayText,
+            isSelected && styles.calendarDayTextSelected,
+            isToday && styles.calendarDayTextToday
+          ]}>
+            {day}
+          </Text>
+          {hasEvents && (
+            <View style={[
+              styles.eventDot,
+              isSelected && styles.eventDotSelected
+            ]} />
+          )}
+        </TouchableOpacity>
+      );
+    }
+    
+    return days;
+  };
+
+  const renderCalendarTab = () => {
+    const selectedDateEvents = getEventsForSelectedDate();
+    
+    return (
+      <ScrollView style={styles.calendarTabContent} showsVerticalScrollIndicator={false}>
+        {/* Create Event Button */}
+        <TouchableOpacity 
+          style={styles.createEventButtonModern}
+          onPress={() => navigation.navigate('CreateEvent', { 
+            projectMembers: projectMembers, 
+            projectId: String(project.id) 
+          })}
+        >
+          <MaterialIcons name="add" size={16} color={Colors.neutral.white} />
+          <Text style={styles.createEventButtonModernText}>Create Event</Text>
+        </TouchableOpacity>
+
+        {/* Calendar Grid */}
+        <View style={styles.calendarContainerModern}>
+          {/* Calendar Header */}
+          <View style={styles.calendarHeaderModern}>
+            <TouchableOpacity 
+              onPress={() => navigateMonth('prev')}
+              style={styles.navButton}
+            >
+              <MaterialIcons name="chevron-left" size={20} color={Colors.neutral.dark} />
+            </TouchableOpacity>
+            <View style={styles.calendarTitleContainer}>
+              <Text style={styles.calendarTitleModern}>
+                {getMonthName(currentMonth)}
+              </Text>
+              <Text style={styles.calendarYearModern}>
+                {currentYear}
+              </Text>
+            </View>
+            <TouchableOpacity 
+              onPress={() => navigateMonth('next')}
+              style={styles.navButton}
+            >
+              <MaterialIcons name="chevron-right" size={20} color={Colors.neutral.dark} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Calendar Grid */}
+          <View style={styles.calendarGrid}>
+            {/* Weekday Headers */}
+            <View style={styles.calendarHeaderRow}>
+              {[0, 1, 2, 3, 4, 5, 6].map((day) => (
+                <Text key={day} style={styles.weekdayHeader}>
+                  {getWeekdayName(day)}
+                </Text>
+              ))}
+            </View>
+
+            {/* Calendar Days */}
+            <View style={styles.calendarDaysContainer}>
+              {renderCalendarDays()}
+            </View>
+          </View>
+        </View>
+
+        {/* Selected Date Display */}
+        <View style={styles.selectedDateSection}>
+          <Text style={styles.selectedDateText}>
+            {formatEventDate(selectedDate)}
+          </Text>
+          {selectedDateEvents.length > 0 && (
+            <Text style={styles.eventCountText}>
+              {selectedDateEvents.length} event{selectedDateEvents.length > 1 ? 's' : ''}
+            </Text>
+          )}
+        </View>
+
+        {/* Events List */}
+        <View style={styles.eventsSection}>
+          {selectedDateEvents.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="event-busy" size={48} color={Colors.neutral.medium} />
+              <Text style={styles.emptyTitle}>No events</Text>
+              <Text style={styles.emptySubtitle}>
+                No events scheduled for this date
+              </Text>
+            </View>
+          ) : (
+            selectedDateEvents.map((event) => (
+              <TouchableOpacity key={event.id} style={styles.eventItemModern}>
+                <View style={styles.eventLeft}>
+                  <View style={styles.eventTimeContainer}>
+                    {event.includeTime && event.startTime && (
+                      <Text style={styles.eventTime}>{event.startTime}</Text>
+                    )}
+                  </View>
+                  <View style={styles.eventDivider} />
+                </View>
+                <View style={styles.eventContent}>
+                  <Text style={styles.eventTitle}>{event.title}</Text>
+                  {event.description && (
+                    <Text style={styles.eventDescription} numberOfLines={2}>
+                      {event.description}
+                    </Text>
+                  )}
+                  <View style={styles.eventFooter}>
+                    {event.location && (
+                      <View style={styles.eventMeta}>
+                        <MaterialIcons name="location-on" size={14} color={Colors.neutral.medium} />
+                        <Text style={styles.eventMetaText}>{event.location}</Text>
+                      </View>
+                    )}
+                    {event.assignedMembers.length > 0 && (
+                      <View style={styles.eventMeta}>
+                        <MaterialIcons name="people" size={14} color={Colors.neutral.medium} />
+                        <Text style={styles.eventMetaText}>
+                          {event.assignedMembers.length} member{event.assignedMembers.length > 1 ? 's' : ''}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </ScrollView>
+    );
+  };
+
+  const renderTaskCard = (task: Task) => {
+    // Convert Task to TaskSummary format for TaskCardModern
+    const taskSummary = {
+      id: task.id,
+      title: task.title,
+      description: task.description || '',
+      status: task.status || 'todo',
+      priority: task.priority || 'medium',
+      dueDate: task.dueDate,
+      projectName: project.projectName,
+      assigneeName: task.assignee || '',
+      tags: task.tags || [],
+      estimatedHours: (task as any).estimatedHours,
+      actualHours: (task as any).actualHours,
+    };
+    
+    return (
+      <TaskCardModern
+        key={task.id}
+        task={taskSummary as any}
+        onPress={() => {
+          // TODO: Navigate to task detail
+          console.log('Task pressed:', task.id);
+        }}
+        onStatusPress={() => {
+          // TODO: Handle status change
+          console.log('Status pressed:', task.id);
+        }}
+        onAssigneePress={() => {
+          // TODO: Handle assignee press
+          console.log('Assignee pressed:', task.id);
+        }}
+      />
+    );
+  };
+
+  if (loading || !project) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={styles.loadingText}>Loading project details...</Text>
+      </View>
+    );
+  }
 
   const renderTabContent = () => {
     if (activeTab === 'tasks') {
@@ -445,22 +612,15 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
               }
               return (
             <View style={styles.tasksList}>
-                  {filtered.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onPress={() => {
-                    console.log('Task pressed:', task.id);
-                  }}
-                      onStatusChange={() => {}}
-                />
-              ))}
+              {filtered.map((task) => renderTaskCard(task))}
             </View>
               );
             })()
           )}
         </View>
       );
+    } else if (activeTab === 'calendar') {
+      return renderCalendarTab();
     } else {
       return (
         <View style={styles.tabContent}>
@@ -563,6 +723,14 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
           >
             <Text style={[styles.tabButtonText, activeTab === 'tasks' && styles.activeTabButtonText]}>
               All Tasks
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'calendar' && styles.activeTabButton]}
+            onPress={() => setActiveTab('calendar')}
+          >
+            <Text style={[styles.tabButtonText, activeTab === 'calendar' && styles.activeTabButtonText]}>
+              Calendar
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -997,8 +1165,8 @@ const styles = StyleSheet.create({
   },
   tasksList: {
     paddingHorizontal: 16,
+    paddingTop: 4,
     paddingBottom: 16,
-    gap: 8,
   },
   filterBar: {
     flexDirection: 'row',
@@ -1368,6 +1536,286 @@ const styles = StyleSheet.create({
   deleteIconContainer: {
     alignItems: 'center',
     marginBottom: 16,
+  },
+  // Calendar tab styles
+  calendarHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  createEventButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 6,
+  },
+  createEventButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.surface,
+  },
+  calendarDatePickerContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 12,
+  },
+  compactDatePickerWrapper: {
+    width: '80%',
+  },
+  eventsList: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 12,
+  },
+  eventCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  eventCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  eventCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  eventCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+    flex: 1,
+  },
+  eventCardBody: {
+    gap: 8,
+  },
+  eventCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  eventCardText: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+    flex: 1,
+  },
+  // Modern Calendar Styles
+  calendarTabContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  createEventButtonModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 4,
+    alignSelf: 'flex-end',
+    marginBottom: 16,
+  },
+  createEventButtonModernText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.neutral.white,
+  },
+  calendarContainerModern: {
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    backgroundColor: Colors.surface,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light + '40',
+  },
+  calendarHeaderModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light + '60',
+  },
+  navButton: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: Colors.neutral.light + '30',
+  },
+  calendarTitleContainer: {
+    alignItems: 'center',
+  },
+  calendarTitleModern: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.neutral.dark,
+    marginBottom: 2,
+  },
+  calendarYearModern: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: Colors.neutral.medium,
+  },
+  calendarGrid: {
+    marginTop: 8,
+  },
+  calendarHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingHorizontal: 2,
+  },
+  weekdayHeader: {
+    fontSize: 10,
+    fontWeight: '600',
+    width: 32,
+    textAlign: 'center',
+    color: Colors.neutral.medium,
+  },
+  calendarDaysContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+  calendarDay: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 3,
+    borderRadius: 16,
+    position: 'relative',
+  },
+  calendarDaySelected: {
+    backgroundColor: Colors.primary + '20',
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  calendarDayToday: {
+    backgroundColor: Colors.neutral.light,
+  },
+  calendarDayText: {
+    fontSize: 12,
+    color: Colors.text,
+    fontWeight: '500',
+  },
+  calendarDayTextSelected: {
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  calendarDayTextToday: {
+    color: Colors.neutral.dark,
+    fontWeight: '600',
+  },
+  eventDot: {
+    position: 'absolute',
+    bottom: 4,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+  },
+  eventDotSelected: {
+    backgroundColor: Colors.neutral.white,
+  },
+  selectedDateSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingTop: 8,
+  },
+  selectedDateText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+  },
+  eventCountText: {
+    fontSize: 13,
+    color: Colors.neutral.medium,
+  },
+  eventsSection: {
+    flex: 1,
+    paddingBottom: 20,
+  },
+  eventItemModern: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+  },
+  eventLeft: {
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  eventTimeContainer: {
+    minWidth: 50,
+  },
+  eventTime: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  eventDivider: {
+    flex: 1,
+    width: 2,
+    backgroundColor: Colors.primary,
+    marginVertical: 8,
+    borderRadius: 1,
+  },
+  eventContent: {
+    flex: 1,
+  },
+  eventTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  eventDescription: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+    marginBottom: 8,
+  },
+  eventFooter: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  eventMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  eventMetaText: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
   },
 });
 

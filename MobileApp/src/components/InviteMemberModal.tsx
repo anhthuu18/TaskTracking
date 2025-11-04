@@ -37,22 +37,36 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
   };
 
   const handleInvite = async () => {
-    if (!email.trim()) {
+    // Trim email before validation
+    const trimmedEmail = email.trim();
+    
+    if (!trimmedEmail) {
       showError('Please enter an email address');
       return;
     }
 
-    if (!validateEmail(email)) {
+    if (!validateEmail(trimmedEmail)) {
       showError('Please enter a valid email address');
+      return;
+    }
+
+    // Check if message is too long
+    if (message.trim().length > 500) {
+      showError('Message must not exceed 500 characters');
       return;
     }
 
     try {
       setLoading(true);
-      const response = await workspaceService.inviteMember(workspaceId, email, 'member', message);
+      const response = await workspaceService.inviteMember(
+        workspaceId, 
+        trimmedEmail, 
+        'member', 
+        message.trim() || undefined
+      );
       
       if (response.success) {
-        showSuccess('Invitation sent successfully!');
+        showSuccess(`Invitation sent to ${trimmedEmail}`);
         setEmail('');
         setMessage('');
         onInviteSent?.();
@@ -60,9 +74,10 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
       } else {
         showError(response.message || 'Failed to send invitation');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending invitation:', error);
-      showError('Failed to send invitation. Please try again.');
+      const errorMsg = error?.message || 'Failed to send invitation. Please try again.';
+      showError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -118,7 +133,11 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
                 multiline
                 numberOfLines={3}
                 textAlignVertical="top"
+                maxLength={500}
               />
+              <Text style={styles.characterCount}>
+                {message.length}/500 characters
+              </Text>
             </View>
 
             {/* Info Text */}
@@ -266,6 +285,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: Colors.neutral.white,
+  },
+  characterCount: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    marginTop: 4,
+    textAlign: 'right',
   },
 });
 

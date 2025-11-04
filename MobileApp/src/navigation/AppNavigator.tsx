@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { workspaceService } from '../services/workspaceService';
+import { API_CONFIG, buildApiUrl, getCurrentApiConfig } from '../config/api';
 
 import {
   SplashScreen,
@@ -67,30 +68,64 @@ const AppNavigator: React.FC = () => {
         // Load authentication state
         const authToken = await AsyncStorage.getItem('authToken');
         const userData = await AsyncStorage.getItem('user');
-        
+
+        // Helper: validate token with backend (redirect to login if invalid/expired)
+        const validateToken = async (token: string) => {
+          try {
+            const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.USER.PROFILE);
+            const res = await fetch(url, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+            });
+            if (res.status === 401) {
+              throw new Error('Unauthorized');
+            }
+            if (!res.ok) {
+              // On other errors, treat as unauthenticated if clearly auth-related
+              throw new Error(`HTTP ${res.status}`);
+            }
+            return true;
+          } catch (e) {
+            // Clear invalid creds
+            await AsyncStorage.multiRemove(['authToken', 'user', 'lastUsedWorkspaceId']);
+            return false;
+          }
+        };
+
         if (authToken && userData) {
-          setIsAuthenticated(true);
+          const isValid = API_CONFIG.USE_MOCK_API ? true : await validateToken(authToken);
+          setIsAuthenticated(isValid);
           
-          // Load last used workspace if authenticated
-          const lastUsedWorkspaceId = await AsyncStorage.getItem('lastUsedWorkspaceId');
-          if (lastUsedWorkspaceId) {
-            try {
-              // Fetch workspace details from API
-              const response = await workspaceService.getAllWorkspaces();
-              if (response.success) {
-                const workspace = response.data.find(w => w.id.toString() === lastUsedWorkspaceId);
-                if (workspace) {
-                  setLastUsedWorkspace({
-                    id: workspace.id,
-                    name: workspace.workspaceName,
-                    memberCount: workspace.memberCount || 1,
-                    type: workspace.workspaceType === 'GROUP' ? 'group' : 'personal'
-                  });
-                  setShouldNavigateToWorkspace(true);
+          // Load last used workspace if authenticated and valid
+          if (isValid) {
+            const lastUsedWorkspaceId = await AsyncStorage.getItem('lastUsedWorkspaceId');
+            if (lastUsedWorkspaceId) {
+              try {
+                // Fetch workspace details from API
+                const response = await workspaceService.getAllWorkspaces();
+                if (response.success) {
+                  const workspace = response.data.find(w => w.id.toString() === lastUsedWorkspaceId);
+                  if (workspace) {
+                    setLastUsedWorkspace({
+                      id: workspace.id,
+                      name: workspace.workspaceName,
+                      memberCount: workspace.memberCount || 1,
+                      type: workspace.workspaceType === 'GROUP' ? 'group' : 'personal'
+                    });
+                    setShouldNavigateToWorkspace(true);
+                  }
+                }
+              } catch (error: any) {
+                // Only log error if it's not an authentication issue
+                // "Unauthorized" errors are expected when user is not logged in or token expired
+                const errorMessage = error?.message || '';
+                if (!errorMessage.includes('Unauthorized') && !errorMessage.includes('401')) {
+                  console.error('Error loading last used workspace:', error);
                 }
               }
-            } catch (error) {
-              console.error('Error loading last used workspace:', error);
             }
           }
         }
@@ -299,7 +334,7 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             >
-              {(props) => <MainNavigator {...props} workspace={lastUsedWorkspace} onSwitchWorkspace={handleSwitchWorkspace} onLogout={handleLogout} />}
+              {(props) => <MainNavigator {...props} workspace={props.route?.params?.workspace || lastUsedWorkspace} onSwitchWorkspace={handleSwitchWorkspace} onLogout={handleLogout} />}
             </Stack.Screen>
             <Stack.Screen
               name="WorkspaceSelection"
@@ -380,7 +415,7 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             >
-              {(props) => <MainNavigator {...props} onSwitchWorkspace={handleSwitchWorkspace} onLogout={handleLogout} />}
+              {(props) => <MainNavigator {...props} workspace={props.route?.params?.workspace} onSwitchWorkspace={handleSwitchWorkspace} onLogout={handleLogout} />}
             </Stack.Screen>
             <Stack.Screen
               name="WorkspaceDashboard"

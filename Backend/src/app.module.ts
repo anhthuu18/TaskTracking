@@ -6,6 +6,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { TasksModule } from './modules/tasks/tasks.module';
 
 
 @Module({
@@ -20,6 +21,7 @@ import { NotificationModule } from './modules/notification/notification.module';
     WorkspaceModule,
     ProjectsModule,
     NotificationModule,
+    TasksModule,
   ],
 })
 export class AppModule {}

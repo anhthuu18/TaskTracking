@@ -162,9 +162,34 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   const loadWorkspaces = async () => {
     try {
       setLoading(true);
+      
+      // Check if user is authenticated before making the request
+      const authToken = await AsyncStorage.getItem('authToken');
+      if (!authToken) {
+        // User is not authenticated, set empty workspaces
+        console.log('No auth token found, skipping workspace load');
+        setWorkspaces([]);
+        return;
+      }
+
+      console.log('Loading workspaces...');
       const response = await workspaceService.getAllWorkspaces();
+      console.log('Workspace API response:', { success: response.success, dataLength: response.data?.length, message: response.message });
       
       if (response.success) {
+        // Check if data exists and is an array
+        if (!response.data || !Array.isArray(response.data)) {
+          console.warn('Workspace API returned success but data is not an array:', response);
+          setWorkspaces([]);
+          return;
+        }
+
+        if (response.data.length === 0) {
+          console.log('No workspaces found in response');
+          setWorkspaces([]);
+          return;
+        }
+
         // Convert backend workspace data to UI format and load project counts
         const uiWorkspaces: WorkspaceUI[] = await Promise.all(
           response.data.map(async (workspace, index) => {
@@ -186,13 +211,51 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
           })
         );
         
+        console.log('Successfully loaded workspaces:', uiWorkspaces.length);
         setWorkspaces(uiWorkspaces);
       } else {
+        console.error('Workspace API returned error:', response.message);
         Alert.alert('Error', response.message || 'Failed to load workspaces');
+        setWorkspaces([]);
       }
     } catch (error: any) {
-      console.error('Error loading workspaces:', error);
-      Alert.alert('Error', error.message || 'Failed to load workspaces');
+      // Handle authentication errors with logging
+      const errorMessage = error?.message || '';
+      console.error('Error loading workspaces - Full error:', error);
+      
+      if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
+        // User is not authenticated or token expired
+        console.warn('Unauthorized error - token may be expired or invalid');
+        
+        // Clear invalid token
+        try {
+          await AsyncStorage.removeItem('authToken');
+          await AsyncStorage.removeItem('user');
+        } catch (e) {
+          console.error('Error clearing tokens:', e);
+        }
+        
+        setWorkspaces([]);
+        
+        // Show user-friendly message and navigate to login
+        Alert.alert(
+          'Session Expired',
+          'Your session has expired. Please log in again.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                navigation.navigate('SignIn');
+              },
+            },
+          ]
+        );
+      } else {
+        // Other errors should be logged and shown to user
+        console.error('Error loading workspaces:', error);
+        Alert.alert('Error', error.message || 'Failed to load workspaces');
+        setWorkspaces([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -210,12 +273,29 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
 
   const loadNotificationCount = async () => {
     try {
+      // Check if user is authenticated before making the request
+      const authToken = await AsyncStorage.getItem('authToken');
+      if (!authToken) {
+        // User is not authenticated, skip loading notifications
+        setNotificationCount(0);
+        return;
+      }
+
       const response = await notificationService.getUserNotifications();
       if (response.success) {
         setNotificationCount(response.data.length);
       }
-    } catch (error) {
-      console.error('Error loading notification count:', error);
+    } catch (error: any) {
+      // Only log error if it's not an authentication issue
+      // "Unauthorized" errors are expected when user is not logged in
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
+        // User is not authenticated or token expired, silently handle
+        setNotificationCount(0);
+      } else {
+        // Other errors should be logged
+        console.error('Error loading notification count:', error);
+      }
     }
   };
 

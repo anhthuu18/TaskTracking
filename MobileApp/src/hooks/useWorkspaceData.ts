@@ -71,20 +71,53 @@ export const useWorkspaceData = (workspaceId: string) => {
       setError(null);
 
       // Load workspace details
-      const workspaceResponse = await workspaceService.getWorkspaceDetails(parseInt(workspaceId));
-      if (!workspaceResponse.success) {
-        throw new Error(workspaceResponse.message || 'Failed to load workspace');
+      let workspaceResponse;
+      try {
+        workspaceResponse = await workspaceService.getWorkspaceDetails(parseInt(workspaceId));
+        if (!workspaceResponse.success) {
+          throw new Error(workspaceResponse.message || 'Failed to load workspace');
+        }
+      } catch (err: any) {
+        // If unauthorized, show user-friendly message but don't crash
+        if (err?.message?.includes('Unauthorized') || err?.message?.includes('401')) {
+          console.warn('Unauthorized access - user may need to login again');
+          setError('Please login again to access workspace data');
+          setLoading(false);
+          return;
+        }
+        throw err;
       }
 
       // Load projects
-      const projectsResponse = await projectService.getProjectsByWorkspace(parseInt(workspaceId));
-      if (!projectsResponse.success) {
-        throw new Error('Failed to load projects');
+      let projectsResponse;
+      try {
+        projectsResponse = await projectService.getProjectsByWorkspace(parseInt(workspaceId));
+        if (!projectsResponse.success) {
+          throw new Error('Failed to load projects');
+        }
+      } catch (err: any) {
+        if (err?.message?.includes('Unauthorized') || err?.message?.includes('401')) {
+          console.warn('Unauthorized access when loading projects');
+          setError('Please login again to access workspace data');
+          setLoading(false);
+          return;
+        }
+        throw err;
       }
 
       // Load tasks
-      const tasksResponse = await taskService.getTasksByWorkspace(workspaceId);
-      const tasks = tasksResponse.success ? tasksResponse.data || [] : [];
+      let tasksResponse;
+      try {
+        tasksResponse = await taskService.getTasksByWorkspace(workspaceId);
+      } catch (err: any) {
+        if (err?.message?.includes('Unauthorized') || err?.message?.includes('401')) {
+          console.warn('Unauthorized access when loading tasks');
+          // Continue with empty tasks array instead of failing completely
+        } else {
+          throw err;
+        }
+      }
+      const tasks = tasksResponse?.success ? tasksResponse.data || [] : [];
       
       // Calculate stats
       const projects = projectsResponse.data || [];
@@ -188,9 +221,15 @@ export const useWorkspaceData = (workspaceId: string) => {
       };
 
       setData(workspaceData);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading workspace data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load workspace data');
+      // Check if it's an unauthorized error
+      const errorMessage = err?.message || 'Failed to load workspace data';
+      if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
+        setError('Please login again to access workspace data');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }

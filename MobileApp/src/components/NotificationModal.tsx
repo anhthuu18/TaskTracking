@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import { notificationService } from '../services/notificationService';
@@ -79,6 +80,15 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   const loadNotifications = async () => {
     try {
       setLoading(true);
+      
+      // Check if user is authenticated before making the request
+      const authToken = await AsyncStorage.getItem('authToken');
+      if (!authToken) {
+        // User is not authenticated, set empty notifications
+        setNotifications([]);
+        return;
+      }
+
       const response = await notificationService.getUserNotifications();
       
       if (response.success) {
@@ -124,9 +134,18 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
         console.error('Failed to load notifications:', response.message);
         setNotifications([]);
       }
-    } catch (error) {
-      console.error('Error loading notifications:', error);
-      setNotifications([]);
+    } catch (error: any) {
+      // Only log error if it's not an authentication issue
+      // "Unauthorized" errors are expected when user is not logged in
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
+        // User is not authenticated or token expired, silently handle
+        setNotifications([]);
+      } else {
+        // Other errors should be logged
+        console.error('Error loading notifications:', error);
+        setNotifications([]);
+      }
     } finally {
       setLoading(false);
     }

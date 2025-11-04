@@ -8,9 +8,11 @@ import {
   TouchableWithoutFeedback,
   RefreshControl,
   ActivityIndicator,
-  SafeAreaView,
   StatusBar,
+  FlatList,
+  Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import { useWorkspaceData, WorkspaceData } from '../hooks/useWorkspaceData';
@@ -33,6 +35,7 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   onLogout,
 }) => {
   const workspace = route?.params?.workspace;
+  const onViewAllTasks = route?.params?.onViewAllTasks;
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
   const [availableWorkspaces, setAvailableWorkspaces] = useState<any[]>([]);
 
@@ -47,15 +50,50 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   const handleSwitchWorkspace = () => {
     if (onSwitchWorkspace) {
       onSwitchWorkspace();
-    } else {
+    } else if (navigation) {
       navigation.navigate('WorkspaceSelection');
+    } else {
+      console.error('Navigation is not available');
     }
   };
 
-  const handleWorkspaceSelect = (workspaceId: string) => {
+  const handleWorkspaceSelect = async (workspaceId: string) => {
     setShowWorkspaceDropdown(false);
-    // Handle workspace selection
-    console.log('Selected workspace:', workspaceId);
+    
+    try {
+      // Check if navigation is available
+      if (!navigation) {
+        console.error('Navigation is not available');
+        return;
+      }
+
+      // Find the selected workspace
+      const selectedWorkspace = availableWorkspaces.find(ws => ws.id.toString() === workspaceId);
+      if (!selectedWorkspace) {
+        console.error('Workspace not found');
+        return;
+      }
+      
+      // Update the workspace in route params
+      const updatedWorkspace = {
+        id: parseInt(workspaceId),
+        workspaceName: selectedWorkspace.workspaceName,
+        memberCount: selectedWorkspace.memberCount || 1,
+        workspaceType: selectedWorkspace.workspaceType,
+        description: selectedWorkspace.description || '',
+        dateCreated: selectedWorkspace.dateCreated || new Date(),
+        dateModified: new Date(),
+        userId: 1, // Mock user ID
+        userRole: 'OWNER' as any,
+      };
+      
+      // Navigate to the same screen with new workspace data
+      navigation.navigate('Main', { 
+        workspace: updatedWorkspace 
+      });
+    } catch (error) {
+      console.error('Error selecting workspace:', error);
+    }
   };
 
   // Load available workspaces
@@ -72,6 +110,14 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
     };
     loadWorkspaces();
   }, []);
+
+  // Reload data when workspace changes
+  useEffect(() => {
+    if (workspace?.id) {
+      // Trigger refresh when workspace changes
+      refresh();
+    }
+  }, [workspace?.id, refresh]);
 
   const getWorkspaceTypeColor = (type: string) => {
     return type === 'GROUP' ? Colors.semantic.success : Colors.semantic.info;
@@ -134,24 +180,41 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Projects</Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAllText}>View All</Text>
-            </TouchableOpacity>
+            {workspaceData.projects.length > 0 && (
+              <TouchableOpacity onPress={() => {
+                if (navigation) {
+                  navigation.navigate('ProjectList', { workspace });
+                }
+              }}>
+                <Text style={styles.seeAllText}>View All</Text>
+              </TouchableOpacity>
+            )}
           </View>
-          {workspaceData.projects.slice(0, 2).map((project) => (
-            <ProjectCardModern
-              key={project.id}
-              project={project}
-              onPress={() => handleProjectPress(project.id)}
-            />
-          ))}
+          {workspaceData.projects.length === 0 ? (
+            <View style={styles.emptyStateContainer}>
+              <MaterialIcons name="folder-open" size={48} color={Colors.neutral.medium} />
+              <Text style={styles.emptyStateText}>No projects</Text>
+            </View>
+          ) : (
+            workspaceData.projects.slice(0, 2).map((project) => (
+              <ProjectCardModern
+                key={project.id}
+                project={project}
+                onPress={() => handleProjectPress(project.id)}
+              />
+            ))
+          )}
         </View>
 
         {/* Recent Tasks */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Tasks</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => {
+              if (onViewAllTasks) {
+                onViewAllTasks();
+              }
+            }}>
               <Text style={styles.seeAllText}>View All</Text>
             </TouchableOpacity>
           </View>
@@ -217,9 +280,11 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
                 onPress={() => setShowWorkspaceDropdown(!showWorkspaceDropdown)}
               >
                 <View style={styles.workspaceInfo}>
-                  <Text style={styles.workspaceName}>{workspaceData?.workspace.name || workspace?.workspaceName || 'Workspace'}</Text>
+                  <Text style={styles.workspaceName}>
+                    {workspace?.workspaceName || workspaceData?.workspace.name || 'Workspace'}
+                  </Text>
                   <Text style={styles.workspaceType}>
-                    {workspaceData?.workspace.type === 'group' || workspace?.workspaceType === 'GROUP' ? 'Team Workspace' : 'Personal Workspace'}
+                    {workspace?.workspaceType === 'GROUP' || workspaceData?.workspace.type === 'group' ? 'Team Workspace' : 'Personal Workspace'}
                   </Text>
                 </View>
                 <MaterialIcons 
@@ -229,23 +294,29 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
                 />
               </TouchableOpacity>
 
-              {/* Workspace Dropdown */}
-              {showWorkspaceDropdown && (
-                <>
-                  <TouchableOpacity 
-                    style={styles.dropdownOverlay}
-                    onPress={() => setShowWorkspaceDropdown(false)}
-                    activeOpacity={1}
-                  />
-                  <View style={styles.workspaceDropdown}>
-                    <ScrollView 
-                      style={styles.dropdownScrollView}
+              {/* Workspace Dropdown Modal */}
+              <Modal
+                visible={showWorkspaceDropdown}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowWorkspaceDropdown(false)}
+              >
+                <TouchableOpacity 
+                  style={styles.modalOverlay}
+                  onPress={() => setShowWorkspaceDropdown(false)}
+                  activeOpacity={1}
+                >
+                  <View style={styles.modalDropdown}>
+                    <FlatList
+                      data={availableWorkspaces}
+                      style={styles.modalScrollView}
                       showsVerticalScrollIndicator={true}
-                      nestedScrollEnabled={true}
-                    >
-                      {availableWorkspaces.map((ws) => (
+                      bounces={false}
+                      scrollEventThrottle={16}
+                      keyboardShouldPersistTaps="handled"
+                      keyExtractor={(item) => item.id.toString()}
+                      renderItem={({ item: ws }) => (
                         <TouchableOpacity 
-                          key={ws.id}
                           style={styles.dropdownItem}
                           onPress={() => handleWorkspaceSelect(ws.id.toString())}
                         >
@@ -264,21 +335,27 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
                             </View>
                           </View>
                         </TouchableOpacity>
-                      ))}
-                      <TouchableOpacity 
-                        style={[styles.dropdownItem, styles.createWorkspaceItem]}
-                        onPress={() => {
-                          setShowWorkspaceDropdown(false);
-                          navigation.navigate('CreateWorkspace');
-                        }}
-                      >
-                        <MaterialIcons name="add" size={20} color={Colors.primary} />
-                        <Text style={[styles.dropdownItemText, styles.createWorkspaceText]}>Create New</Text>
-                      </TouchableOpacity>
-                    </ScrollView>
+                      )}
+                      ListFooterComponent={() => (
+                        <TouchableOpacity 
+                          style={[styles.dropdownItem, styles.createWorkspaceItem]}
+                          onPress={() => {
+                            setShowWorkspaceDropdown(false);
+                            if (navigation) {
+                              navigation.navigate('CreateWorkspace');
+                            } else {
+                              console.error('Navigation is not available');
+                            }
+                          }}
+                        >
+                          <MaterialIcons name="add" size={20} color={Colors.primary} />
+                          <Text style={[styles.dropdownItemText, styles.createWorkspaceText]}>Create New</Text>
+                        </TouchableOpacity>
+                      )}
+                    />
                   </View>
-                </>
-              )}
+                </TouchableOpacity>
+              </Modal>
             </View>
           </View>
         </View>
@@ -300,7 +377,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: Colors.neutral.white,
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 10,
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral.light,
     shadowColor: Colors.neutral.dark,
@@ -364,7 +441,6 @@ const styles = StyleSheet.create({
     elevation: 8,
     zIndex: 9999,
     paddingVertical: 8,
-    overflow: 'scroll',
   },
   dropdownOverlay: {
     position: 'absolute',
@@ -413,7 +489,29 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   dropdownScrollView: {
-    maxHeight: '100%',
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+    paddingTop: 100,
+  },
+  modalDropdown: {
+    backgroundColor: Colors.neutral.white,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    maxHeight: 400,
+  },
+  modalScrollView: {
+    maxHeight: 350,
   },
   createWorkspaceItem: {
     borderBottomWidth: 0,
@@ -502,6 +600,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.neutral.medium,
     marginTop: 16,
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    backgroundColor: Colors.neutral.light + '30',
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: Colors.neutral.medium,
+    marginTop: 12,
+    fontWeight: '500',
   },
 });
 

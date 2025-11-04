@@ -15,6 +15,7 @@ interface DatePickerProps {
   onDateChange: (date: Date) => void;
   label?: string;
   style?: any;
+  compact?: boolean; // Make the date picker smaller
   // Legacy props for backward compatibility
   startDate?: Date;
   endDate?: Date;
@@ -27,6 +28,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
   onDateChange,
   label,
   style,
+  compact = false,
   // Legacy props
   startDate,
   endDate,
@@ -127,11 +129,11 @@ const DatePicker: React.FC<DatePickerProps> = ({
   return (
     <View style={[styles.container, style]}>
       <TouchableOpacity
-        style={styles.singleDateButton}
+        style={[styles.singleDateButton, compact && styles.singleDateButtonCompact]}
         onPress={() => setShowPicker(true)}
       >
-        <MaterialIcons name="event" size={16} color={Colors.primary} />
-        <Text style={styles.dateText}>
+        <MaterialIcons name="event" size={compact ? 12 : 16} color={Colors.primary} />
+        <Text style={[styles.dateText, compact && styles.dateTextCompact]}>
           {label ? `${label}: ` : ''}{formatDate(date)}
         </Text>
       </TouchableOpacity>
@@ -194,6 +196,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.neutral.light,
+  },
+  singleDateButtonCompact: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 6,
+    alignSelf: 'flex-start',
+    minWidth: 140,
+  },
+  dateTextCompact: {
+    fontSize: 11,
+    fontWeight: '500',
   },
 });
 

@@ -30,11 +30,30 @@ class WorkspaceService {
     
     try {
       const token = await this.getAuthToken();
+      
+      // Log token info (without exposing full token for security)
+      if (token) {
+        console.log(`[WorkspaceService] Token found: ${token.substring(0, 20)}... (length: ${token.length})`);
+      } else {
+        console.warn('[WorkspaceService] No auth token found!');
+      }
+      
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
         ...(options.headers as Record<string, string> || {}),
       };
+
+      // Log request details for debugging
+      console.log(`[WorkspaceService] Making request to: ${url}`, { 
+        hasToken: !!token,
+        tokenLength: token?.length || 0,
+        method: options.method || 'GET',
+        headers: { 
+          'Content-Type': headers['Content-Type'],
+          Authorization: token ? `Bearer ${token.substring(0, 10)}...` : 'none' 
+        }
+      });
 
       const response = await fetch(url, {
         ...options,
@@ -42,16 +61,73 @@ class WorkspaceService {
         signal: controller.signal,
       });
 
-      const data = await response.json().catch(() => ({}));
+      console.log(`[WorkspaceService] Response status: ${response.status} ${response.statusText}`);
+
+      // Get response text first to check if it's JSON
+      const responseText = await response.text();
+      let data: any = {};
+      
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.warn('[WorkspaceService] Response is not JSON:', responseText.substring(0, 100));
+        // If status is 401, create appropriate error message
+        if (response.status === 401) {
+          data = { message: 'Unauthorized', success: false };
+        } else {
+          data = { message: responseText || response.statusText, success: false };
+        }
+      }
+
+      console.log(`[WorkspaceService] Response data:`, { 
+        success: data.success, 
+        message: data.message, 
+        dataType: Array.isArray(data.data) ? 'array' : typeof data.data,
+        dataLength: Array.isArray(data.data) ? data.data.length : 'N/A'
+      });
       
       if (!response.ok) {
-        throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
+        const errorMessage = data.message || `HTTP ${response.status}: ${response.statusText}`;
+        
+        // If unauthorized, clear invalid token and provide better error message
+        if (response.status === 401) {
+          console.warn('[WorkspaceService] Unauthorized - clearing invalid token');
+          try {
+            await AsyncStorage.removeItem('authToken');
+            await AsyncStorage.removeItem('user');
+          } catch (e) {
+            console.error('[WorkspaceService] Error clearing tokens:', e);
+          }
+          // Create error with specific message for unauthorized
+          const unauthorizedError = new Error('Unauthorized');
+          (unauthorizedError as any).status = 401;
+          (unauthorizedError as any).originalMessage = errorMessage;
+          throw unauthorizedError;
+        }
+        
+        // For other HTTP errors, throw with the error message
+        const httpError = new Error(errorMessage);
+        (httpError as any).status = response.status;
+        throw httpError;
       }
 
       return data as T;
     } catch (error: any) {
+      // If error is already an Error instance from above, re-throw it directly
+      if (error instanceof Error && error.message) {
+        // Don't re-wrap errors that are already Error instances with messages
+        // Only log if it's not a known error type
+        if (!error.status) {
+          console.error(`[WorkspaceService] Unexpected error:`, error);
+        }
+        throw error;
+      }
+      
+      // Handle network errors, timeouts, etc.
       const isAbort = error?.name === 'AbortError';
-      throw new Error(isAbort ? 'Request timeout' : (error?.message || 'Network error'));
+      const errorMessage = isAbort ? 'Request timeout' : (error?.message || 'Network error');
+      console.error(`[WorkspaceService] Error: ${errorMessage}`, error);
+      throw new Error(errorMessage);
     } finally {
       clearTimeout(timeout);
     }

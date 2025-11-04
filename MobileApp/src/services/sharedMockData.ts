@@ -96,6 +96,7 @@ export const mockTasks: Task[] = [
   {
     id: '1',
     title: 'API Integration Testing',
+    description: 'Implement and test API endpoints for user authentication and data management. Ensure proper error handling and response formatting.',
     project: 'Mane UiKit',
     projectId: 'mane-uikit',
     dueDate: new Date('2025-01-15'),
@@ -111,6 +112,7 @@ export const mockTasks: Task[] = [
   {
     id: '2',
     title: 'Mobile App UI Design',
+    description: 'Create modern and intuitive UI designs for mobile application screens. Focus on user experience and accessibility standards.',
     project: 'Mane UiKit',
     projectId: 'mane-uikit',
     dueDate: new Date('2025-01-16'),
@@ -126,6 +128,7 @@ export const mockTasks: Task[] = [
   {
     id: '3',
     title: 'Database Optimization',
+    description: 'Optimize database queries and indexes to improve application performance. Analyze slow queries and implement caching strategies.',
     project: 'Mane UiKit',
     projectId: 'mane-uikit',
     dueDate: new Date('2025-01-17'),
@@ -141,6 +144,7 @@ export const mockTasks: Task[] = [
   {
     id: '4',
     title: 'User Authentication',
+    description: 'Implement secure user authentication system with JWT tokens, password hashing, and session management.',
     project: 'Mane UiKit',
     projectId: 'mane-uikit',
     dueDate: new Date('2025-01-18'),
@@ -156,6 +160,7 @@ export const mockTasks: Task[] = [
   {
     id: '5',
     title: 'Component Library Update',
+    description: 'Update and maintain component library with new reusable UI components. Document usage and examples.',
     project: 'Mane UiKit',
     projectId: 'mane-uikit',
     dueDate: new Date('2025-01-19'),
@@ -171,6 +176,7 @@ export const mockTasks: Task[] = [
   {
     id: '6',
     title: 'Performance Testing',
+    description: 'Conduct comprehensive performance testing including load testing, stress testing, and performance profiling.',
     project: 'Mane UiKit',
     projectId: 'mane-uikit',
     dueDate: new Date('2025-01-20'),

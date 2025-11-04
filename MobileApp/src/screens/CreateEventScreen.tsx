@@ -30,14 +30,11 @@ const CreateEventScreen: React.FC<CreateEventScreenProps> = ({ navigation, route
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringValue, setRecurringValue] = useState('');
   const [link, setLink] = useState('');
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedHour, setSelectedHour] = useState('10');
   const [selectedMinute, setSelectedMinute] = useState('00');
   const [showTimePickerModal, setShowTimePickerModal] = useState(false);
-  const [showRecurringOptions, setShowRecurringOptions] = useState(false);
   const [showMembersDropdown, setShowMembersDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dateValue, setDateValue] = useState(new Date());
@@ -106,14 +103,12 @@ const CreateEventScreen: React.FC<CreateEventScreenProps> = ({ navigation, route
     setShowDatePicker(true);
     // Close other dropdowns
     setShowMembersDropdown(false);
-    setShowRecurringOptions(false);
   };
 
   const handleTimePickerToggle = () => {
     setShowTimePickerModal(true);
     // Close other dropdowns
     setShowMembersDropdown(false);
-    setShowRecurringOptions(false);
     setShowDatePicker(false);
   };
 
@@ -126,9 +121,9 @@ const CreateEventScreen: React.FC<CreateEventScreenProps> = ({ navigation, route
     setShowTimePickerModal(false);
   };
 
-  const renderCalendarDays = () => {
-    const daysInMonth = getDaysInMonth(currentMonth, currentYear);
-    const firstDay = getFirstDayOfMonth(currentMonth, currentYear);
+  const renderCalendarDays = (selectedDate: Date, month: number, year: number, onDateSelect: (date: Date) => void) => {
+    const daysInMonth = getDaysInMonth(month, year);
+    const firstDay = getFirstDayOfMonth(month, year);
     const days = [];
     
     // Add empty cells for days before the first day of the month
@@ -140,30 +135,31 @@ const CreateEventScreen: React.FC<CreateEventScreenProps> = ({ navigation, route
     
     // Add days of the month
     for (let day = 1; day <= daysInMonth; day++) {
-      const isSelected = dateValue.getDate() === day && 
-                        dateValue.getMonth() === currentMonth && 
-                        dateValue.getFullYear() === currentYear;
-      const isToday = new Date().getDate() === day && 
-                     new Date().getMonth() === currentMonth && 
-                     new Date().getFullYear() === currentYear;
+      const isSelected = selectedDate.getDate() === day && 
+                        selectedDate.getMonth() === month && 
+                        selectedDate.getFullYear() === year;
+      const today = new Date();
+      const isToday = today.getDate() === day && 
+                     today.getMonth() === month && 
+                     today.getFullYear() === year;
       
       days.push(
         <TouchableOpacity
           key={day}
           style={[
             styles.calendarDay,
-            isSelected && styles.calendarDaySelected,
-            isToday && styles.calendarDayToday
+            isToday && styles.calendarDayToday,
+            isSelected && styles.calendarDaySelected
           ]}
           onPress={() => {
-            const newDate = new Date(currentYear, currentMonth, day);
-            setDateValue(newDate);
+            const newDate = new Date(year, month, day);
+            onDateSelect(newDate);
           }}
         >
           <Text style={[
             styles.calendarDayText,
-            isSelected && styles.calendarDayTextSelected,
-            isToday && styles.calendarDayTextToday
+            isToday && styles.calendarDayTextToday,
+            isSelected && styles.calendarDayTextSelected
           ]}>
             {day}
           </Text>
@@ -202,10 +198,6 @@ const CreateEventScreen: React.FC<CreateEventScreenProps> = ({ navigation, route
       newErrors.time = 'Time is required';
     }
 
-    if (isRecurring && !recurringValue.trim()) {
-      newErrors.recurring = 'Please select repeat frequency';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -234,8 +226,6 @@ const CreateEventScreen: React.FC<CreateEventScreenProps> = ({ navigation, route
         location: '',
         assignedMembers: selectedMembers,
         memberIds: selectedMembers.map(id => Number(id)).filter(n => !isNaN(n)),
-        isRecurring,
-        recurringType: isRecurring ? 'daily' : undefined,
         projectId: projectId || undefined,
       };
 
@@ -454,113 +444,6 @@ const CreateEventScreen: React.FC<CreateEventScreenProps> = ({ navigation, route
           />
         </View>
 
-        {/* Recurring Toggle */}
-        <View style={styles.inputSection}>
-          <View style={styles.toggleContainer}>
-            <Text style={styles.sectionLabel}>Repeat</Text>
-            <TouchableOpacity
-              style={[styles.toggleButton, isRecurring && styles.toggleButtonActive]}
-              onPress={() => {
-                setIsRecurring(!isRecurring);
-                if (!isRecurring) {
-                  setShowRecurringOptions(true);
-                } else {
-                  setShowRecurringOptions(false);
-                }
-              }}
-            >
-              <View style={[styles.toggleCircle, isRecurring && styles.toggleCircleActive]} />
-            </TouchableOpacity>
-          </View>
-          
-          {isRecurring && (
-            <View style={styles.recurringSection}>
-              <TouchableOpacity
-                style={[styles.dropdownButton, errors.recurring && styles.dropdownButtonError]}
-                onPress={() => setShowRecurringOptions(!showRecurringOptions)}
-              >
-                <View style={styles.dropdownContent}>
-                  <MaterialIcons name="repeat" size={20} color={Colors.neutral.medium} />
-                  <Text style={styles.dropdownText}>
-                    {recurringValue || 'Select day of week'}
-                  </Text>
-                </View>
-                <MaterialIcons name={showRecurringOptions ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={24} color={Colors.neutral.medium} />
-              </TouchableOpacity>
-              
-              {showRecurringOptions && (
-                <View style={styles.dropdownMenu}>
-                  <TouchableOpacity
-                    style={styles.dropdownOption}
-                    onPress={() => {
-                      setRecurringValue('Monday');
-                      setShowRecurringOptions(false);
-                    }}
-                  >
-                    <Text style={styles.dropdownOptionText}>Monday</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.dropdownOption}
-                    onPress={() => {
-                      setRecurringValue('Tuesday');
-                      setShowRecurringOptions(false);
-                    }}
-                  >
-                    <Text style={styles.dropdownOptionText}>Tuesday</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.dropdownOption}
-                    onPress={() => {
-                      setRecurringValue('Wednesday');
-                      setShowRecurringOptions(false);
-                    }}
-                  >
-                    <Text style={styles.dropdownOptionText}>Wednesday</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.dropdownOption}
-                    onPress={() => {
-                      setRecurringValue('Thursday');
-                      setShowRecurringOptions(false);
-                    }}
-                  >
-                    <Text style={styles.dropdownOptionText}>Thursday</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.dropdownOption}
-                    onPress={() => {
-                      setRecurringValue('Friday');
-                      setShowRecurringOptions(false);
-                    }}
-                  >
-                    <Text style={styles.dropdownOptionText}>Friday</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.dropdownOption}
-                    onPress={() => {
-                      setRecurringValue('Saturday');
-                      setShowRecurringOptions(false);
-                    }}
-                  >
-                    <Text style={styles.dropdownOptionText}>Saturday</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.dropdownOption}
-                    onPress={() => {
-                      setRecurringValue('Sunday');
-                      setShowRecurringOptions(false);
-                    }}
-                  >
-                    <Text style={styles.dropdownOptionText}>Sunday</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              {errors.recurring && (
-                <Text style={styles.errorText}>{errors.recurring}</Text>
-              )}
-            </View>
-          )}
-        </View>
       </ScrollView>
 
       {/* Date Picker Modal */}
@@ -636,7 +519,7 @@ const CreateEventScreen: React.FC<CreateEventScreenProps> = ({ navigation, route
                       <Text style={styles.calendarDayHeader}>S</Text>
                     </View>
                     <View style={styles.calendarDays}>
-                      {renderCalendarDays()}
+                      {renderCalendarDays(dateValue, currentMonth, currentYear, (newDate) => setDateValue(newDate))}
                     </View>
                   </View>
                 </View>
@@ -869,7 +752,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     zIndex: 1000,
-    maxHeight: 200,
+    maxHeight: 300,
+  },
+  dropdownScrollView: {
+    maxHeight: 300,
   },
   dropdownOption: {
     flexDirection: 'row',
@@ -881,6 +767,10 @@ const styles = StyleSheet.create({
   dropdownOptionText: {
     fontSize: 16,
     color: Colors.text,
+  },
+  dropdownOptionTextSelected: {
+    color: Colors.primary,
+    fontWeight: '600',
   },
   membersScrollView: {
     maxHeight: 200,
@@ -1022,38 +912,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: Colors.surface,
-  },
-  toggleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  toggleButton: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.neutral.light,
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-  },
-  toggleButtonActive: {
-    backgroundColor: Colors.primary,
-  },
-  toggleCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: Colors.surface,
-    alignSelf: 'flex-start',
-  },
-  toggleCircleActive: {
-    alignSelf: 'flex-end',
-  },
-  recurringSection: {
-    marginTop: 12,
-    position: 'relative',
-    zIndex: 1000,
   },
   errorText: {
     color: Colors.semantic.error,

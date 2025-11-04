@@ -29,82 +29,7 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const { showSuccess, showError } = useToastContext();
 
-  // Mock data for UI testing
-  const mockMembers: WorkspaceMember[] = [
-    {
-      id: 1,
-      workspaceId: workspaceId,
-      userId: 1,
-      role: MemberRole.OWNER,
-      joinedAt: new Date('2024-01-15T10:30:00Z'),
-      user: {
-        id: 1,
-        username: 'workspace_creator',
-        email: 'creator@example.com',
-        name: 'Workspace Creator'
-      }
-    },
-    {
-      id: 2,
-      workspaceId: workspaceId,
-      userId: 2,
-      role: MemberRole.MEMBER,
-      joinedAt: new Date('2024-01-20T14:15:00Z'),
-      user: {
-        id: 2,
-        username: 'john_doe',
-        email: 'john.doe@example.com',
-        name: 'John Doe'
-      }
-    },
-    {
-      id: 3,
-      workspaceId: workspaceId,
-      userId: 3,
-      role: MemberRole.MEMBER,
-      joinedAt: new Date('2024-02-01T09:45:00Z'),
-      user: {
-        id: 3,
-        username: 'jane_smith',
-        email: 'jane.smith@example.com',
-        name: 'Jane Smith'
-      }
-    },
-    {
-      id: 4,
-      workspaceId: workspaceId,
-      userId: 4,
-      role: MemberRole.MEMBER,
-      joinedAt: new Date('2024-02-10T16:20:00Z'),
-      user: {
-        id: 4,
-        username: 'mike_wilson',
-        email: 'mike.wilson@example.com',
-        name: 'Mike Wilson'
-      }
-    }
-  ];
-
-  const mockInvitations: WorkspaceInvitation[] = [
-    {
-      id: 1,
-      workspaceId: workspaceId,
-      email: 'pending1@example.com',
-      role: MemberRole.MEMBER,
-      status: 'pending',
-      createdAt: new Date('2024-02-15T10:00:00Z'),
-      invitedBy: 1
-    },
-    {
-      id: 2,
-      workspaceId: workspaceId,
-      email: 'pending2@example.com',
-      role: MemberRole.MEMBER,
-      status: 'pending',
-      createdAt: new Date('2024-02-16T14:30:00Z'),
-      invitedBy: 1
-    }
-  ];
+  // Mock data removed - using real API data only
 
   useEffect(() => {
     loadCurrentUserInfo();
@@ -219,15 +144,16 @@ const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({ workspaceId, 
               const response = await workspaceService.removeMemberFromWorkspace(workspaceId, member.id);
               
               if (response.success) {
-                showSuccess(`${member.user.name || member.user.username} has been removed from workspace`);
+                showSuccess(`${member.user.name || member.user.username} has been removed`);
                 // Refresh members list
                 loadMembersAndInvitations();
               } else {
                 showError(response.message || 'Failed to remove member');
               }
-            } catch (error) {
+            } catch (error: any) {
               console.error('Error removing member:', error);
-              showError('Failed to remove member');
+              const errorMsg = error?.message || 'Failed to remove member';
+              showError(errorMsg);
             }
           }
         }

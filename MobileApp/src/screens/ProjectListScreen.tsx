@@ -12,12 +12,11 @@ import {
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { CreateProjectModal, ProjectCard } from '../components';
+import { CreateProjectModal, ProjectCardModern } from '../components';
 import { CreateProjectRequest, Project, ProjectStatus } from '../types/Project';
 import { WorkspaceMember } from '../types/Workspace';
 import { projectService, workspaceService } from '../services';
 import { useToastContext } from '../context/ToastContext';
-import { cardStyles } from '../styles/cardStyles';
 
 interface ProjectListScreenProps {
   navigation: any;
@@ -32,8 +31,7 @@ interface ProjectListScreenProps {
 }
 
 const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route }) => {
-  const [selectedTab, setSelectedTab] = useState<'projects' | 'completed'>('projects');
-  const [longPressedProject, setLongPressedProject] = useState<number | null>(null);
+  const [selectedTab, setSelectedTab] = useState<'all' | 'active' | 'completed'>('all');
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -48,45 +46,56 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
 
   // Load data on component mount
   useEffect(() => {
-    if (selectedWorkspace?.id) {
-      loadProjects();
-      loadWorkspaceMembers();
-    }
-  }, [selectedWorkspace?.id]);
+    loadProjects();
+    loadWorkspaceMembers();
+  }, [selectedWorkspace]);
 
   const loadProjects = async () => {
-    if (!selectedWorkspace?.id) return;
-    
+    if (!selectedWorkspace?.id) {
+      setProjects([]);
+      setLoading(false);
+      return;
+    }
+    const workspaceId = Number(selectedWorkspace.id);
+
     try {
       setLoading(true);
-      const response = await projectService.getProjectsByWorkspace(Number(selectedWorkspace.id));
-      
+      const response = await projectService.getProjectsByWorkspace(workspaceId);
+
       if (response.success) {
         setProjects(response.data);
       } else {
         Alert.alert('Error', response.message || 'Failed to load projects');
+        setProjects([]);
       }
     } catch (error: any) {
       console.error('Error loading projects:', error);
       Alert.alert('Error', error.message || 'Failed to load projects');
+      setProjects([]);
     } finally {
       setLoading(false);
     }
   };
 
   const loadWorkspaceMembers = async () => {
-    if (!selectedWorkspace?.id) return;
-    
+    if (!selectedWorkspace?.id) {
+      setWorkspaceMembers([]);
+      return;
+    }
+    const workspaceId = Number(selectedWorkspace.id);
+
     try {
-      const response = await workspaceService.getWorkspaceMembers(Number(selectedWorkspace.id));
-      
+      const response = await workspaceService.getWorkspaceMembers(workspaceId);
+
       if (response.success) {
         setWorkspaceMembers(response.data);
       } else {
         console.error('Failed to load workspace members:', response.message);
+        setWorkspaceMembers([]);
       }
     } catch (error: any) {
       console.error('Error loading workspace members:', error);
+      setWorkspaceMembers([]);
     }
   };
 
@@ -165,69 +174,49 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
     // Filter by tab selection
     if (selectedTab === 'completed') {
       return matchesSearch && project.status === ProjectStatus.COMPLETED;
-    } else {
-      // Show active projects (not completed)
+    }
+    if (selectedTab === 'active') {
       return matchesSearch && project.status !== ProjectStatus.COMPLETED;
     }
+    // 'all'
+    return matchesSearch;
   });
 
-  const handleDeleteProject = async (projectId: number) => {
-    try {
-      const response = await projectService.deleteProject(projectId);
-      
-      if (response.success) {
-        Alert.alert('Success', 'Project deleted successfully');
-        await loadProjects(); // Refresh project list
-      } else {
-        Alert.alert('Error', response.message || 'Failed to delete project');
-      }
-    } catch (error: any) {
-      console.error('Error deleting project:', error);
-      Alert.alert('Error', error.message || 'Failed to delete project');
-    }
-    setLongPressedProject(null);
-  };
+  const renderProjectCard = (project: Project) => {
+    // Map Project to ProjectSummary, providing default values for missing fields
+    const getStatus = (status: ProjectStatus | undefined): 'active' | 'completed' | 'paused' => {
+      if (status === ProjectStatus.COMPLETED) return 'completed';
+      if (status === ProjectStatus.PAUSED) return 'paused';
+      return 'active'; // Default to active for ACTIVE or other statuses
+    };
 
-  const renderProjectCard = (project: Project) => (
-    <View key={project.id} style={styles.projectCardWrapper}>
-      {/* Delete Overlay */}
-      {longPressedProject === Number(project.id) && (
-        <View style={styles.deleteOverlay}>
-          <TouchableOpacity 
-            style={styles.closeButton}
-            onPress={() => setLongPressedProject(null)}
-          >
-            <MaterialIcons name="close" size={20} color={Colors.surface} />
-          </TouchableOpacity>
-          <View style={styles.deleteContent}>
-            <MaterialIcons name="delete" size={24} color={Colors.surface} />
-            <Text style={styles.deleteText}>Delete</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.deleteButton}
-            onPress={() => handleDeleteProject(Number(project.id))}
-          >
-            <MaterialIcons name="delete" size={20} color={Colors.surface} />
-          </TouchableOpacity>
-        </View>
-      )}
+    const projectSummary = {
+      id: project.id.toString(),
+      name: project.projectName,
+      description: project.description || 'No description available',
+      status: getStatus(project.status),
+      progress: project.progress || 0, // Use real progress if available, else 0
+      memberCount: project._count?.members || project.memberCount || 0,
+      taskCount: project.taskCount || 0, // Use real task count if available, else 0
+      priority: 'medium' as 'medium',
+      dueDate: project.endDate ? new Date(project.endDate) : undefined,
+      color: Colors.primary, // Default value
+    };
 
-      <ProjectCard
-        project={project}
+    return (
+      <ProjectCardModern
+        key={project.id}
+        project={projectSummary}
         onPress={() => {
-          if (longPressedProject === Number(project.id)) {
-            setLongPressedProject(null);
-          } else {
-            navigation.navigate('ProjectDetail', { project: project });
-          }
+          navigation.navigate('ProjectDetail', { project: project });
         }}
-        showProgress={true}
-        progressPercentage={50}
-        completedTasks={24}
-        totalTasks={48}
+        onMenuPress={() => {
+          // TODO: Implement menu options (edit, delete, etc.)
+          Alert.alert('Menu pressed for project ' + project.projectName);
+        }}
       />
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -270,11 +259,19 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
       {/* Tabs */}
       <View style={styles.tabSection}>
         <TouchableOpacity
-          style={[styles.tabButton, selectedTab === 'projects' && styles.activeTabButton]}
-          onPress={() => setSelectedTab('projects')}
+          style={[styles.tabButton, selectedTab === 'all' && styles.activeTabButton]}
+          onPress={() => setSelectedTab('all')}
         >
-          <Text style={[styles.tabButtonText, selectedTab === 'projects' && styles.activeTabButtonText]}>
-            Projects
+          <Text style={[styles.tabButtonText, selectedTab === 'all' && styles.activeTabButtonText]}>
+            All Projects
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, selectedTab === 'active' && styles.activeTabButton]}
+          onPress={() => setSelectedTab('active')}
+        >
+          <Text style={[styles.tabButtonText, selectedTab === 'active' && styles.activeTabButtonText]}>
+            Active
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -434,51 +431,6 @@ const styles = StyleSheet.create({
   projectList: {
     padding: 20,
     gap: 6,
-  },
-  projectCardWrapper: {
-    position: 'relative',
-  },
-  deleteOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(108, 99, 255, 0.9)',
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    zIndex: 10,
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteContent: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  deleteText: {
-    color: Colors.surface,
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  deleteButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   loadingContainer: {
     flex: 1,
