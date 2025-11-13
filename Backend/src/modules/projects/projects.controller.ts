@@ -169,4 +169,23 @@ export class ProjectsController {
       message: 'Hủy lời mời project thành công',
     };
   }
+
+  @Post(':id/star')
+  async toggleStar(@Param('id', ParseIntPipe) projectId: number, @Request() req) {
+    const result = await this.projectsService.toggleStar(projectId, req.user.userId);
+    return {
+      statusCode: 200,
+      message: `Project star status updated successfully.`,
+      data: result,
+    };
+  }
+
+  @Post(':id/log-access')
+  async updateLastOpened(@Param('id', ParseIntPipe) projectId: number, @Request() req) {
+    const result = await this.projectsService.updateLastOpened(projectId, req.user.userId);
+    return {
+      statusCode: 200,
+      message: result.message,
+    };
+  }
 }

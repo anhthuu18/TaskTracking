@@ -9,6 +9,8 @@ export interface Project {
   status?: ProjectStatus;
   dateCreated: Date;
   dateModified: Date;
+  isStarred?: boolean;
+  lastOpened?: Date;
   user?: {
     id: number;
     username: string;

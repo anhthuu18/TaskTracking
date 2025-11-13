@@ -36,6 +36,8 @@ export const API_CONFIG = {
         REMOVE_MEMBER: '/projects/remove-member',
         UPDATE_MEMBER_ROLE: '/projects/update-member-role',
         CREATE_ROLE: '/projects/create-role',
+        STAR_PROJECT: '/projects/star',
+        UPDATE_LAST_OPENED: '/projects/update-last-opened',
       },
       WORKSPACE: {
         CREATE: '/workspace/create-workspace',
@@ -107,6 +109,8 @@ export const API_CONFIG = {
         REMOVE_MEMBER: '/projects/remove-member',
         UPDATE_MEMBER_ROLE: '/projects/update-member-role',
         CREATE_ROLE: '/projects/create-role',
+        STAR_PROJECT: '/projects/:id/star',
+        UPDATE_LAST_OPENED: '/projects/:id/log-access',
       },
     },
   },

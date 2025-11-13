@@ -150,7 +150,7 @@ export class ProjectsService {
     }
 
     // Get projects in the workspace that user has access to
-    return this.prisma.project.findMany({
+    const projects = await this.prisma.project.findMany({
       where: {
         workspaceId: workspaceId,
         dateDeleted: null,
@@ -188,6 +188,28 @@ export class ProjectsService {
       },
       orderBy: { dateCreated: 'desc' }
     });
+
+    // Enhance projects with isStarred and lastOpened data
+    const enhancedProjects = await Promise.all(
+      projects.map(async (project) => {
+        const starred = await this.prisma.starredProject.findUnique({
+          where: { userId_projectId: { userId, projectId: project.id } },
+        });
+
+        const lastAccess = await this.prisma.projectAccessLog.findFirst({
+          where: { userId, projectId: project.id },
+          orderBy: { accessedAt: 'desc' },
+        });
+
+        return {
+          ...project,
+          isStarred: !!starred,
+          lastOpened: lastAccess?.accessedAt || project.dateModified,
+        };
+      })
+    );
+
+    return enhancedProjects;
   }
 
   // Get project by ID with permission check
@@ -1021,5 +1043,34 @@ export class ProjectsService {
       where: { id: invitationId },
       data: { status: InvitationStatus.REJECTED }
     });
+  }
+
+  // Star or unstar a project for a user
+  async toggleStar(projectId: number, userId: number) {
+    const isStarred = await this.prisma.starredProject.findUnique({
+      where: { userId_projectId: { userId, projectId } },
+    });
+
+    if (isStarred) {
+      // Unstar the project
+      await this.prisma.starredProject.delete({
+        where: { userId_projectId: { userId, projectId } },
+      });
+      return { isStarred: false };
+    } else {
+      // Star the project
+      await this.prisma.starredProject.create({
+        data: { userId, projectId },
+      });
+      return { isStarred: true };
+    }
+  }
+
+  // Log project access for a user
+  async updateLastOpened(projectId: number, userId: number) {
+    await this.prisma.projectAccessLog.create({
+      data: { userId, projectId },
+    });
+    return { message: 'Project access logged successfully' };
   }
 }

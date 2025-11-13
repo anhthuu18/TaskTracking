@@ -30,6 +30,8 @@ model User {
   userTrackings          TaskTracking[]        @relation("UserTrackings")
   notifications          Notification[]        @relation("UserNotifications")
   userSettings           UserSettings?
+  starredProjects        StarredProject[]
+  accessLogs             ProjectAccessLog[]
 
   @@map("Users")
 }
@@ -148,6 +150,8 @@ model Project {
   taskTypes           ProjectTaskType[]
   taskStatuses        ProjectTaskStatus[]
   taskPriorities      ProjectTaskPriority[]
+  starredBy           StarredProject[]
+  accessLogs          ProjectAccessLog[]
 
   @@map("Projects")
 }
@@ -414,4 +418,31 @@ model Notification {
   @@index([isRead])
   @@index([triggerTime])
   @@map("Notifications")
+}
+
+model StarredProject {
+  userId    Int      @map("UserID")
+  projectId Int      @map("ProjectID")
+  starredAt DateTime @default(now()) @map("StarredAt")
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([userId, projectId])
+  @@map("StarredProjects")
+}
+
+model ProjectAccessLog {
+  id         Int      @id @default(autoincrement()) @map("LogID")
+  userId     Int      @map("UserID")
+  projectId  Int      @map("ProjectID")
+  accessedAt DateTime @default(now()) @map("AccessedAt")
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, projectId, accessedAt(sort: Desc)])
+  @@map("ProjectAccessLogs")
 }

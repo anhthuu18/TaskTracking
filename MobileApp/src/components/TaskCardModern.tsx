@@ -10,13 +10,15 @@ interface TaskCardModernProps {
   onPress?: () => void;
   onTrackTime?: () => void;
   onDelete?: () => void;
+  onToggleStatus?: () => void;
 }
 
 const TaskCardModern: React.FC<TaskCardModernProps> = ({ 
   task, 
   onPress,
   onTrackTime,
-  onDelete
+  onDelete,
+  onToggleStatus
 }) => {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -84,6 +86,19 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
         onPress={onPress}
         activeOpacity={0.7}
       >
+        <TouchableOpacity
+            onPress={(e) => {
+                e.stopPropagation();
+                if (onToggleStatus) onToggleStatus();
+            }}
+            style={styles.radioButtonContainer}
+        >
+            <View style={[styles.radioButton, task.status === 'completed' && styles.radioButtonCompleted]}>
+                {task.status === 'completed' && (
+                    <MaterialIcons name="check" size={16} color={Colors.neutral.white} />
+                )}
+            </View>
+        </TouchableOpacity>
         <View style={styles.content}>
           <View style={styles.header}>
             <Text style={[styles.title, task.status === 'completed' && styles.completedTitle]} numberOfLines={2}>
@@ -150,6 +165,8 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
 
 const styles = StyleSheet.create({
   container: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: Colors.neutral.white,
     borderRadius: 8,
     padding: 12,
@@ -162,6 +179,22 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderWidth: 1,
     borderColor: Colors.neutral.light + '30',
+  },
+  radioButtonContainer: {
+    paddingRight: 12,
+  },
+  radioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.neutral.light,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioButtonCompleted: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   content: {
     flex: 1,

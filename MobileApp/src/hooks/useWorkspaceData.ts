@@ -27,6 +27,8 @@ export interface ProjectSummary {
   completedTaskCount: number;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   color: string;
+  lastOpened?: Date;
+  isStarred?: boolean;
 }
 
 export interface TaskSummary {
@@ -60,6 +62,7 @@ export interface WorkspaceData {
   recentTasks: TaskSummary[];
   upcomingDeadlines: TaskSummary[];
   teamActivity: any[];
+  allTasks: TaskSummary[];
 }
 
 export const useWorkspaceData = (workspaceId: string) => {
@@ -187,7 +190,14 @@ export const useWorkspaceData = (workspaceId: string) => {
           priority: 'medium',
           color: getProjectColor(project.id),
           createdAt,
+          lastOpened: project.lastOpened ? new Date(project.lastOpened) : (project.dateModified ? new Date(project.dateModified) : undefined),
+          isStarred: project.isStarred || false,
         };
+      });
+
+      const projectNameToIdMap = new Map<string, string>();
+      projectSummaries.forEach(p => {
+        projectNameToIdMap.set(p.name, p.id);
       });
 
       // Transform tasks to TaskSummary
@@ -198,8 +208,8 @@ export const useWorkspaceData = (workspaceId: string) => {
         status: task.status === 'done' ? 'completed' : task.status === 'in_progress' ? 'in_progress' : 'todo',
         priority: task.priority === 'urgent' ? 'urgent' : task.priority === 'high' ? 'high' : task.priority === 'medium' ? 'medium' : 'low',
         dueDate: task.dueDate,
-        projectId: '1', // Default project ID since existing tasks don't have projectId
-        projectName: task.project || 'Default Project', // Use task.project if available
+        projectId: projectNameToIdMap.get(task.project) || '', // Find projectId from name
+        projectName: task.project || 'No Project',
         assigneeId: undefined,
         assigneeName: task.assignee,
         tags: task.tags || [],
@@ -234,6 +244,7 @@ export const useWorkspaceData = (workspaceId: string) => {
         recentTasks,
         upcomingDeadlines,
         teamActivity: [], // TODO: Implement team activity
+        allTasks: taskSummaries,
       };
 
       setData(workspaceData);
@@ -263,12 +274,55 @@ export const useWorkspaceData = (workspaceId: string) => {
     }
   }, [workspaceId, loadWorkspaceData]);
 
+  const toggleStar = useCallback(async (projectId: number) => {
+    if (!data) return;
+
+    // Optimistically update UI
+    const updatedProjects = data.projects.map(p => 
+      p.numericId === projectId ? { ...p, isStarred: !p.isStarred } : p
+    );
+    setData({ ...data, projects: updatedProjects });
+
+    try {
+      await projectService.toggleStarProject(projectId);
+      // No need to refresh, UI is already updated
+    } catch (error) {
+      console.error('Failed to toggle star status:', error);
+      // Revert UI on error
+      setError('Failed to update star status. Please try again.');
+      const revertedProjects = data.projects.map(p =>
+        p.numericId === projectId ? { ...p, isStarred: !p.isStarred } : p
+      );
+      setData({ ...data, projects: revertedProjects });
+    }
+  }, [data]);
+
+  const updateLastOpened = useCallback(async (projectId: number) => {
+    if (!data) return;
+
+    const now = new Date();
+    // Optimistically update UI
+    const updatedProjects = data.projects.map(p =>
+      p.numericId === projectId ? { ...p, lastOpened: now } : p
+    );
+    setData({ ...data, projects: updatedProjects });
+
+    try {
+      await projectService.updateProjectLastOpened(projectId);
+    } catch (error) {
+      console.error('Failed to update last opened timestamp:', error);
+      // Don't revert, as it's a background task and not critical for UI state
+    }
+  }, [data]);
+
   return {
     data,
     loading,
     error,
     refreshing,
     refresh,
+    toggleStar,
+    updateLastOpened,
   };
 };
 

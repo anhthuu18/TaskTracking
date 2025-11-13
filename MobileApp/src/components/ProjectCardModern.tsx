@@ -7,11 +7,39 @@ import { ProjectSummary } from '../hooks/useWorkspaceData';
 interface ProjectCardModernProps {
   project: ProjectSummary;
   onPress?: () => void;
+  isStarred?: boolean;
+  onToggleStar?: () => void;
+  hasUrgentTasks?: boolean;
 }
+
+const formatTimeAgo = (date: Date | undefined): string => {
+  if (!date) {
+    return 'never';
+  }
+  const now = new Date();
+  const seconds = Math.floor((now.getTime() - new Date(date).getTime()) / 1000);
+
+  if (seconds < 60) {
+    return 'just now';
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+};
 
 const ProjectCardModern: React.FC<ProjectCardModernProps> = ({ 
   project, 
   onPress, 
+  isStarred = false,
+  onToggleStar,
+  hasUrgentTasks = false,
 }) => {
   // Assuming you might want to get completed tasks count from somewhere
   // For now, let's calculate it based on progress and total task count
@@ -24,16 +52,33 @@ const ProjectCardModern: React.FC<ProjectCardModernProps> = ({
       activeOpacity={0.7}
     >
       <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={1}>{project.name}</Text>
-        <View style={styles.memberInfo}>
-          <MaterialIcons name="people-outline" size={16} color={Colors.primary} />
-          <Text style={styles.metaText}>{project.memberCount}</Text>
+        <View style={styles.titleContainer}>
+          <Text style={styles.title} numberOfLines={1}>{project.name}</Text>
+          {hasUrgentTasks && <View style={styles.urgentIndicator} />}
         </View>
+        <TouchableOpacity onPress={onToggleStar} style={styles.starButton}>
+          <MaterialIcons 
+            name={isStarred ? "star" : "star-border"} 
+            size={24} 
+            color={isStarred ? Colors.semantic.warning : Colors.neutral.medium} 
+          />
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.description} numberOfLines={2}>
         {project.description || 'No description available'}
       </Text>
+
+      <View style={styles.footer}>
+          <View style={styles.footerItem}>
+            <MaterialIcons name="people-outline" size={16} color={Colors.neutral.medium} />
+            <Text style={styles.metaText}>{project.memberCount} members</Text>
+          </View>
+          <View style={styles.footerItem}>
+            <MaterialIcons name="access-time" size={16} color={Colors.neutral.medium} />
+            <Text style={styles.metaText}>Opened {formatTimeAgo(project.lastOpened)}</Text>
+          </View>
+        </View>
 
       <View style={styles.progressContainer}>
         <View style={styles.progressHeader}>
@@ -76,21 +121,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
+  titleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10,
+  },
   title: {
     fontSize: 16,
     fontWeight: '600',
     color: Colors.neutral.dark,
-    flex: 1,
   },
-  memberInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 12,
+  urgentIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.semantic.error,
+    marginLeft: 8,
+  },
+  starButton: {
+    padding: 4,
   },
   metaText: {
-    fontSize: 13,
-    color: Colors.primary, // Changed to primary color (purple)
-    marginLeft: 4,
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    marginLeft: 6,
     fontWeight: '500',
   },
   description: {
@@ -99,8 +154,31 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     lineHeight: 18,
   },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderColor: Colors.neutral.light,
+  },
+  footerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  footerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   progressContainer: {
-    // No margin bottom to make card smaller
+    marginTop: 12,
   },
   progressHeader: {
     flexDirection: 'row',

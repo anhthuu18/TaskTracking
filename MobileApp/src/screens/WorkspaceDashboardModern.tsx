@@ -11,15 +11,16 @@ import {
   StatusBar,
   FlatList,
   Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { useWorkspaceData, TaskSummary } from '../hooks/useWorkspaceData';
+import { useWorkspaceData, TaskSummary, WorkspaceData } from '../hooks/useWorkspaceData';
 import ProjectCardModern from '../components/ProjectCardModern';
 import TaskCardModern from '../components/TaskCardModern';
 import TaskDetailModal from '../components/TaskDetailModal';
-import { workspaceService } from '../services';
+import { projectService, workspaceService } from '../services';
 
 interface WorkspaceDashboardModernProps {
   navigation: any;
@@ -27,6 +28,96 @@ interface WorkspaceDashboardModernProps {
   onSwitchWorkspace?: () => void;
   onLogout?: () => void;
 }
+
+interface TaskTabHeaderProps {
+  workspaceData: WorkspaceData | null;
+  searchInput: string;
+  setSearchInput: (value: string) => void;
+  activeFilter: string;
+  setActiveFilter: (value: string) => void;
+}
+
+const TaskTabHeader = React.memo<TaskTabHeaderProps>(({ 
+  workspaceData, 
+  searchInput, 
+  setSearchInput, 
+  activeFilter, 
+  setActiveFilter 
+}) => {
+  if (!workspaceData) return null;
+
+  const userTasks = workspaceData.allTasks || [];
+  const urgentCount = userTasks.filter(t => t.priority === 'urgent' && t.status !== 'completed').length;
+  const todayCount = userTasks.filter(t => {
+    if (!t.dueDate || t.status === 'completed') return false;
+    const today = new Date();
+    return new Date(t.dueDate).toDateString() === today.toDateString();
+  }).length;
+  const activeCount = userTasks.filter(t => t.status === 'in_progress').length;
+
+  const filters = ['All', 'Urgent', 'High', 'Pending'];
+
+  return (
+    <>
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <MaterialIcons name="search" size={24} color={Colors.neutral.medium} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search tasks..."
+          value={searchInput}
+          onChangeText={setSearchInput}
+        />
+      </View>
+
+      {/* Summary Cards */}
+      <View style={styles.summaryContainer}>
+        <View style={[styles.summaryCard, {backgroundColor: Colors.semantic.error + '15'}]}>
+          <View>
+            <Text style={styles.summaryLabel}>URGENT</Text>
+            <Text style={styles.summaryValue}>{urgentCount}</Text>
+          </View>
+          <View style={[styles.summaryIcon, {backgroundColor: Colors.semantic.error + '30'}]}>
+            <MaterialIcons name="error-outline" size={24} color={Colors.semantic.error} />
+          </View>
+        </View>
+        <View style={[styles.summaryCard, {backgroundColor: Colors.semantic.info + '15'}]}>
+          <View>
+            <Text style={styles.summaryLabel}>TODAY</Text>
+            <Text style={styles.summaryValue}>{todayCount}</Text>
+          </View>
+          <View style={[styles.summaryIcon, {backgroundColor: Colors.semantic.info + '30'}]}>
+            <MaterialIcons name="today" size={24} color={Colors.semantic.info} />
+          </View>
+        </View>
+      </View>
+      <View style={[styles.summaryCard, {backgroundColor: Colors.semantic.success + '15', width: 'auto', marginBottom: 16}]}>
+        <View>
+          <Text style={styles.summaryLabel}>ACTIVE</Text>
+          <Text style={styles.summaryValue}>{activeCount}</Text>
+        </View>
+        <View style={[styles.summaryIcon, {backgroundColor: Colors.semantic.success + '30'}]}>
+          <MaterialIcons name="hourglass-top" size={24} color={Colors.semantic.success} />
+        </View>
+      </View>
+
+      {/* Quick Filters */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
+        {filters.map(filter => (
+          <TouchableOpacity
+            key={filter}
+            style={[styles.filterButton, activeFilter === filter && styles.activeFilterButton]}
+            onPress={() => setActiveFilter(filter)}
+          >
+            <Text style={[styles.filterButtonText, activeFilter === filter && styles.activeFilterButtonText]}>{filter}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+      
+      <Text style={styles.listHeader}>All Tasks</Text>
+    </>
+  );
+});
 
 const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   navigation,
@@ -40,6 +131,12 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   const [availableWorkspaces, setAvailableWorkspaces] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<TaskSummary | null>(null);
   const [showTaskDetail, setShowTaskDetail] = useState(false);
+  const [activeTab, setActiveTab] = useState('projects'); // 'projects' or 'tasks'
+
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState('All');
+
 
   const {
     data: workspaceData,
@@ -123,6 +220,17 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
     }
   }, [workspace?.id, externalReloadKey, refresh]);
 
+  // Debounce search query
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchInput);
+    }, 500);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchInput]);
+
   const getWorkspaceTypeColor = (type: string) => {
     return type === 'GROUP' ? Colors.semantic.success : Colors.semantic.info;
   };
@@ -136,7 +244,14 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
     };
   };
 
-  const handleProjectPress = (projectId: string) => {
+  const handleProjectPress = async (projectId: string) => {
+    try {
+      await projectService.updateProjectLastOpened(Number(projectId));
+      // No need to refresh here, data will be stale until next refresh cycle
+    } catch (error) {
+      console.error('Failed to update last opened time:', error);
+    }
+
     const project = workspaceData?.projects.find(p => p.id === projectId);
     if (project) {
       navigation.navigate('ProjectDetail', { 
@@ -166,65 +281,121 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
     refresh();
   };
 
-  // Function to determine the most important task
-  const getMostImportantTask = (): TaskSummary | null => {
-    if (!workspaceData || workspaceData.recentTasks.length === 0) {
-      return null;
+  const handleToggleTaskStatus = (taskToToggle: TaskSummary) => {
+    // This is a mock implementation. Ideally, you would call an API here.
+    console.log('Toggling status for task:', taskToToggle.id);
+    const newStatus = taskToToggle.status === 'completed' ? 'in_progress' : 'completed';
+
+    // Update the local state to provide immediate feedback
+    if (workspaceData && workspaceData.allTasks) {
+      const updatedTasks = workspaceData.allTasks.map(task => 
+        task.id === taskToToggle.id ? { ...task, status: newStatus } : task
+      );
+      // This part is tricky without a proper state management library like Redux or Zustand.
+      // For now, we'll just log it and rely on a full refresh to get the updated state.
+      // A more robust solution would be to update the 'data' state directly.
     }
 
-    const incompleteTasks = workspaceData.recentTasks.filter(
-      task => task.status !== 'completed'
-    );
-
-    if (incompleteTasks.length === 0) {
-      return null;
-    }
-
-    // Priority weights
-    const priorityWeight = {
-      urgent: 4,
-      high: 3,
-      medium: 2,
-      low: 1,
-    };
-
-    // Calculate importance score for each task
-    const tasksWithScore = incompleteTasks.map(task => {
-      let score = priorityWeight[task.priority] || 0;
-
-      // Add weight based on due date
-      if (task.dueDate) {
-        const now = new Date();
-        const diffTime = task.dueDate.getTime() - now.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays < 0) {
-          // Overdue tasks get highest priority
-          score += 10;
-        } else if (diffDays === 0) {
-          // Due today
-          score += 8;
-        } else if (diffDays === 1) {
-          // Due tomorrow
-          score += 6;
-        } else if (diffDays <= 3) {
-          // Due within 3 days
-          score += 4;
-        } else if (diffDays <= 7) {
-          // Due within a week
-          score += 2;
-        }
-      }
-
-      return { task, score };
-    });
-
-    // Sort by score (descending) and return the task with highest score
-    tasksWithScore.sort((a, b) => b.score - a.score);
-    return tasksWithScore[0].task;
+    // Refresh data from the server
+    refresh();
   };
 
-  const renderOverview = () => {
+  const handleToggleStar = async (projectId: string) => {
+    try {
+      await projectService.toggleStarProject(Number(projectId));
+      refresh(); // Refresh data to get the new star status
+    } catch (error) {
+      console.error('Failed to toggle star status:', error);
+      // Optionally, show an error message to the user
+    }
+  };
+
+  const renderTasksTab = () => {
+    if (!workspaceData) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      );
+    }
+
+    // Mock current user - replace with actual user data from auth context
+    const currentUser = { id: 'user-1', role: 'admin' }; // or 'member'
+
+    const filteredTasks = (workspaceData.allTasks || [])
+      .filter(task => {
+        // Role-based filtering
+        const isMyTask = task.assigneeId === currentUser.id || !task.assigneeId; // Assume unassigned is for everyone
+        if (currentUser.role !== 'admin' && !isMyTask) {
+          return false;
+        }
+
+        // Search query filtering
+        if (debouncedSearchQuery && !task.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase())) {
+          return false;
+        }
+
+        // Quick filter
+        if (activeFilter !== 'All') {
+          if (activeFilter === 'Urgent' && task.priority !== 'urgent') return false;
+          if (activeFilter === 'High' && task.priority !== 'high') return false;
+          if (activeFilter === 'Pending' && task.status !== 'todo') return false;
+        }
+        
+        return true;
+      })
+      .sort((a, b) => {
+        // Sorting logic: priority first, then due date
+        const priorityWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
+        if (priorityWeight[a.priority] !== priorityWeight[b.priority]) {
+          return priorityWeight[b.priority] - priorityWeight[a.priority];
+        }
+        return (a.dueDate?.getTime() || Infinity) - (b.dueDate?.getTime() || Infinity);
+      });
+
+    const userTasks = workspaceData.allTasks || [];
+    const urgentCount = userTasks.filter(t => t.priority === 'urgent' && t.status !== 'completed').length;
+    const todayCount = userTasks.filter(t => {
+        if (!t.dueDate || t.status === 'completed') return false;
+        const today = new Date();
+        return new Date(t.dueDate).toDateString() === today.toDateString();
+    }).length;
+    const activeCount = userTasks.filter(t => t.status === 'in_progress').length;
+
+    const filters = ['All', 'Urgent', 'High', 'Pending'];
+
+    return (
+      <FlatList
+        data={filteredTasks}
+        keyExtractor={item => item.id}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={<TaskTabHeader 
+          workspaceData={workspaceData} 
+          searchInput={searchInput} 
+          setSearchInput={setSearchInput} 
+          activeFilter={activeFilter} 
+          setActiveFilter={setActiveFilter} 
+        />}
+        renderItem={({ item }) => (
+          <TaskCardModern
+            task={item}
+            onPress={() => handleTaskPress(item)}
+            onTrackTime={() => handleTrackTime(item)}
+            onDelete={() => handleDeleteTask(item.id)}
+            onToggleStatus={() => handleToggleTaskStatus(item)}
+          />
+        )}
+        ListEmptyComponent={() => (
+            <View style={styles.emptyStateContainer}>
+              <MaterialIcons name="check-circle-outline" size={48} color={Colors.neutral.medium} />
+              <Text style={styles.emptyStateText}>No tasks match your filters.</Text>
+            </View>
+        )}
+      />
+    );
+  };
+
+  const renderProjectsTab = () => {
     if (!workspaceData) {
       return (
         <View style={styles.loadingContainer}>
@@ -234,42 +405,7 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
       );
     }
 
-    const mostImportantTask = getMostImportantTask();
 
-    // Mock data for upcoming tasks if empty
-    let upcomingTasks = workspaceData.upcomingDeadlines;
-    if (upcomingTasks.length === 0) {
-      const today = new Date();
-      upcomingTasks = [
-        {
-          id: 'mock-1',
-          title: 'Review UI/UX Mockups',
-          projectName: 'Design System',
-          priority: 'high',
-          status: 'in_progress',
-          dueDate: new Date(today.setDate(today.getDate() + 1)), // Due tomorrow
-          assigneeName: 'Nguyen Van A',
-        } as TaskSummary,
-        {
-          id: 'mock-2',
-          title: 'Implement New Login Flow',
-          projectName: 'Mobile App',
-          priority: 'medium',
-          status: 'todo',
-          dueDate: new Date(today.setDate(today.getDate() + 2)), // Due in 3 days
-          assigneeName: 'Tran Thi B',
-        } as TaskSummary,
-        {
-          id: 'mock-3',
-          title: 'Setup Staging Environment',
-          projectName: 'DevOps',
-          priority: 'low',
-          status: 'todo',
-          dueDate: new Date(today.setDate(today.getDate() + 4)), // Due in 7 days
-          assigneeName: 'Le Van C',
-        } as TaskSummary,
-      ];
-    }
 
     return (
       <ScrollView 
@@ -282,36 +418,11 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
           />
         }
       >
-        {/* Most Important Task */}
-        {mostImportantTask && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionTitleContainer}>
-                <Text style={styles.sectionTitle}>Most Important Task</Text>
-              </View>
-            </View>
-            <TaskCardModern
-              task={mostImportantTask}
-              onPress={() => handleTaskPress(mostImportantTask)}
-              onTrackTime={() => handleTrackTime(mostImportantTask)}
-              onDelete={() => handleDeleteTask(mostImportantTask.id)}
-            />
-          </View>
-        )}
-
         {/* Recent Projects */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Projects</Text>
-            {workspaceData.projects.length > 0 && (
-              <TouchableOpacity onPress={() => {
-                if (navigation) {
-                  navigation.navigate('ProjectList', { workspace });
-                }
-              }}>
-                <Text style={styles.seeAllText}>View All</Text>
-              </TouchableOpacity>
-            )}
+
           </View>
           {workspaceData.projects.length === 0 ? (
             <View style={styles.emptyStateContainer}>
@@ -319,38 +430,41 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
               <Text style={styles.emptyStateText}>No projects</Text>
             </View>
           ) : (
-            workspaceData.projects.slice(0, 2).map((project) => (
-              <ProjectCardModern
-                key={project.id}
-                project={project}
-                onPress={() => handleProjectPress(project.id)}
-              />
-            ))
+            workspaceData.projects
+              .slice()
+              .sort((a, b) => {
+                const aIsStarred = a.isStarred || false;
+                const bIsStarred = b.isStarred || false;
+                if (aIsStarred !== bIsStarred) {
+                  return bIsStarred ? 1 : -1;
+                }
+
+                const aDate = new Date(a.lastOpened || 0).getTime();
+                const bDate = new Date(b.lastOpened || 0).getTime();
+                return bDate - aDate;
+              })
+              .map((project) => {
+                const hasUrgent = (workspaceData?.allTasks || []).some(task => {
+                  if (task.projectId !== project.id || !task.dueDate) return false;
+                  const diffDays = (new Date(task.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24);
+                  return diffDays <= 3 && task.status !== 'completed';
+                });
+
+                return (
+                  <ProjectCardModern
+                    key={project.id}
+                    project={project}
+                    onPress={() => handleProjectPress(project.id)}
+                    isStarred={project.isStarred}
+                    onToggleStar={() => handleToggleStar(project.id)}
+                    hasUrgentTasks={hasUrgent}
+                  />
+                );
+              })
           )}
         </View>
 
-        {/* Upcoming Tasks */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Upcoming Tasks</Text>
-            <TouchableOpacity onPress={() => {
-              if (onViewAllTasks) {
-                onViewAllTasks();
-              }
-            }}>
-              <Text style={styles.seeAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          {upcomingTasks.slice(0, 3).map((task) => (
-            <TaskCardModern
-              key={task.id}
-              task={task}
-              onPress={() => handleTaskPress(task)}
-              onTrackTime={() => handleTrackTime(task)}
-              onDelete={() => handleDeleteTask(task.id)}
-            />
-          ))}
-        </View>
+
       </ScrollView>
     );
   };
@@ -487,7 +601,26 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
 
         {/* Content */}
         <View style={styles.content}>
-          {renderOverview()}
+          {/* Tab Switcher */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'projects' && styles.activeTab]}
+              onPress={() => setActiveTab('projects')}
+            >
+              <MaterialIcons name="folder-shared" size={20} color={activeTab === 'projects' ? Colors.primary : Colors.neutral.medium} />
+              <Text style={[styles.tabText, activeTab === 'projects' && styles.activeTabText]}>Projects</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'tasks' && styles.activeTab]}
+              onPress={() => setActiveTab('tasks')}
+            >
+              <MaterialIcons name="list-alt" size={20} color={activeTab === 'tasks' ? Colors.primary : Colors.neutral.medium} />
+              <Text style={[styles.tabText, activeTab === 'tasks' && styles.activeTabText]}>Tasks</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Conditional Content */}
+          {activeTab === 'projects' ? renderProjectsTab() : renderTasksTab()}
         </View>
 
         <TaskDetailModal
@@ -759,6 +892,110 @@ const styles = StyleSheet.create({
     color: Colors.neutral.medium,
     marginTop: 12,
     fontWeight: '500',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    backgroundColor: Colors.neutral.light + '40',
+    borderRadius: 12,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 8,
+  },
+  activeTab: {
+    backgroundColor: Colors.neutral.white,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.neutral.medium,
+  },
+  activeTabText: {
+    color: Colors.primary,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.neutral.light + '60',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+  },
+  searchInput: {
+    flex: 1,
+    height: 48,
+    paddingLeft: 12,
+    fontSize: 16,
+    color: Colors.neutral.dark,
+  },
+  summaryContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    gap: 16,
+  },
+  summaryCard: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.neutral.dark,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: Colors.neutral.dark,
+  },
+  summaryIcon: {
+    padding: 8,
+    borderRadius: 99,
+  },
+  filterContainer: {
+    marginBottom: 16,
+  },
+  filterButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: Colors.neutral.light + '60',
+    marginRight: 10,
+  },
+  activeFilterButton: {
+    backgroundColor: Colors.primary,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+  },
+  activeFilterButtonText: {
+    color: Colors.neutral.white,
+  },
+  listHeader: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.neutral.dark,
+    marginBottom: 8,
   },
 });
 

@@ -293,6 +293,20 @@ class ProjectService {
     });
   }
 
+  async toggleStarProject(projectId: number): Promise<{ success: boolean; isStarred: boolean }> {
+    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.PROJECT.STAR_PROJECT.replace(':id', String(projectId)));
+    return this.request<{ success: boolean; isStarred: boolean }>(url, {
+      method: 'POST',
+    });
+  }
+
+  async updateProjectLastOpened(projectId: number): Promise<{ success: boolean }> {
+    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.PROJECT.UPDATE_LAST_OPENED.replace(':id', String(projectId)));
+    return this.request<{ success: boolean }>(url, {
+      method: 'POST',
+    });
+  }
+
   // ==================== MOCK METHODS ====================
   
   private async mockCreateProject(projectData: CreateProjectRequest): Promise<ProjectResponse> {
@@ -595,6 +609,28 @@ class ProjectService {
           message: 'Role của member đã được cập nhật',
         });
       }, API_CONFIG.MOCK_DELAY);
+    });
+  }
+
+  private async mockToggleStarProject(projectId: number): Promise<{ success: boolean; isStarred: boolean }> {
+    console.log('Mock API: Toggling star for project', projectId);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const isStarred = Math.random() > 0.5;
+        resolve({
+          success: true,
+          isStarred: isStarred,
+        });
+      }, 100);
+    });
+  }
+
+  private async mockUpdateProjectLastOpened(projectId: number): Promise<{ success: boolean }> {
+    console.log('Mock API: Updating last opened for project', projectId);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({ success: true });
+      }, 100);
     });
   }
 }
