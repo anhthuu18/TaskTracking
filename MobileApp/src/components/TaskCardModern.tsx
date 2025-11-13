@@ -1,21 +1,22 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { Swipeable } from 'react-native-gesture-handler';
 import { Colors } from '../constants/Colors';
 import { TaskSummary } from '../hooks/useWorkspaceData';
 
 interface TaskCardModernProps {
   task: TaskSummary;
   onPress?: () => void;
-  onStatusPress?: () => void;
-  onAssigneePress?: () => void;
+  onTrackTime?: () => void;
+  onDelete?: () => void;
 }
 
 const TaskCardModern: React.FC<TaskCardModernProps> = ({ 
   task, 
-  onPress, 
-  onStatusPress,
-  onAssigneePress 
+  onPress,
+  onTrackTime,
+  onDelete
 }) => {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -27,218 +28,206 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return Colors.success;
-      case 'in_progress': return Colors.warning;
-      case 'todo': return Colors.neutral.medium;
-      default: return Colors.neutral.medium;
+  const formatDate = (date: Date) => {
+    // Ensure date is a valid Date object before formatting
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+      // Try to parse it if it's a string
+      const parsedDate = new Date(date);
+      if (isNaN(parsedDate.getTime())) return 'No date'; // Return fallback if invalid
+      date = parsedDate;
     }
+
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed': return 'check-circle';
-      case 'in_progress': return 'play-circle';
-      case 'todo': return 'radio-button-unchecked';
-      default: return 'radio-button-unchecked';
-    }
-  };
-
-  const formatDueDate = (date: Date) => {
+  const getDateColor = (date: Date) => {
+    if (task.status === 'completed') return Colors.neutral.dark;
+    
     const now = new Date();
-    const diffTime = date.getTime() - now.getTime();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const taskDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffTime = taskDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    if (diffDays < 0) return 'Overdue';
-    if (diffDays === 0) return 'Due today';
-    if (diffDays === 1) return 'Due tomorrow';
-    return `Due in ${diffDays} days`;
+    if (diffDays < 0) {
+      // Overdue - red
+      return Colors.semantic.error;
+    } else if (diffDays <= 3) {
+      // Due soon (within 3 days) - orange
+      return Colors.warning;
+    } else {
+      // Normal - black
+      return Colors.neutral.dark;
+    }
   };
 
-  const isOverdue = task.dueDate && task.dueDate < new Date() && task.status !== 'completed';
+
+
+  const renderRightActions = () => {
+    return (
+      <TouchableOpacity onPress={onDelete} style={styles.deleteAction}>
+        <MaterialIcons name="delete-outline" size={24} color={Colors.semantic.error} />
+      </TouchableOpacity>
+    );
+  };
 
   return (
-    <TouchableOpacity 
-      style={[styles.container, isOverdue && styles.overdueContainer]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.header}>
-        <View style={styles.titleContainer}>
-          <TouchableOpacity onPress={onStatusPress} style={styles.statusButton}>
-            <MaterialIcons 
-              name={getStatusIcon(task.status) as any} 
-              size={20} 
-              color={getStatusColor(task.status)} 
-            />
-          </TouchableOpacity>
-          <View style={styles.titleContent}>
-            <Text style={[styles.title, task.status === 'completed' && styles.completedTitle]}>
+    <Swipeable renderRightActions={renderRightActions} overshootRight={false}>
+      <TouchableOpacity 
+        style={[
+          styles.container,
+          { borderLeftColor: getPriorityColor(task.priority) }
+        ]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Text style={[styles.title, task.status === 'completed' && styles.completedTitle]} numberOfLines={2}>
               {task.title}
             </Text>
-            <Text style={styles.projectName}>{task.projectName}</Text>
-          </View>
-        </View>
-        <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(task.priority) + '15' }]}>
-          <Text style={[styles.priorityText, { color: getPriorityColor(task.priority) }]}>
-            {task.priority.toUpperCase()}
-          </Text>
-        </View>
-      </View>
-
-      {task.description && (
-        <Text style={styles.description} numberOfLines={2}>
-          {task.description}
-        </Text>
-      )}
-
-      <View style={styles.footer}>
-        <View style={styles.metaInfo}>
-          {task.assigneeName && (
-            <TouchableOpacity onPress={onAssigneePress} style={styles.assigneeContainer}>
-              <View style={styles.assigneeAvatar}>
-                <Text style={styles.assigneeInitial}>
-                  {task.assigneeName.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <Text style={styles.assigneeName}>{task.assigneeName}</Text>
+            <TouchableOpacity 
+              style={styles.trackButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                if (onTrackTime) onTrackTime();
+              }}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="access-time" size={20} color={Colors.primary} />
             </TouchableOpacity>
-          )}
-          
-          {task.tags.length > 0 && (
-            <View style={styles.tagsContainer}>
-              {task.tags.slice(0, 2).map((tag, index) => (
-                <View key={index} style={styles.tag}>
-                  <Text style={styles.tagText}>{tag}</Text>
+          </View>
+
+          <Text style={styles.projectName} numberOfLines={1}>{task.projectName}</Text>
+
+          <View style={styles.footer}>
+            <View style={styles.leftFooter}>
+              {task.dueDate && (
+                <View style={styles.dateContainer}>
+                  <MaterialIcons 
+                    name="event" 
+                    size={14} 
+                    color={getDateColor(task.dueDate)} 
+                  />
+                  <Text style={[
+                    styles.dateText,
+                    { color: getDateColor(task.dueDate) }
+                  ]}>
+                    {formatDate(task.dueDate)}
+                  </Text>
                 </View>
-              ))}
-              {task.tags.length > 2 && (
-                <Text style={styles.moreTagsText}>+{task.tags.length - 2}</Text>
               )}
             </View>
-          )}
-        </View>
 
-        {task.dueDate && (
-          <Text style={[
-            styles.dueDate,
-            { 
-              color: isOverdue 
-                ? Colors.semantic.error 
-                : task.dueDate.getTime() - new Date().getTime() < 24 * 60 * 60 * 1000
-                  ? Colors.warning
-                  : Colors.neutral.medium 
-            }
-          ]}>
-            {formatDueDate(task.dueDate)}
-          </Text>
-        )}
-      </View>
-
-      {task.estimatedHours && (
-        <View style={styles.timeInfo}>
-          <MaterialIcons name="schedule" size={14} color={Colors.neutral.medium} />
-          <Text style={styles.timeText}>
-            {task.actualHours ? `${task.actualHours}/${task.estimatedHours}h` : `${task.estimatedHours}h estimated`}
-          </Text>
+            <View style={styles.rightFooter}>
+              {task.assigneeName && (
+                <View style={styles.assigneeContainer}>
+                  <View style={styles.assigneeAvatar}>
+                    <Text style={styles.assigneeInitial}>
+                      {task.assigneeName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text style={styles.assigneeName} numberOfLines={1}>
+                    {task.assigneeName}
+                  </Text>
+                </View>
+              )}
+              <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(task.priority) + '15' }]}>
+                <Text style={[styles.priorityText, { color: getPriorityColor(task.priority) }]}>
+                  {task.priority.toUpperCase()}
+                </Text>
+              </View>
+            </View>
+          </View>
         </View>
-      )}
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Swipeable>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.neutral.white,
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 4,
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 6,
     shadowColor: Colors.neutral.dark,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowRadius: 3,
     elevation: 2,
+    borderLeftWidth: 4,
     borderWidth: 1,
     borderColor: Colors.neutral.light + '30',
   },
-  overdueContainer: {
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.semantic.error,
+  content: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    flex: 1,
-  },
-  statusButton: {
-    padding: 4,
-    marginRight: 8,
-  },
-  titleContent: {
-    flex: 1,
+    marginBottom: 6,
   },
   title: {
-    fontSize: 16,
+    flex: 1,
+    fontSize: 15,
     fontWeight: '600',
     color: Colors.neutral.dark,
-    lineHeight: 22,
+    lineHeight: 20,
+    marginRight: 8,
   },
   completedTitle: {
     textDecorationLine: 'line-through',
     color: Colors.neutral.medium,
   },
+  trackButton: {
+    padding: 2,
+  },
   projectName: {
     fontSize: 12,
     color: Colors.primary,
     fontWeight: '500',
-    marginTop: 2,
-  },
-  priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  priorityText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  description: {
-    fontSize: 14,
-    color: Colors.neutral.medium,
-    lineHeight: 20,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
-  metaInfo: {
+  leftFooter: {
+    flex: 1,
+  },
+  rightFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    gap: 8,
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateText: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginLeft: 4,
   },
   assigneeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 12,
+    maxWidth: 100,
   },
   assigneeAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 6,
+    marginRight: 4,
   },
   assigneeInitial: {
     fontSize: 10,
@@ -246,47 +235,30 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   assigneeName: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.neutral.dark,
     fontWeight: '500',
   },
-  tagsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  tag: {
-    backgroundColor: Colors.primary + '15',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  priorityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 4,
-    marginRight: 4,
   },
-  tagText: {
-    fontSize: 10,
-    color: Colors.primary,
-    fontWeight: '500',
+  priorityText: {
+    fontSize: 9,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
-  moreTagsText: {
-    fontSize: 10,
-    color: Colors.neutral.medium,
-    fontWeight: '500',
-  },
-  dueDate: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  timeInfo: {
-    flexDirection: 'row',
+  deleteAction: {
+    backgroundColor: Colors.neutral.white,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutral.light,
-  },
-  timeText: {
-    fontSize: 12,
-    color: Colors.neutral.medium,
-    marginLeft: 4,
-    fontWeight: '500',
+    width: 70,
+    marginVertical: 6,
+    borderTopRightRadius: 8,
+    borderBottomRightRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light + '90',
   },
 });
 

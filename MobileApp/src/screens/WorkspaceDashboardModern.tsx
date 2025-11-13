@@ -15,10 +15,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { useWorkspaceData, WorkspaceData } from '../hooks/useWorkspaceData';
-import WorkspaceStatsCard from '../components/WorkspaceStatsCard';
+import { useWorkspaceData, TaskSummary } from '../hooks/useWorkspaceData';
 import ProjectCardModern from '../components/ProjectCardModern';
 import TaskCardModern from '../components/TaskCardModern';
+import TaskDetailModal from '../components/TaskDetailModal';
 import { workspaceService } from '../services';
 
 interface WorkspaceDashboardModernProps {
@@ -32,12 +32,14 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   navigation,
   route,
   onSwitchWorkspace,
-  onLogout,
 }) => {
   const workspace = route?.params?.workspace;
+  const externalReloadKey: number | undefined = route?.params?.reloadKey;
   const onViewAllTasks = route?.params?.onViewAllTasks;
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
   const [availableWorkspaces, setAvailableWorkspaces] = useState<any[]>([]);
+  const [selectedTask, setSelectedTask] = useState<TaskSummary | null>(null);
+  const [showTaskDetail, setShowTaskDetail] = useState(false);
 
   const {
     data: workspaceData,
@@ -109,15 +111,17 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
       }
     };
     loadWorkspaces();
-  }, []);
+
+
+  }, [workspace?.id]);
 
   // Reload data when workspace changes
   useEffect(() => {
-    if (workspace?.id) {
-      // Trigger refresh when workspace changes
+    if (workspace?.id || externalReloadKey) {
+      // Trigger refresh when workspace or reload key changes
       refresh();
     }
-  }, [workspace?.id, refresh]);
+  }, [workspace?.id, externalReloadKey, refresh]);
 
   const getWorkspaceTypeColor = (type: string) => {
     return type === 'GROUP' ? Colors.semantic.success : Colors.semantic.info;
@@ -145,9 +149,79 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
     }
   };
 
-  const handleTaskPress = (taskId: string) => {
-    // Navigate to task detail
-    console.log('Navigate to task:', taskId);
+  const handleTaskPress = (task: TaskSummary) => {
+    setSelectedTask(task);
+    setShowTaskDetail(true);
+  };
+
+  const handleTrackTime = (task: TaskSummary) => {
+    // TODO: Implement time tracking functionality
+    console.log('Track time for task:', task.id);
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    // TODO: Implement actual deletion logic (API call, state update)
+    console.log('Deleting task:', taskId);
+    // For now, just refresh the data to simulate removal if the backend deletes it
+    refresh();
+  };
+
+  // Function to determine the most important task
+  const getMostImportantTask = (): TaskSummary | null => {
+    if (!workspaceData || workspaceData.recentTasks.length === 0) {
+      return null;
+    }
+
+    const incompleteTasks = workspaceData.recentTasks.filter(
+      task => task.status !== 'completed'
+    );
+
+    if (incompleteTasks.length === 0) {
+      return null;
+    }
+
+    // Priority weights
+    const priorityWeight = {
+      urgent: 4,
+      high: 3,
+      medium: 2,
+      low: 1,
+    };
+
+    // Calculate importance score for each task
+    const tasksWithScore = incompleteTasks.map(task => {
+      let score = priorityWeight[task.priority] || 0;
+
+      // Add weight based on due date
+      if (task.dueDate) {
+        const now = new Date();
+        const diffTime = task.dueDate.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) {
+          // Overdue tasks get highest priority
+          score += 10;
+        } else if (diffDays === 0) {
+          // Due today
+          score += 8;
+        } else if (diffDays === 1) {
+          // Due tomorrow
+          score += 6;
+        } else if (diffDays <= 3) {
+          // Due within 3 days
+          score += 4;
+        } else if (diffDays <= 7) {
+          // Due within a week
+          score += 2;
+        }
+      }
+
+      return { task, score };
+    });
+
+    // Sort by score (descending) and return the task with highest score
+    tasksWithScore.sort((a, b) => b.score - a.score);
+    return tasksWithScore[0].task;
   };
 
   const renderOverview = () => {
@@ -158,6 +232,43 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
           <Text style={styles.loadingText}>Loading workspace data...</Text>
         </View>
       );
+    }
+
+    const mostImportantTask = getMostImportantTask();
+
+    // Mock data for upcoming tasks if empty
+    let upcomingTasks = workspaceData.upcomingDeadlines;
+    if (upcomingTasks.length === 0) {
+      const today = new Date();
+      upcomingTasks = [
+        {
+          id: 'mock-1',
+          title: 'Review UI/UX Mockups',
+          projectName: 'Design System',
+          priority: 'high',
+          status: 'in_progress',
+          dueDate: new Date(today.setDate(today.getDate() + 1)), // Due tomorrow
+          assigneeName: 'Nguyen Van A',
+        } as TaskSummary,
+        {
+          id: 'mock-2',
+          title: 'Implement New Login Flow',
+          projectName: 'Mobile App',
+          priority: 'medium',
+          status: 'todo',
+          dueDate: new Date(today.setDate(today.getDate() + 2)), // Due in 3 days
+          assigneeName: 'Tran Thi B',
+        } as TaskSummary,
+        {
+          id: 'mock-3',
+          title: 'Setup Staging Environment',
+          projectName: 'DevOps',
+          priority: 'low',
+          status: 'todo',
+          dueDate: new Date(today.setDate(today.getDate() + 4)), // Due in 7 days
+          assigneeName: 'Le Van C',
+        } as TaskSummary,
+      ];
     }
 
     return (
@@ -171,10 +282,22 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
           />
         }
       >
-        {/* Stats Card */}
-        <WorkspaceStatsCard 
-          stats={workspaceData.stats}
-        />
+        {/* Most Important Task */}
+        {mostImportantTask && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleContainer}>
+                <Text style={styles.sectionTitle}>Most Important Task</Text>
+              </View>
+            </View>
+            <TaskCardModern
+              task={mostImportantTask}
+              onPress={() => handleTaskPress(mostImportantTask)}
+              onTrackTime={() => handleTrackTime(mostImportantTask)}
+              onDelete={() => handleDeleteTask(mostImportantTask.id)}
+            />
+          </View>
+        )}
 
         {/* Recent Projects */}
         <View style={styles.section}>
@@ -206,10 +329,10 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
           )}
         </View>
 
-        {/* Recent Tasks */}
+        {/* Upcoming Tasks */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Tasks</Text>
+            <Text style={styles.sectionTitle}>Upcoming Tasks</Text>
             <TouchableOpacity onPress={() => {
               if (onViewAllTasks) {
                 onViewAllTasks();
@@ -218,11 +341,13 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
               <Text style={styles.seeAllText}>View All</Text>
             </TouchableOpacity>
           </View>
-          {workspaceData.recentTasks.slice(0, 2).map((task) => (
+          {upcomingTasks.slice(0, 3).map((task) => (
             <TaskCardModern
               key={task.id}
               task={task}
-              onPress={() => handleTaskPress(task.id)}
+              onPress={() => handleTaskPress(task)}
+              onTrackTime={() => handleTrackTime(task)}
+              onDelete={() => handleDeleteTask(task.id)}
             />
           ))}
         </View>
@@ -364,6 +489,20 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
         <View style={styles.content}>
           {renderOverview()}
         </View>
+
+        <TaskDetailModal
+          visible={showTaskDetail}
+          task={selectedTask as any}
+          onClose={() => setShowTaskDetail(false)}
+          onUpdateTask={(updated) => {
+            setSelectedTask(updated as any);
+            try { refresh(); } catch {}
+          }}
+          onDeleteTask={(taskId) => {
+            handleDeleteTask(String(taskId));
+            setShowTaskDetail(false);
+          }}
+        />
       </SafeAreaView>
     </TouchableWithoutFeedback>
   );
@@ -522,13 +661,13 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingTop: 20,
-    paddingHorizontal: 20,
+    paddingTop: 4, // Reduced from 8
+    paddingHorizontal: 16,
     zIndex: 1,
     backgroundColor: Colors.background,
   },
   section: {
-    paddingVertical: 12,
+    paddingVertical: 8, // Reduced from 10
     marginBottom: 8,
     paddingHorizontal: 0,
   },
@@ -536,9 +675,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 6, // Reduced from 8
     paddingHorizontal: 0,
     backgroundColor: 'transparent',
+  },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   sectionTitle: {
     fontSize: 18,

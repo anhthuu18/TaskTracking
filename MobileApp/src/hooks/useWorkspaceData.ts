@@ -13,7 +13,9 @@ export interface WorkspaceStats {
   productivity: number;
 }
 
-export interface ProjectSummary {
+export interface ProjectSummary { 
+  createdAt?: Date;
+  numericId?: number;
   id: string;
   name: string;
   description: string;
@@ -22,6 +24,7 @@ export interface ProjectSummary {
   dueDate?: Date;
   memberCount: number;
   taskCount: number;
+  completedTaskCount: number;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   color: string;
 }
@@ -126,18 +129,18 @@ export const useWorkspaceData = (workspaceId: string) => {
       
       // Calculate task stats
       const totalTasks = tasks.length;
-      const completedTasks = tasks.filter(t => t.status === 'completed').length;
+      const completedTasks = tasks.filter(t => t.status === 'done').length;
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       
       const overdueTasks = tasks.filter(t => 
-        t.dueDate && t.dueDate < today && t.status !== 'completed'
+        t.dueDate && t.dueDate < today && t.status !== 'done'
       ).length;
       
       const dueTodayTasks = tasks.filter(t => 
-        t.dueDate && t.dueDate >= today && t.dueDate < tomorrow && t.status !== 'completed'
+        t.dueDate && t.dueDate >= today && t.dueDate < tomorrow && t.status !== 'done'
       ).length;
       
       const productivity = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
@@ -156,21 +159,34 @@ export const useWorkspaceData = (workspaceId: string) => {
 
       // Transform projects to ProjectSummary
       const projectSummaries: ProjectSummary[] = projects.map(project => {
-        const projectTasks = tasks.filter(t => t.projectId === project.id.toString());
-        const completedProjectTasks = projectTasks.filter(t => t.status === 'completed').length;
+        const projectTasks = tasks.filter(t => t.project === project.projectName);
+        const completedProjectTasks = projectTasks.filter(t => t.status === 'done').length;
         const progress = projectTasks.length > 0 ? Math.round((completedProjectTasks / projectTasks.length) * 100) : 0;
+        
+        // Convert ProjectStatus enum to string literal type
+        let status: 'active' | 'completed' | 'paused' = 'active';
+        if (project.status) {
+          if (project.status === 'completed' || project.status === 'paused') {
+            status = project.status;
+          }
+        }
+        
+        const createdAt: Date | undefined = project.dateCreated ? new Date(project.dateCreated) : undefined;
         
         return {
           id: project.id.toString(),
+          numericId: Number(project.id),
           name: project.projectName,
           description: project.description || '',
-          status: project.status || 'active',
+          status: status,
           progress,
-          dueDate: project.endDate ? new Date(project.endDate) : undefined,
-          memberCount: project.memberCount || 0,
+          dueDate: undefined, // Project doesn't have endDate in the type
+          memberCount: (project as any)?._count?.members ?? project.memberCount ?? 0,
           taskCount: projectTasks.length,
+          completedTaskCount: completedProjectTasks,
           priority: 'medium',
           color: getProjectColor(project.id),
+          createdAt,
         };
       });
 
@@ -179,11 +195,11 @@ export const useWorkspaceData = (workspaceId: string) => {
         id: task.id,
         title: task.title,
         description: task.description,
-        status: task.status === 'DONE' ? 'completed' : task.status === 'IN_PROGRESS' ? 'in_progress' : 'todo',
-        priority: task.priority === 'URGENT' ? 'urgent' : task.priority === 'HIGH' ? 'high' : task.priority === 'MEDIUM' ? 'medium' : 'low',
+        status: task.status === 'done' ? 'completed' : task.status === 'in_progress' ? 'in_progress' : 'todo',
+        priority: task.priority === 'urgent' ? 'urgent' : task.priority === 'high' ? 'high' : task.priority === 'medium' ? 'medium' : 'low',
         dueDate: task.dueDate,
         projectId: '1', // Default project ID since existing tasks don't have projectId
-        projectName: 'Default Project', // Default project name
+        projectName: task.project || 'Default Project', // Use task.project if available
         assigneeId: undefined,
         assigneeName: task.assignee,
         tags: task.tags || [],

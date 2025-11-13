@@ -27,3 +27,4 @@ export { default as CreateEventScreen } from './CreateEventScreen';
 export { default as CalendarScreen } from './CalendarScreen';
 export { default as CreateScreen } from './CreateScreen';
 export { default as SettingsScreen } from './SettingsScreen';
+export { default as ProjectSettingsScreen } from './ProjectSettingsScreen';

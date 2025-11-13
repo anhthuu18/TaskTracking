@@ -5,8 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Modal,
-  FlatList,
   ActivityIndicator,
   RefreshControl,
   StatusBar,
@@ -15,7 +13,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import { useTheme } from '../hooks/useTheme';
-import { Event } from '../types/Event';
+import { Task } from '../types/Task';
+import TaskCardModern from '../components/TaskCardModern';
+
+interface TimeTracking {
+  id: string;
+  taskId: string;
+  taskTitle: string;
+  startTime: Date;
+  endTime: Date;
+  duration: number; // in minutes
+}
+
+// Enriched type for rendering
+interface EnrichedTimeTracking extends TimeTracking {
+  task?: Task;
+}
 
 interface CalendarScreenProps {
   navigation?: any;
@@ -24,110 +37,139 @@ interface CalendarScreenProps {
 
 const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route }) => {
   const { colors } = useTheme();
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(false);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const passedTasks = route?.params?.tasks;
+  const passedTimeTrackings = route?.params?.timeTrackings;
+
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+  const [currentYear, setCurrentYear] = useState(today.getFullYear());
+  const [tasks, setTasks] = useState<Task[]>(passedTasks || []);
+  const [timeTrackings, setTimeTrackings] = useState<EnrichedTimeTracking[]>(passedTimeTrackings || []);
+  const [loading, setLoading] = useState(!passedTasks);
   const [refreshing, setRefreshing] = useState(false);
-  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
 
-  // Mock events data - replace with actual API call
+  // Load tasks and time trackings if not passed as props
   useEffect(() => {
-    loadEvents();
-  }, [selectedDate]);
+    if (!passedTasks) {
+      loadData();
+    }
+  }, [selectedDate, passedTasks]);
 
-  const loadEvents = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
-      // const response = await eventService.getEvents({ startDate: selectedDate });
-      // setEvents(response.data);
+      // TODO: Replace with actual API calls
+      // const tasksResponse = await taskService.getTasks();
+      // const trackingsResponse = await timeTrackingService.getTrackings();
       
-      // Mock events data for UI preview
-      const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const dayAfter = new Date(today);
-      dayAfter.setDate(dayAfter.getDate() + 2);
-      const nextWeek = new Date(today);
-      nextWeek.setDate(nextWeek.getDate() + 7);
+      // Mock tasks data with due dates
+      const mockToday = new Date();
+      mockToday.setHours(0, 0, 0, 0);
       
-      const mockEvents: Event[] = [
+      const mockTasks: Task[] = [
         {
           id: '1',
-          title: 'Team Meeting',
-          description: 'Weekly team sync meeting',
-          startDate: new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), 10, 0),
-          endDate: new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), 11, 0),
-          startTime: '10:00',
-          endTime: '11:00',
-          includeTime: true,
-          location: 'Conference Room A',
-          assignedMembers: ['1', '2'],
+          title: 'API Integration Testing',
+          description: 'Complete API integration and testing',
+          status: 'in_progress' as any,
+          priority: 'urgent' as any,
+          dueDate: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() + 1),
           createdAt: new Date(),
           updatedAt: new Date(),
+          assignee: 'John Doe',
+          project: 'Mobile App',
         },
         {
           id: '2',
-          title: 'Project Review',
-          description: 'Review project progress and milestones',
-          startDate: new Date(dayAfter.getFullYear(), dayAfter.getMonth(), dayAfter.getDate(), 14, 30),
-          endDate: new Date(dayAfter.getFullYear(), dayAfter.getMonth(), dayAfter.getDate(), 16, 0),
-          startTime: '14:30',
-          endTime: '16:00',
-          includeTime: true,
-          location: 'Virtual Meeting',
-          assignedMembers: ['1', '2', '3'],
+          title: 'UI Design Review',
+          description: 'Review and finalize UI designs',
+          status: 'todo' as any,
+          priority: 'high' as any,
+          dueDate: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() + 2),
           createdAt: new Date(),
           updatedAt: new Date(),
+          assignee: 'Jane Smith',
+          project: 'Mobile App',
         },
         {
           id: '3',
-          title: 'Sprint Planning',
-          description: 'Plan tasks for next sprint',
-          startDate: new Date(nextWeek.getFullYear(), nextWeek.getMonth(), nextWeek.getDate(), 9, 0),
-          endDate: new Date(nextWeek.getFullYear(), nextWeek.getMonth(), nextWeek.getDate(), 12, 0),
-          startTime: '09:00',
-          endTime: '12:00',
-          includeTime: true,
-          location: 'Office',
-          assignedMembers: ['1', '2', '3', '4'],
+          title: 'Database Optimization',
+          description: 'Optimize database queries',
+          status: 'in_progress' as any,
+          priority: 'medium' as any,
+          dueDate: mockToday,
           createdAt: new Date(),
           updatedAt: new Date(),
+          assignee: 'Bob Johnson',
+          project: 'Backend',
         },
         {
           id: '4',
-          title: 'Client Presentation',
-          description: 'Present project status to client',
-          startDate: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 15, 0),
-          endDate: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 16, 30),
-          startTime: '15:00',
-          endTime: '16:30',
-          includeTime: true,
-          location: 'Client Office',
-          assignedMembers: ['1', '2'],
+          title: 'Code Review',
+          description: 'Review pull requests',
+          status: 'done' as any,
+          priority: 'medium' as any,
+          dueDate: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 1),
           createdAt: new Date(),
           updatedAt: new Date(),
+          assignee: 'Alice Brown',
+          project: 'Backend',
         },
         {
           id: '5',
-          title: 'Workshop: Design System',
-          description: 'Learn about design system implementation',
-          startDate: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 13, 0),
-          endDate: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 17, 0),
-          startTime: '13:00',
-          endTime: '17:00',
-          includeTime: true,
-          location: 'Training Room',
-          assignedMembers: ['2', '3', '4', '5'],
+          title: 'Documentation Update',
+          description: 'Update project documentation',
+          status: 'todo' as any,
+          priority: 'low' as any,
+          dueDate: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() + 5),
           createdAt: new Date(),
           updatedAt: new Date(),
+          assignee: 'Charlie Wilson',
+          project: 'Documentation',
         },
       ];
-      setEvents(mockEvents);
+      
+      // Mock time tracking data for past dates
+      const rawMockTrackings: TimeTracking[] = [
+        {
+          id: '1',
+          taskId: '4',
+          taskTitle: 'Code Review',
+          startTime: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 1, 9, 0),
+          endTime: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 1, 11, 30),
+          duration: 150,
+        },
+        {
+          id: '2',
+          taskId: '4',
+          taskTitle: 'Code Review',
+          startTime: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 1, 14, 0),
+          endTime: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 1, 16, 0),
+          duration: 120,
+        },
+        {
+          id: '3',
+          taskId: '3',
+          taskTitle: 'Database Optimization',
+          startTime: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 2, 10, 0),
+          endTime: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 2, 13, 0),
+          duration: 180,
+        },
+      ];
+
+      // Enrich tracking data with full task details
+      const enrichedTrackings = rawMockTrackings.map(tracking => {
+        const task = mockTasks.find(t => t.id === tracking.taskId);
+        return { ...tracking, task };
+      });
+      
+      setTasks(mockTasks);
+      setTimeTrackings(enrichedTrackings);
     } catch (error) {
-      console.error('Error loading events:', error);
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -136,18 +178,23 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route }) =>
 
   const handleRefresh = () => {
     setRefreshing(true);
-    loadEvents();
+    loadData();
   };
 
-  const handleCreateEvent = () => {
-    if (navigation) {
-      navigation.navigate('CreateEvent', {
-        projectMembers: [],
-        projectId: undefined,
-      });
-    } else {
-      setShowCreateEventModal(true);
-    }
+  const isDateInPast = (date: Date) => {
+    const compareDate = new Date(date);
+    compareDate.setHours(0, 0, 0, 0);
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    return compareDate < todayDate;
+  };
+
+  const isDateToday = (date: Date) => {
+    const compareDate = new Date(date);
+    compareDate.setHours(0, 0, 0, 0);
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    return compareDate.getTime() === todayDate.getTime();
   };
 
   const getDaysInMonth = (month: number, year: number) => {
@@ -185,7 +232,7 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route }) =>
   };
 
   const getWeekdayName = (day: number) => {
-    const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     return weekdays[day];
   };
 
@@ -203,48 +250,60 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route }) =>
     
     // Add days of the month
     for (let day = 1; day <= daysInMonth; day++) {
-      const dayDate = new Date(currentYear, currentMonth, day);
+      const currentDate = new Date(currentYear, currentMonth, day);
+      currentDate.setHours(0, 0, 0, 0);
+      
       const isSelected = selectedDate.getDate() === day && 
                         selectedDate.getMonth() === currentMonth && 
                         selectedDate.getFullYear() === currentYear;
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const isToday = today.getDate() === day && 
                      today.getMonth() === currentMonth && 
                      today.getFullYear() === currentYear;
       
-      // Check if there are events on this day
-      const hasEvents = events.some(event => {
-        const eventDate = new Date(event.startDate);
-        return eventDate.getDate() === day &&
-               eventDate.getMonth() === currentMonth &&
-               eventDate.getFullYear() === currentYear;
+      // Check if there are tasks due on this day OR trackings (red dot for both)
+      const hasDueTasks = tasks.some(task => {
+        if (!task.dueDate) return false;
+        const taskDate = new Date(task.dueDate);
+        taskDate.setHours(0, 0, 0, 0);
+        return taskDate.getTime() === currentDate.getTime();
       });
+      
+      const hasTrackings = timeTrackings.some(tracking => {
+        const trackingDate = new Date(tracking.startTime);
+        trackingDate.setHours(0, 0, 0, 0);
+        return trackingDate.getTime() === currentDate.getTime();
+      });
+      
+      // Show red dot if there are tasks due OR trackings
+      const hasActivity = hasDueTasks || hasTrackings;
       
       days.push(
         <TouchableOpacity
           key={day}
-          style={[
-            styles.calendarDay,
-            isToday && styles.calendarDayToday,
-            isSelected && styles.calendarDaySelected
-          ]}
+          style={styles.calendarDay}
           onPress={() => {
             const newDate = new Date(currentYear, currentMonth, day);
             setSelectedDate(newDate);
           }}
         >
-          <Text style={[
-            styles.calendarDayText,
-            isSelected && styles.calendarDayTextSelected,
-            isToday && styles.calendarDayTextToday
+          <View style={[
+            styles.calendarDayInner,
+            isToday && styles.calendarDayToday,
+            isSelected && styles.calendarDaySelected
           ]}>
-            {day}
-          </Text>
-          {hasEvents && (
-            <View style={[
-              styles.eventDot,
-              isSelected && styles.eventDotSelected
-            ]} />
+            <Text style={[
+              styles.calendarDayText,
+              isSelected && styles.calendarDayTextSelected,
+              isToday && styles.calendarDayTextToday
+            ]}>
+              {day}
+            </Text>
+          </View>
+          {/* Show red dot for dates with activity (tasks or trackings) */}
+          {hasActivity && (
+            <View style={styles.activityDot} />
           )}
         </TouchableOpacity>
       );
@@ -262,23 +321,26 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route }) =>
     return days;
   };
 
-  const getEventsForSelectedDate = () => {
-    return events.filter(event => {
-      const eventDate = new Date(event.startDate);
-      return eventDate.getDate() === selectedDate.getDate() &&
-             eventDate.getMonth() === selectedDate.getMonth() &&
-             eventDate.getFullYear() === selectedDate.getFullYear();
+  const getTasksForSelectedDate = () => {
+    return tasks.filter(task => {
+      if (!task.dueDate) return false;
+      const taskDate = new Date(task.dueDate);
+      return taskDate.getDate() === selectedDate.getDate() &&
+             taskDate.getMonth() === selectedDate.getMonth() &&
+             taskDate.getFullYear() === selectedDate.getFullYear();
     });
   };
 
-  const formatEventTime = (event: Event) => {
-    if (event.includeTime && event.startTime) {
-      return event.startTime;
-    }
-    return '';
+  const getTrackingsForSelectedDate = () => {
+    return timeTrackings.filter(tracking => {
+      const trackingDate = new Date(tracking.startTime);
+      return trackingDate.getDate() === selectedDate.getDate() &&
+             trackingDate.getMonth() === selectedDate.getMonth() &&
+             trackingDate.getFullYear() === selectedDate.getFullYear();
+    });
   };
 
-  const formatEventDate = (date: Date) => {
+  const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
@@ -286,44 +348,124 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route }) =>
     });
   };
 
-  const renderEventItem = ({ item }: { item: Event }) => (
-    <TouchableOpacity style={styles.eventItem}>
-      <View style={styles.eventLeft}>
-        <View style={styles.eventTimeContainer}>
-          {item.includeTime && item.startTime && (
-            <Text style={styles.eventTime}>{item.startTime}</Text>
-          )}
-        </View>
-        <View style={styles.eventDivider} />
-      </View>
-      <View style={styles.eventContent}>
-        <Text style={styles.eventTitle}>{item.title}</Text>
-        {item.description && (
-          <Text style={styles.eventDescription} numberOfLines={2}>
-            {item.description}
-          </Text>
-        )}
-        <View style={styles.eventFooter}>
-          {item.location && (
-            <View style={styles.eventMeta}>
-              <MaterialIcons name="location-on" size={14} color={Colors.neutral.medium} />
-              <Text style={styles.eventMetaText}>{item.location}</Text>
-            </View>
-          )}
-          {item.assignedMembers.length > 0 && (
-            <View style={styles.eventMeta}>
-              <MaterialIcons name="people" size={14} color={Colors.neutral.medium} />
-              <Text style={styles.eventMetaText}>
-                {item.assignedMembers.length} member{item.assignedMembers.length > 1 ? 's' : ''}
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+
+
+  const renderTaskItem = (task: Task) => {
+    // Convert Task to TaskSummary format for TaskCardModern
+    const taskSummary = {
+      id: task.id,
+      title: task.title,
+      description: task.description || '',
+      status: task.status || 'todo',
+      priority: task.priority || 'medium',
+      dueDate: task.dueDate,
+      projectName: task.project || '',
+      assigneeName: task.assignee || '',
+      tags: task.tags || [],
+    };
+
+    return (
+      <TaskCardModern
+        key={task.id}
+        task={taskSummary as any}
+        onPress={() => {
+          // TODO: Navigate to task detail
+          console.log('Task pressed:', task.id);
+        }}
+        onTrackTime={() => {
+          // TODO: Handle time tracking
+          console.log('Track time for task:', task.id);
+        }}
+      />
+    );
+  };
+
+  const renderTrackingItem = (tracking: EnrichedTimeTracking) => {
+    // If we have the full task data, use TaskCardModern
+    if (tracking.task) {
+      const taskSummary = {
+        id: tracking.task.id,
+        title: tracking.task.title,
+        description: tracking.task.description || '',
+        status: tracking.task.status || 'todo',
+        priority: tracking.task.priority || 'medium',
+        dueDate: tracking.task.dueDate,
+        projectName: tracking.task.project || '',
+        assigneeName: tracking.task.assignee || '',
+        tags: tracking.task.tags || [],
+      };
+
+      return (
+        <View key={tracking.id} style={styles.trackingItemContainer}>
+          {/* Time Tracking Label */}
+          <View style={styles.trackingTimeLabel}>
+            <MaterialIcons name="schedule" size={16} color={Colors.primary} />
+            <Text style={styles.trackingTimeLabelText}>
+              {formatTime(tracking.startTime)} - {formatTime(tracking.endTime)}
+            </Text>
+            <View style={styles.trackingDurationBadge}>
+              <Text style={styles.trackingDurationBadgeText}>
+                {Math.floor(tracking.duration / 60)}h {tracking.duration % 60}m
               </Text>
             </View>
-          )}
+          </View>
+          
+          {/* Task Card */}
+          <TaskCardModern
+            task={taskSummary as any}
+            onPress={() => {
+              // TODO: Navigate to task detail
+              console.log('Tracking pressed:', tracking.id);
+            }}
+            onTrackTime={() => {
+              // TODO: Handle time tracking
+              console.log('Track time for task:', tracking.task?.id);
+            }}
+          />
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      );
+    }
 
-  const selectedDateEvents = getEventsForSelectedDate();
+    // Fallback to simple card if task data is not available
+    return (
+      <View key={tracking.id} style={styles.trackingItemContainer}>
+        {/* Time Tracking Label */}
+        <View style={styles.trackingTimeLabel}>
+          <MaterialIcons name="schedule" size={16} color={Colors.primary} />
+          <Text style={styles.trackingTimeLabelText}>
+            {formatTime(tracking.startTime)} - {formatTime(tracking.endTime)}
+          </Text>
+          <View style={styles.trackingDurationBadge}>
+            <Text style={styles.trackingDurationBadgeText}>
+              {Math.floor(tracking.duration / 60)}h {tracking.duration % 60}m
+            </Text>
+          </View>
+        </View>
+        
+        {/* Simple Task Card */}
+        <TouchableOpacity 
+          style={styles.trackingCard}
+          onPress={() => {
+            console.log('Tracking pressed:', tracking.id);
+          }}
+        >
+          <Text style={styles.trackingTaskTitle}>{tracking.taskTitle}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const selectedDateTasks = getTasksForSelectedDate();
+  const selectedDateTrackings = getTrackingsForSelectedDate();
+  const isPastDate = isDateInPast(selectedDate);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -339,21 +481,14 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route }) =>
           />
         }
       >
-        {/* Header with Create Event Button */}
+        {/* Header */}
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
             <Text style={[styles.title, { color: colors.text }]}>Calendar</Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Manage your schedule and events
+              {isPastDate ? 'View your tracked tasks' : 'Manage your tasks and deadlines'}
             </Text>
           </View>
-          <TouchableOpacity 
-            style={styles.createButtonSmall}
-            onPress={handleCreateEvent}
-          >
-            <MaterialIcons name="add" size={16} color={Colors.neutral.white} />
-            <Text style={styles.createButtonSmallText}>Create Event</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Calendar Grid */}
@@ -387,9 +522,11 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route }) =>
             {/* Weekday Headers */}
             <View style={styles.calendarHeaderRow}>
               {[0, 1, 2, 3, 4, 5, 6].map((day) => (
-                <Text key={day} style={[styles.weekdayHeader, { color: colors.textSecondary }]}>
-                  {getWeekdayName(day)}
-                </Text>
+                <View key={day} style={styles.weekdayHeaderContainer}>
+                  <Text style={[styles.weekdayHeader, { color: colors.textSecondary }]}>
+                    {getWeekdayName(day)}
+                  </Text>
+                </View>
               ))}
             </View>
 
@@ -403,41 +540,67 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route }) =>
         {/* Selected Date Display */}
         <View style={styles.selectedDateSection}>
           <Text style={[styles.selectedDateText, { color: colors.text }]}>
-            {formatEventDate(selectedDate)}
+            {formatDate(selectedDate)}
           </Text>
-          {selectedDateEvents.length > 0 && (
-            <Text style={[styles.eventCountText, { color: colors.textSecondary }]}>
-              {selectedDateEvents.length} event{selectedDateEvents.length > 1 ? 's' : ''}
-            </Text>
+          {isPastDate ? (
+            selectedDateTrackings.length > 0 && (
+              <Text style={[styles.itemCountText, { color: colors.textSecondary }]}>
+                {selectedDateTrackings.length} tracking{selectedDateTrackings.length > 1 ? 's' : ''}
+              </Text>
+            )
+          ) : (
+            selectedDateTasks.length > 0 && (
+              <Text style={[styles.itemCountText, { color: colors.textSecondary }]}>
+                {selectedDateTasks.length} task{selectedDateTasks.length > 1 ? 's' : ''}
+              </Text>
+            )
           )}
         </View>
 
-        {/* Events List - Filtered by selected date */}
-        <View style={styles.eventsSection}>
+        {/* Tasks or Trackings List - Based on selected date */}
+        <View style={styles.itemsSection}>
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={Colors.primary} />
             </View>
-          ) : selectedDateEvents.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <MaterialIcons name="event-busy" size={48} color={Colors.neutral.medium} />
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>No events</Text>
-              <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                No events scheduled for this date
-              </Text>
-            </View>
+          ) : isPastDate ? (
+            // Show time trackings for past dates
+            selectedDateTrackings.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <MaterialIcons name="history" size={48} color={Colors.neutral.medium} />
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>No tracking history</Text>
+                <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                  No tasks were tracked on this date
+                </Text>
+              </View>
+            ) : (
+              <ScrollView 
+                style={styles.itemsScrollView}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
+                {selectedDateTrackings.map((tracking) => renderTrackingItem(tracking))}
+              </ScrollView>
+            )
           ) : (
-            <ScrollView 
-              style={styles.eventsScrollView}
-              showsVerticalScrollIndicator={true}
-              nestedScrollEnabled={true}
-            >
-              {selectedDateEvents.map((event) => (
-                <View key={event.id}>
-                  {renderEventItem({ item: event })}
-                </View>
-              ))}
-            </ScrollView>
+            // Show tasks due for current/future dates
+            selectedDateTasks.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <MaterialIcons name="check-circle" size={48} color={Colors.neutral.medium} />
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>No tasks due</Text>
+                <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                  No tasks are due on this date
+                </Text>
+              </View>
+            ) : (
+              <ScrollView 
+                style={styles.itemsScrollView}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
+                {selectedDateTasks.map((task) => renderTaskItem(task))}
+              </ScrollView>
+            )
           )}
         </View>
       </ScrollView>
@@ -544,63 +707,70 @@ const styles = StyleSheet.create({
   },
   calendarHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start', // Match calendarDays alignment
     marginBottom: 12,
-    paddingHorizontal: 2,
+    paddingHorizontal: 4,
+  },
+  weekdayHeaderContainer: {
+    width: '14.28%',
+    alignItems: 'center',
   },
   weekdayHeader: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
-    width: 32,
-    textAlign: 'center',
     color: Colors.neutral.medium,
   },
   calendarDays: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingHorizontal: 2,
+    justifyContent: 'flex-start',
+    paddingHorizontal: 4,
   },
   calendarDay: {
-    width: 32,
-    height: 32,
+    width: '14.28%', // 100% / 7 days = 14.28%
+    aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 3,
-    borderRadius: 16,
+    marginVertical: 2,
     position: 'relative',
+  },
+  calendarDayInner: {
+    width: 34,
+    height: 34,
+    borderRadius: 17, // Half of width/height for perfect circle
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   calendarDaySelected: {
     backgroundColor: Colors.primary + '20',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: Colors.primary,
+    borderRadius: 17, // Match inner container
   },
   calendarDayToday: {
     backgroundColor: Colors.neutral.light,
+    borderRadius: 17, // Match inner container
   },
   calendarDayText: {
-    fontSize: 12,
+    fontSize: 13,
     color: Colors.text,
     fontWeight: '500',
   },
   calendarDayTextSelected: {
     color: Colors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   calendarDayTextToday: {
     color: Colors.neutral.dark,
     fontWeight: '600',
   },
-  eventDot: {
+  activityDot: {
     position: 'absolute',
-    bottom: 4,
-    width: 4,
+    bottom: 2,
+    width: 4  ,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.primary,
-  },
-  eventDotSelected: {
-    backgroundColor: Colors.neutral.white,
+    backgroundColor: Colors.semantic.error,
   },
   selectedDateSection: {
     flexDirection: 'row',
@@ -614,14 +784,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  eventCountText: {
+  itemCountText: {
     fontSize: 13,
   },
-  eventsSection: {
+  itemsSection: {
     flex: 1,
     paddingHorizontal: 20,
   },
-  eventsScrollView: {
+  itemsScrollView: {
     maxHeight: 400,
   },
   loadingContainer: {
@@ -643,61 +813,58 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  eventItem: {
+  
+  // New Tracking Card Styles
+  trackingItemContainer: {
+    marginBottom: 16,
+  },
+  trackingTimeLabel: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
-  },
-  eventLeft: {
     alignItems: 'center',
-    marginRight: 16,
+    backgroundColor: Colors.primary + '10',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    gap: 8,
   },
-  eventTimeContainer: {
-    minWidth: 50,
-  },
-  eventTime: {
+  trackingTimeLabelText: {
     fontSize: 14,
     fontWeight: '600',
     color: Colors.primary,
-  },
-  eventDivider: {
     flex: 1,
-    width: 2,
+  },
+  trackingDurationBadge: {
     backgroundColor: Colors.primary,
-    marginVertical: 8,
-    borderRadius: 1,
+    borderRadius: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
   },
-  eventContent: {
-    flex: 1,
+  trackingDurationBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.neutral.white,
   },
-  eventTitle: {
+  trackingCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light + '60',
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  trackingTaskTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  eventDescription: {
-    fontSize: 14,
-    color: Colors.neutral.medium,
-    marginBottom: 8,
-  },
-  eventFooter: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  eventMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  eventMetaText: {
-    fontSize: 12,
-    color: Colors.neutral.medium,
+    color: Colors.neutral.dark,
   },
 });
 

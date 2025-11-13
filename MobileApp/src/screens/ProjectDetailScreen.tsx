@@ -7,18 +7,20 @@ import {
   ScrollView,
   ActivityIndicator,
   Modal,
+  TextInput,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import { Project, ProjectMember, ProjectMemberRole } from '../types/Project';
-import { MemberRole } from '../types/Workspace';
+import { MemberRole, WorkspaceMember } from '../types/Workspace';
 import { Task } from '../types/Task';
-import { CreateTaskEventDropdown, CreateProjectModal, MemberSortDropdown, AddMemberModal, ProjectSettingModal, SwipeableMemberCard, TaskFilterDropdown, TaskCardModern } from '../components';
+import { CreateProjectModal, MemberSortDropdown, AddMemberModal, ProjectSettingModal, SwipeableMemberCard, TaskCardModern, CreateOptionsModal, TaskDetailModal } from '../components';
+import type { CreateOption } from '../components/CreateOptionsModal';
+import CalendarScreen from './CalendarScreen';
 import ProjectNotificationModal from '../components/ProjectNotificationModal';
-import { projectService } from '../services';
-import { mockProject, mockTasks } from '../services/sharedMockData';
+import { projectService, workspaceService } from '../services';
+import { mockProject, mockTasks, mockProjectMembers, mockWorkspaceMembers } from '../services/sharedMockData';
 import { getRoleColor } from '../styles/cardStyles';
-import { Event } from '../types/Event';
 
 interface ProjectDetailScreenProps {
   navigation: any;
@@ -31,20 +33,19 @@ interface ProjectDetailScreenProps {
 
 const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, route }) => {
   const initialProject = route.params?.project;
-  const [project, setProject] = useState<Project | null>(initialProject);
+  const [project, setProject] = useState<Project | null>(initialProject || mockProject);
   const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [showCreateDropdown, setShowCreateDropdown] = useState(false);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [showMemberSort, setShowMemberSort] = useState(false);
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'tasks' | 'members' | 'calendar'>('tasks');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [events, setEvents] = useState<Event[]>([]);
-  const [workspaceMembers, setWorkspaceMembers] = useState<ProjectMember[]>([]);
+  const [activeTab, setActiveTab] = useState<'tasks' | 'members' | 'calendar' | 'settings'>('tasks');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTaskFilter, setActiveTaskFilter] = useState<'All' | 'Upcoming' | 'Overdue' | 'Completed'>('All');
+
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
   
   // Member management modals
   const [showEditRoleModal, setShowEditRoleModal] = useState(false);
@@ -56,77 +57,73 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
   const [showProjectNotificationModal, setShowProjectNotificationModal] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const [showProjectSettingModal, setShowProjectSettingModal] = useState(false);
-  const [showTaskFilter, setShowTaskFilter] = useState(false);
-  const [taskFilter, setTaskFilter] = useState({ priority: 'All', dueDate: 'All', assigneeId: null } as any);
 
-  const getFilteredTasks = () => {
-    const tasks = projectTasks;
-    const now = new Date();
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 7);
-
-    return tasks.filter((t) => {
-      // priority
-      if (taskFilter.priority !== 'All') {
-        const p = String(t.priority || '').toLowerCase();
-        const want = String(taskFilter.priority || '').toLowerCase();
-        if (p !== want) return false;
-      }
-      // assignee
-      if (taskFilter.assigneeId) {
-        if (String(t.assignee || '') !== String(taskFilter.assigneeId)) return false;
-      }
-      // due date
-      const due = t.dueDate ? new Date(t.dueDate) : null;
-      switch (taskFilter.dueDate) {
-        case 'Overdue':
-          if (!(due && due < new Date(now.getFullYear(), now.getMonth(), now.getDate()))) return false;
-          break;
-        case 'Today':
-          if (!(due && due.toDateString() === new Date().toDateString())) return false;
-          break;
-        case 'Tomorrow': {
-          const tm = new Date();
-          tm.setDate(tm.getDate() + 1);
-          if (!(due && due.toDateString() === tm.toDateString())) return false;
-          break;
-        }
-        case 'ThisWeek':
-          if (!(due && due >= startOfWeek && due < endOfWeek)) return false;
-          break;
-        case 'NextWeek': {
-          const ns = new Date(endOfWeek);
-          const ne = new Date(endOfWeek);
-          ne.setDate(ne.getDate() + 7);
-          if (!(due && due >= ns && due < ne)) return false;
-          break;
-        }
-        case 'NoDue':
-          if (due) return false;
-          break;
-        default:
-          break;
-      }
-      return true;
-    });
-  };
+  // Task Detail Modal
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isTaskDetailVisible, setIsTaskDetailVisible] = useState(false);
 
   // Mock: Set current user as admin for testing
   const isCurrentUserAdmin = true;
 
+  const handleCreateOptionSelect = (optionId: CreateOption) => {
+    setShowCreateDropdown(false);
+
+    switch (optionId) {
+      case 'task':
+        navigation.navigate('CreateTask', { projectMembers, projectId: String(project.id) });
+        break;
+      case 'project':
+        setShowCreateProjectModal(true);
+        break;
+      case 'workspace':
+        navigation.navigate('CreateWorkspace');
+        break;
+      case 'voice':
+        // TODO: Implement voice feature
+        console.log('Voice feature coming soon!');
+        break;
+      default:
+        console.log(`Creating ${optionId}`);
+    }
+  };
+
   useEffect(() => {
     if (initialProject?.id) {
-      setLoading(true);
-      Promise.all([
-        loadProjectDetails(initialProject.id),
-        loadNotificationCount(),
-      ]).finally(() => {
-        // Keep using mock data for tasks for now
-        setProjectTasks(mockTasks);
-        setLoading(false);
-      });
+      const loadAll = async () => {
+        try {
+          setLoading(true);
+          await Promise.all([
+            loadProjectDetails(initialProject.id),
+            loadNotificationCount(),
+          ]);
+          // Keep tasks as mock data for now
+          setProjectTasks(mockTasks);
+          // Load real project members
+          try {
+            const membersRes = await projectService.getProjectMembers(Number(initialProject.id));
+            if (membersRes?.success && membersRes.data) {
+              setProjectMembers(membersRes.data as any);
+            }
+          } catch (e) {
+            console.error('Failed to load project members:', e);
+          }
+          // Load workspace members for AddMember modal mapping
+          try {
+            const wsId = Number((initialProject as any)?.workspaceId || (project as any)?.workspaceId);
+            if (wsId && !isNaN(wsId)) {
+              const wsMembersRes = await workspaceService.getWorkspaceMembers(wsId);
+              if (wsMembersRes?.success && wsMembersRes.data) {
+                setWorkspaceMembers(wsMembersRes.data as any);
+              }
+            }
+          } catch (e) {
+            console.error('Failed to load workspace members:', e);
+          }
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadAll();
     }
   }, [initialProject?.id]);
 
@@ -161,13 +158,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     }
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      month: '2-digit',
-      day: '2-digit',
-      year: 'numeric',
-    });
-  };
+
 
 
   // Member management functions
@@ -288,251 +279,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     );
   };
 
-  // Calendar helper functions
-  const getDaysInMonth = (month: number, year: number) => {
-    return new Date(year, month + 1, 0).getDate();
-  };
 
-  const getFirstDayOfMonth = (month: number, year: number) => {
-    return new Date(year, month, 1).getDay();
-  };
-
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    if (direction === 'prev') {
-      if (currentMonth === 0) {
-        setCurrentMonth(11);
-        setCurrentYear(currentYear - 1);
-      } else {
-        setCurrentMonth(currentMonth - 1);
-      }
-    } else {
-      if (currentMonth === 11) {
-        setCurrentMonth(0);
-        setCurrentYear(currentYear + 1);
-      } else {
-        setCurrentMonth(currentMonth + 1);
-      }
-    }
-  };
-
-  const getMonthName = (month: number) => {
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    return months[month];
-  };
-
-  const getWeekdayName = (day: number) => {
-    const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-    return weekdays[day];
-  };
-
-  const getEventsForSelectedDate = () => {
-    return mockEvents.filter(event => {
-      const eventDate = new Date(event.startDate);
-      return eventDate.getDate() === selectedDate.getDate() &&
-             eventDate.getMonth() === selectedDate.getMonth() &&
-             eventDate.getFullYear() === selectedDate.getFullYear();
-    });
-  };
-
-  const formatEventDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const renderCalendarDays = () => {
-    const daysInMonth = getDaysInMonth(currentMonth, currentYear);
-    const firstDay = getFirstDayOfMonth(currentMonth, currentYear);
-    const days = [];
-    
-    // Add empty cells for days before the first day of the month
-    for (let i = 0; i < firstDay; i++) {
-      days.push(
-        <View key={`empty-${i}`} style={styles.calendarDay} />
-      );
-    }
-    
-    // Add days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      const isSelected = selectedDate.getDate() === day && 
-                        selectedDate.getMonth() === currentMonth && 
-                        selectedDate.getFullYear() === currentYear;
-      const today = new Date();
-      const isToday = today.getDate() === day && 
-                     today.getMonth() === currentMonth && 
-                     today.getFullYear() === currentYear;
-      
-      // Check if there are events on this day
-      const hasEvents = mockEvents.some(event => {
-        const eventDate = new Date(event.startDate);
-        return eventDate.getDate() === day &&
-               eventDate.getMonth() === currentMonth &&
-               eventDate.getFullYear() === currentYear;
-      });
-      
-      days.push(
-        <TouchableOpacity
-          key={day}
-          style={[
-            styles.calendarDay,
-            isToday && styles.calendarDayToday,
-            isSelected && styles.calendarDaySelected
-          ]}
-          onPress={() => {
-            const newDate = new Date(currentYear, currentMonth, day);
-            setSelectedDate(newDate);
-          }}
-        >
-          <Text style={[
-            styles.calendarDayText,
-            isSelected && styles.calendarDayTextSelected,
-            isToday && styles.calendarDayTextToday
-          ]}>
-            {day}
-          </Text>
-          {hasEvents && (
-            <View style={[
-              styles.eventDot,
-              isSelected && styles.eventDotSelected
-            ]} />
-          )}
-        </TouchableOpacity>
-      );
-    }
-    
-    return days;
-  };
-
-  const renderCalendarTab = () => {
-    const selectedDateEvents = getEventsForSelectedDate();
-    
-    return (
-      <ScrollView style={styles.calendarTabContent} showsVerticalScrollIndicator={false}>
-        {/* Create Event Button */}
-        <TouchableOpacity 
-          style={styles.createEventButtonModern}
-          onPress={() => navigation.navigate('CreateEvent', { 
-            projectMembers: projectMembers, 
-            projectId: String(project.id) 
-          })}
-        >
-          <MaterialIcons name="add" size={16} color={Colors.neutral.white} />
-          <Text style={styles.createEventButtonModernText}>Create Event</Text>
-        </TouchableOpacity>
-
-        {/* Calendar Grid */}
-        <View style={styles.calendarContainerModern}>
-          {/* Calendar Header */}
-          <View style={styles.calendarHeaderModern}>
-            <TouchableOpacity 
-              onPress={() => navigateMonth('prev')}
-              style={styles.navButton}
-            >
-              <MaterialIcons name="chevron-left" size={20} color={Colors.neutral.dark} />
-            </TouchableOpacity>
-            <View style={styles.calendarTitleContainer}>
-              <Text style={styles.calendarTitleModern}>
-                {getMonthName(currentMonth)}
-              </Text>
-              <Text style={styles.calendarYearModern}>
-                {currentYear}
-              </Text>
-            </View>
-            <TouchableOpacity 
-              onPress={() => navigateMonth('next')}
-              style={styles.navButton}
-            >
-              <MaterialIcons name="chevron-right" size={20} color={Colors.neutral.dark} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Calendar Grid */}
-          <View style={styles.calendarGrid}>
-            {/* Weekday Headers */}
-            <View style={styles.calendarHeaderRow}>
-              {[0, 1, 2, 3, 4, 5, 6].map((day) => (
-                <Text key={day} style={styles.weekdayHeader}>
-                  {getWeekdayName(day)}
-                </Text>
-              ))}
-            </View>
-
-            {/* Calendar Days */}
-            <View style={styles.calendarDaysContainer}>
-              {renderCalendarDays()}
-            </View>
-          </View>
-        </View>
-
-        {/* Selected Date Display */}
-        <View style={styles.selectedDateSection}>
-          <Text style={styles.selectedDateText}>
-            {formatEventDate(selectedDate)}
-          </Text>
-          {selectedDateEvents.length > 0 && (
-            <Text style={styles.eventCountText}>
-              {selectedDateEvents.length} event{selectedDateEvents.length > 1 ? 's' : ''}
-            </Text>
-          )}
-        </View>
-
-        {/* Events List */}
-        <View style={styles.eventsSection}>
-          {selectedDateEvents.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <MaterialIcons name="event-busy" size={48} color={Colors.neutral.medium} />
-              <Text style={styles.emptyTitle}>No events</Text>
-              <Text style={styles.emptySubtitle}>
-                No events scheduled for this date
-              </Text>
-            </View>
-          ) : (
-            selectedDateEvents.map((event) => (
-              <TouchableOpacity key={event.id} style={styles.eventItemModern}>
-                <View style={styles.eventLeft}>
-                  <View style={styles.eventTimeContainer}>
-                    {event.includeTime && event.startTime && (
-                      <Text style={styles.eventTime}>{event.startTime}</Text>
-                    )}
-                  </View>
-                  <View style={styles.eventDivider} />
-                </View>
-                <View style={styles.eventContent}>
-                  <Text style={styles.eventTitle}>{event.title}</Text>
-                  {event.description && (
-                    <Text style={styles.eventDescription} numberOfLines={2}>
-                      {event.description}
-                    </Text>
-                  )}
-                  <View style={styles.eventFooter}>
-                    {event.location && (
-                      <View style={styles.eventMeta}>
-                        <MaterialIcons name="location-on" size={14} color={Colors.neutral.medium} />
-                        <Text style={styles.eventMetaText}>{event.location}</Text>
-                      </View>
-                    )}
-                    {event.assignedMembers.length > 0 && (
-                      <View style={styles.eventMeta}>
-                        <MaterialIcons name="people" size={14} color={Colors.neutral.medium} />
-                        <Text style={styles.eventMetaText}>
-                          {event.assignedMembers.length} member{event.assignedMembers.length > 1 ? 's' : ''}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-      </ScrollView>
-    );
-  };
 
   const renderTaskCard = (task: Task) => {
     // Convert Task to TaskSummary format for TaskCardModern
@@ -555,8 +302,8 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         key={task.id}
         task={taskSummary as any}
         onPress={() => {
-          // TODO: Navigate to task detail
-          console.log('Task pressed:', task.id);
+          setSelectedTask(task);
+          setIsTaskDetailVisible(true);
         }}
         onStatusPress={() => {
           // TODO: Handle status change
@@ -581,46 +328,83 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
 
   const renderTabContent = () => {
     if (activeTab === 'tasks') {
+      const filteredTasks = projectTasks.filter(task => {
+        const matchesSearch = 
+          task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (task.description && task.description.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        if (!matchesSearch) return false;
+
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
+        switch (activeTaskFilter) {
+          case 'Upcoming':
+            return task.status !== 'done' && task.dueDate && new Date(task.dueDate) >= now;
+          case 'Overdue':
+            return task.status !== 'done' && task.dueDate && new Date(task.dueDate) < now;
+          case 'Completed':
+            return task.status === 'done';
+          case 'All':
+          default:
+            return true;
+        }
+      });
+
       return (
         <View style={styles.tabContent}>
-          {/* Single filter chip */}
-          <View style={styles.filterBar}>
-            <TouchableOpacity style={styles.filterChip} onPress={() => setShowTaskFilter(true)}>
-              <MaterialIcons name="filter-alt" size={16} color={Colors.primary} />
-              <Text style={styles.filterChipText}>Filter</Text>
-            </TouchableOpacity>
+          <View style={styles.taskHeader}>
+            <View style={styles.taskSearchContainer}>
+              <MaterialIcons name="search" size={22} color={Colors.neutral.medium} style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search tasks..."
+                placeholderTextColor={Colors.neutral.medium}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
+            <View style={styles.taskFilterContainer}>
+              {(['All', 'Upcoming', 'Overdue', 'Completed'] as const).map((filter) => (
+                <TouchableOpacity
+                  key={filter}
+                  style={[
+                    styles.filterChip,
+                    activeTaskFilter === filter && styles.activeFilterChip,
+                  ]}
+                  onPress={() => setActiveTaskFilter(filter)}
+                >
+                  <Text style={[
+                    styles.filterChipText,
+                    activeTaskFilter === filter && styles.activeFilterChipText,
+                  ]}>{filter}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-          {projectTasks.length === 0 ? (
+
+          {filteredTasks.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <MaterialIcons name="assignment" size={32} color={Colors.neutral.medium} />
-              <Text style={styles.emptyTitle}>No tasks found</Text>
-              <Text style={styles.emptySubtitle}>Create your first task to get started</Text>
+              <MaterialIcons name="search-off" size={32} color={Colors.neutral.medium} />
+              <Text style={styles.emptyTitle}>No tasks match</Text>
+              <Text style={styles.emptySubtitle}>Try adjusting your search or filter</Text>
             </View>
           ) : (
-            (() => {
-              const filtered = getFilteredTasks();
-              if (filtered.length === 0) {
-                return (
-                  <View style={styles.emptyContainer}>
-                    <MaterialIcons name="filter-list" size={32} color={Colors.neutral.medium} />
-                    <Text style={styles.emptyTitle}>No tasks match current filters</Text>
-                    <TouchableOpacity style={styles.clearFilterBtn} onPress={() => setTaskFilter({ priority: 'All', dueDate: 'All', assigneeId: null } as any)}>
-                      <Text style={styles.clearFilterText}>Clear filter</Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              }
-              return (
             <View style={styles.tasksList}>
-              {filtered.map((task) => renderTaskCard(task))}
+              {filteredTasks.map((task) => renderTaskCard(task))}
             </View>
-              );
-            })()
           )}
         </View>
       );
     } else if (activeTab === 'calendar') {
-      return renderCalendarTab();
+      // Filter tasks to only this project
+      const projectTasksForCalendar = projectTasks.filter(t => !t.project || t.project === project.projectName);
+      return (
+        <CalendarScreen
+          navigation={navigation}
+          route={{ params: { tasks: projectTasksForCalendar, timeTrackings: [] } }}
+        />
+      );
     } else {
       return (
         <View style={styles.tabContent}>
@@ -665,123 +449,111 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="keyboard-arrow-left" size={24} color={Colors.neutral.dark} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Project detail</Text>
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={() => setShowDropdown(true)}
-        >
-          <MaterialIcons name="add" size={24} color={Colors.surface} />
-        </TouchableOpacity>
-      </View>
-
-        {/* Project Info */}
-        <View style={styles.projectInfo}>
-          <View style={styles.projectHeader}>
-          <View style={styles.projectLeft}>
-              <Text style={styles.projectTitle}>{project.projectName}</Text>
-            </View>
-          <View style={styles.projectActions}>
+      {/* Header - only show on Tasks tab */}
+      {activeTab === 'tasks' && (
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <MaterialIcons name="keyboard-arrow-left" size={32} color={Colors.neutral.dark} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{project?.projectName || 'Project Detail'}</Text>
+          <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.notificationButton}
               onPress={() => {
                 setShowProjectNotificationModal(true);
               }}
             >
-              <MaterialIcons name="notifications" size={24} color={Colors.neutral.dark} />
-              {/* Notification badge */}
+              <MaterialIcons name="notifications" size={28} color={Colors.neutral.dark} />
               {notificationCount > 0 && (
                 <View style={styles.notificationBadge}>
                   <Text style={styles.notificationBadgeText}>{notificationCount}</Text>
                 </View>
               )}
             </TouchableOpacity>
-            {isCurrentUserAdmin && (
-            <TouchableOpacity 
-              style={styles.moreActionsButton}
-                onPress={() => setShowProjectSettingModal(true)}
-            >
-              <MaterialIcons name="more-vert" size={24} color={Colors.neutral.dark} />
-            </TouchableOpacity>
-            )}
           </View>
-            </View>
         </View>
-
-        {/* Tabs */}
-        <View style={styles.tabSection}>
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'tasks' && styles.activeTabButton]}
-            onPress={() => setActiveTab('tasks')}
-          >
-            <Text style={[styles.tabButtonText, activeTab === 'tasks' && styles.activeTabButtonText]}>
-              All Tasks
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'calendar' && styles.activeTabButton]}
-            onPress={() => setActiveTab('calendar')}
-          >
-            <Text style={[styles.tabButtonText, activeTab === 'calendar' && styles.activeTabButtonText]}>
-              Calendar
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'members' && styles.activeTabButton]}
-            onPress={() => setActiveTab('members')}
-          >
-            <Text style={[styles.tabButtonText, activeTab === 'members' && styles.activeTabButtonText]}>
-              Members
-            </Text>
-          </TouchableOpacity>
-        </View>
+      )}
 
         {/* Tab Content */}
       <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={true}>
         {renderTabContent()}
       </ScrollView>
 
-      {/* Create Task/Event Dropdown */}
-      <CreateTaskEventDropdown
-        visible={showDropdown}
-        onClose={() => setShowDropdown(false)}
-        onCreateTask={() => navigation.navigate('CreateTask', { 
-          projectMembers: projectMembers, 
-          projectId: String(project.id) 
-        })}
-        onCreateEvent={() => navigation.navigate('CreateEvent', { 
-          projectMembers: projectMembers, 
-          projectId: String(project.id) 
-        })}
+      {/* Footer Tab Navigator */}
+      <View style={styles.footerTabSection}>
+        <TouchableOpacity
+          style={styles.footerTabButton}
+          onPress={() => setActiveTab('tasks')}
+        >
+          <MaterialIcons name="assignment" size={24} color={activeTab === 'tasks' ? Colors.primary : Colors.neutral.medium} />
+          <Text style={[styles.footerTabButtonText, activeTab === 'tasks' && styles.activeFooterTabButtonText]}>
+            Tasks
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.footerTabButton}
+          onPress={() => setActiveTab('calendar')}
+        >
+          <MaterialIcons name="event" size={24} color={activeTab === 'calendar' ? Colors.primary : Colors.neutral.medium} />
+          <Text style={[styles.footerTabButtonText, activeTab === 'calendar' && styles.activeFooterTabButtonText]}>
+            Calendar
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.footerTabButton}
+          onPress={() => setShowCreateDropdown(true)}
+        >
+          <MaterialIcons name="add" size={24} color={Colors.neutral.medium} />
+          <Text style={styles.footerTabButtonText}>
+            Create
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.footerTabButton}
+          onPress={() => setActiveTab('members')}
+        >
+          <MaterialIcons name="group" size={24} color={activeTab === 'members' ? Colors.primary : Colors.neutral.medium} />
+          <Text style={[styles.footerTabButtonText, activeTab === 'members' && styles.activeFooterTabButtonText]}>
+            Members
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.footerTabButton}
+          onPress={() => {
+            navigation.navigate('ProjectSettings', { project });
+          }}
+        >
+          <MaterialIcons name="settings" size={24} color={Colors.neutral.medium} />
+          <Text style={styles.footerTabButtonText}>Settings</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Create Options Modal */}
+      <CreateOptionsModal
+        visible={showCreateDropdown}
+        onClose={() => setShowCreateDropdown(false)}
+        onOptionSelect={handleCreateOptionSelect}
+        allowedOptions={['voice','task']}
       />
 
       {/* Create Project Modal */}
       <CreateProjectModal
         visible={showCreateProjectModal}
         onClose={() => setShowCreateProjectModal(false)}
-        onProjectCreated={(project: any) => {
+        workspaceId={Number(project?.workspaceId || route?.params?.project?.workspaceId || 0)}
+        onProjectCreated={() => {
           setShowCreateProjectModal(false);
-          console.log('Project created:', project);
         }}
       />
 
       {/* Create Task and Event are now separate screens */}
-
-      {/* Task Filter Dropdown */}
-      <TaskFilterDropdown
-        visible={showTaskFilter}
-        onClose={() => setShowTaskFilter(false)}
-        value={taskFilter}
-        onChange={setTaskFilter}
-        assignees={projectMembers.map(m => ({ id: String(m.user.id), name: m.user.username }))}
-      />
 
       {/* Member Sort Dropdown */}
       <MemberSortDropdown
@@ -943,6 +715,23 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         isAdmin={isCurrentUserAdmin}
       />
 
+      {/* Task Detail Modal */}
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask as any}
+          visible={isTaskDetailVisible}
+          onClose={() => setIsTaskDetailVisible(false)}
+          onUpdateTask={(updatedTask) => {
+            setProjectTasks(prevTasks => 
+              prevTasks.map(t => t.id === updatedTask.id ? updatedTask as Task : t)
+            );
+          }}
+          onDeleteTask={(taskId) => {
+            setProjectTasks(prevTasks => prevTasks.filter(t => t.id !== taskId));
+          }}
+        />
+      )}
+
     </View>
   );
 };
@@ -956,59 +745,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     paddingTop: 60,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral.light,
   },
   backButton: {
-    padding: 8,
+    padding: 4,
+    marginRight: 8,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '700',
     color: Colors.neutral.dark,
+    marginRight: 12,
   },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.primary,
+  headerActions: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    gap: 12,
   },
   content: {
     flex: 1,
-  },
-  projectInfo: {
-    padding: 12,
-    backgroundColor: Colors.surface,
-  },
-  titleSection: {
-    flex: 1,
-  },
-  projectTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.neutral.dark,
-    marginBottom: 4,
-  },
-  adminText: {
-    fontSize: 14,
-    color: Colors.neutral.medium,
-    fontWeight: '500',
-  },
-  projectHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   moreActionsButton: {
     padding: 4,
@@ -1122,43 +883,72 @@ const styles = StyleSheet.create({
     color: Colors.neutral.medium,
     textAlign: 'center',
   },
-  clearFilterBtn: {
-    marginTop: 12,
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  clearFilterText: {
-    color: Colors.surface,
-    fontWeight: '600',
-  },
-  tabSection: {
+
+  footerTabSection: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
+    justifyContent: 'space-around',
+    alignItems: 'center',
     paddingVertical: 8,
     backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.light,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral.light,
+    paddingBottom: 20, // Safe area for home indicator
   },
-  tabButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 12,
+  footerTabButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
   },
-  activeTabButton: {
-    backgroundColor: Colors.primary + '20',
-  },
-  tabButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
+  footerTabButtonText: {
+    fontSize: 12,
     color: Colors.neutral.medium,
+    marginTop: 4,
   },
-  activeTabButtonText: {
+  activeFooterTabButtonText: {
     color: Colors.primary,
     fontWeight: '600',
   },
+
+  // Tasks tab header (search + filters)
+  taskHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 6,
+    backgroundColor: Colors.background,
+  },
+  taskSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 10,
+  },
+  searchIcon: {
+    marginRight: 6,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.neutral.dark,
+    paddingVertical: 4,
+  },
+  taskFilterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  activeFilterChip: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  activeFilterChipText: {
+    color: Colors.neutral.white,
+  },
+
   tabContent: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -1192,35 +982,27 @@ const styles = StyleSheet.create({
   filterClearIcon: {
     marginLeft: 4,
   },
-  projectLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  projectActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   notificationButton: {
-    padding: 8,
+    padding: 4,
     position: 'relative',
   },
   notificationBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: 2,
+    right: 2,
     backgroundColor: Colors.error,
     borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    minWidth: 18,
+    height: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
+    borderWidth: 2,
+    borderColor: Colors.surface,
   },
   notificationBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     color: Colors.surface,
   },
   membersSection: {
@@ -1537,285 +1319,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  // Calendar tab styles
-  calendarHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  createEventButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    gap: 6,
-  },
-  createEventButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.surface,
-  },
-  calendarDatePickerContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 12,
-  },
-  compactDatePickerWrapper: {
-    width: '80%',
-  },
-  eventsList: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 12,
-  },
-  eventCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
-    shadowColor: Colors.neutral.dark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  eventCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  eventCardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  eventCardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.neutral.dark,
-    flex: 1,
-  },
-  eventCardBody: {
-    gap: 8,
-  },
-  eventCardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  eventCardText: {
-    fontSize: 14,
-    color: Colors.neutral.medium,
-    flex: 1,
-  },
-  // Modern Calendar Styles
-  calendarTabContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  createEventButtonModern: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    gap: 4,
-    alignSelf: 'flex-end',
-    marginBottom: 16,
-  },
-  createEventButtonModernText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.neutral.white,
-  },
-  calendarContainerModern: {
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    backgroundColor: Colors.surface,
-    shadowColor: Colors.neutral.dark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light + '40',
-  },
-  calendarHeaderModern: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.light + '60',
-  },
-  navButton: {
-    padding: 6,
-    borderRadius: 6,
-    backgroundColor: Colors.neutral.light + '30',
-  },
-  calendarTitleContainer: {
-    alignItems: 'center',
-  },
-  calendarTitleModern: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.neutral.dark,
-    marginBottom: 2,
-  },
-  calendarYearModern: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: Colors.neutral.medium,
-  },
-  calendarGrid: {
-    marginTop: 8,
-  },
-  calendarHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    paddingHorizontal: 2,
-  },
-  weekdayHeader: {
-    fontSize: 10,
-    fontWeight: '600',
-    width: 32,
-    textAlign: 'center',
-    color: Colors.neutral.medium,
-  },
-  calendarDaysContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingHorizontal: 2,
-  },
-  calendarDay: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 3,
-    borderRadius: 16,
-    position: 'relative',
-  },
-  calendarDaySelected: {
-    backgroundColor: Colors.primary + '20',
-    borderWidth: 2,
-    borderColor: Colors.primary,
-  },
-  calendarDayToday: {
-    backgroundColor: Colors.neutral.light,
-  },
-  calendarDayText: {
-    fontSize: 12,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  calendarDayTextSelected: {
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  calendarDayTextToday: {
-    color: Colors.neutral.dark,
-    fontWeight: '600',
-  },
-  eventDot: {
+
+  // Dropdown styles
+  dropdownOverlay: {
     position: 'absolute',
-    bottom: 4,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.primary,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+    zIndex: 9999,
   },
-  eventDotSelected: {
-    backgroundColor: Colors.neutral.white,
-  },
-  selectedDateSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    paddingTop: 8,
-  },
-  selectedDateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.neutral.dark,
-  },
-  eventCountText: {
-    fontSize: 13,
-    color: Colors.neutral.medium,
-  },
-  eventsSection: {
-    flex: 1,
-    paddingBottom: 20,
-  },
-  eventItemModern: {
-    flexDirection: 'row',
+  dropdownBottomSheet: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 9999,
+    zIndex: 10000,
   },
-  eventLeft: {
-    alignItems: 'center',
-    marginRight: 16,
+  dropdownHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: Colors.neutral.light,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 16,
   },
-  eventTimeContainer: {
-    minWidth: 50,
+  dropdownContent: {
+    paddingTop: 2,
   },
-  eventTime: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
+  dropdownOption: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light,
   },
-  eventDivider: {
-    flex: 1,
-    width: 2,
-    backgroundColor: Colors.primary,
-    marginVertical: 8,
-    borderRadius: 1,
-  },
-  eventContent: {
-    flex: 1,
-  },
-  eventTitle: {
+  dropdownOptionText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 4,
+    color: Colors.neutral.dark,
+    textAlign: 'center',
   },
-  eventDescription: {
-    fontSize: 14,
-    color: Colors.neutral.medium,
-    marginBottom: 8,
-  },
-  eventFooter: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  eventMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  eventMetaText: {
-    fontSize: 12,
-    color: Colors.neutral.medium,
+  lastDropdownOption: {
+    borderBottomWidth: 0,
   },
 });
 

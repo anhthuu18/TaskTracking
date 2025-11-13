@@ -1019,7 +1019,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: ScreenLayout.contentHorizontalPadding,
     paddingTop: ScreenLayout.headerTopSpacing,
-    paddingBottom: ScreenLayout.contentBottomSpacing,
+    paddingBottom: 8,
   },
   welcomeSection: {
     marginBottom: 30,
@@ -1197,7 +1197,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   workspaceCard: {
-    padding: 20,
+    padding: 14,
     borderRadius: 16,
     borderWidth: 1,
     backgroundColor: Colors.neutral.white,
@@ -1210,21 +1210,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   cardDescription: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   cardStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 16,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: Colors.neutral.light,
   },
@@ -1308,13 +1308,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: Colors.text,
     marginBottom: 2,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 10,
     color: Colors.neutral.medium,
     fontWeight: '500',
     textTransform: 'uppercase',
@@ -1322,13 +1322,13 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    height: 40,
+    height: 30,
     backgroundColor: Colors.neutral.light,
     marginHorizontal: 16,
   },
   workspaceIcon: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1364,9 +1364,10 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: ScreenLayout.contentHorizontalPadding,
     paddingBottom: ScreenLayout.footerBottomSpacing,
-    paddingTop: 20,
+    paddingTop: 10,
   },
   createButton: {
+    borderColor: Colors.neutral.light,
     backgroundColor: Colors.primary,
     ...ButtonStyles.primary,
     alignItems: 'center',

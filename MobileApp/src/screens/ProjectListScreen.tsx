@@ -324,9 +324,11 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
       <CreateProjectModal
         visible={showCreateProjectModal}
         onClose={() => setShowCreateProjectModal(false)}
-        onCreateProject={handleCreateProject}
-        workspaceId={String(selectedWorkspace?.id) || '0'}
-        workspaceMembers={workspaceMembers}
+        workspaceId={Number(selectedWorkspace?.id || 0)}
+        onProjectCreated={async () => {
+          await loadProjects();
+          setShowCreateProjectModal(false);
+        }}
       />
 
     </View>

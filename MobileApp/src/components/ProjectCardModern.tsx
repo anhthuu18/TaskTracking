@@ -7,58 +7,28 @@ import { ProjectSummary } from '../hooks/useWorkspaceData';
 interface ProjectCardModernProps {
   project: ProjectSummary;
   onPress?: () => void;
-  onMenuPress?: () => void;
 }
 
 const ProjectCardModern: React.FC<ProjectCardModernProps> = ({ 
   project, 
   onPress, 
-  onMenuPress 
 }) => {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return Colors.success;
-      case 'completed': return Colors.primary;
-      case 'paused': return Colors.warning;
-      default: return Colors.neutral.medium;
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return Colors.semantic.error;
-      case 'high': return Colors.warning;
-      case 'medium': return Colors.accent;
-      case 'low': return Colors.success;
-      default: return Colors.neutral.medium;
-    }
-  };
-
-  const formatDate = (date: Date) => {
-    const now = new Date();
-    const diffTime = date.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays < 0) return 'Overdue';
-    if (diffDays === 0) return 'Due today';
-    if (diffDays === 1) return 'Due tomorrow';
-    return `Due in ${diffDays} days`;
-  };
+  // Assuming you might want to get completed tasks count from somewhere
+  // For now, let's calculate it based on progress and total task count
+  const completedTasks = Math.round((project.progress / 100) * project.taskCount);
 
   return (
     <TouchableOpacity 
-      style={[styles.container, { borderLeftColor: project.color }]}
+      style={styles.container}
       onPress={onPress}
       activeOpacity={0.7}
     >
       <View style={styles.header}>
-        <View style={styles.titleContainer}>
-          <View style={[styles.statusDot, { backgroundColor: getStatusColor(project.status) }]} />
-          <Text style={styles.title} numberOfLines={1}>{project.name}</Text>
+        <Text style={styles.title} numberOfLines={1}>{project.name}</Text>
+        <View style={styles.memberInfo}>
+          <MaterialIcons name="people-outline" size={16} color={Colors.primary} />
+          <Text style={styles.metaText}>{project.memberCount}</Text>
         </View>
-        <TouchableOpacity onPress={onMenuPress} style={styles.menuButton}>
-          <MaterialIcons name="more-vert" size={20} color={Colors.neutral.medium} />
-        </TouchableOpacity>
       </View>
 
       <Text style={styles.description} numberOfLines={2}>
@@ -68,46 +38,19 @@ const ProjectCardModern: React.FC<ProjectCardModernProps> = ({
       <View style={styles.progressContainer}>
         <View style={styles.progressHeader}>
           <Text style={styles.progressLabel}>Progress</Text>
-          <Text style={styles.progressValue}>{project.progress}%</Text>
+          <View style={styles.progressStats}>
+            <Text style={styles.progressValue}>{project.progress}%</Text>
+            <Text style={styles.taskCountText}>({completedTasks}/{project.taskCount})</Text>
+          </View>
         </View>
         <View style={styles.progressBar}>
           <View 
             style={[
               styles.progressFill, 
-              { 
-                width: `${project.progress}%`,
-                backgroundColor: project.color 
-              }
+              { width: `${project.progress}%` }
             ]} 
           />
         </View>
-      </View>
-
-      <View style={styles.footer}>
-        <View style={styles.metaInfo}>
-          <View style={styles.metaItem}>
-            <MaterialIcons name="people" size={14} color={Colors.neutral.medium} />
-            <Text style={styles.metaText}>{project.memberCount}</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <MaterialIcons name="assignment" size={14} color={Colors.neutral.medium} />
-            <Text style={styles.metaText}>{project.taskCount}</Text>
-          </View>
-          <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(project.priority) + '15' }]}>
-            <Text style={[styles.priorityText, { color: getPriorityColor(project.priority) }]}>
-              {project.priority.toUpperCase()}
-            </Text>
-          </View>
-        </View>
-        
-        {project.dueDate && (
-          <Text style={[
-            styles.dueDate,
-            { color: project.dueDate < new Date() ? Colors.semantic.error : Colors.neutral.medium }
-          ]}>
-            {formatDate(project.dueDate)}
-          </Text>
-        )}
       </View>
     </TouchableOpacity>
   );
@@ -115,35 +58,23 @@ const ProjectCardModern: React.FC<ProjectCardModernProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.neutral.white,
+    backgroundColor: Colors.neutral.white, // Light purple/lavender background
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     marginVertical: 6,
-    borderLeftWidth: 4,
+    borderWidth: 2,
+    borderColor: Colors.neutral.dark + '30', 
     shadowColor: Colors.neutral.dark,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light + '30',
+    elevation: 3,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
+    marginBottom: 6,
   },
   title: {
     fontSize: 16,
@@ -151,33 +82,51 @@ const styles = StyleSheet.create({
     color: Colors.neutral.dark,
     flex: 1,
   },
-  menuButton: {
-    padding: 4,
+  memberInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 12,
+  },
+  metaText: {
+    fontSize: 13,
+    color: Colors.primary, // Changed to primary color (purple)
+    marginLeft: 4,
+    fontWeight: '500',
   },
   description: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.neutral.medium,
-    lineHeight: 20,
-    marginBottom: 16,
+    marginBottom: 12,
+    lineHeight: 18,
   },
   progressContainer: {
-    marginBottom: 16,
+    // No margin bottom to make card smaller
   },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   progressLabel: {
     fontSize: 12,
     color: Colors.neutral.medium,
     fontWeight: '500',
   },
+  progressStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   progressValue: {
     fontSize: 12,
     color: Colors.neutral.dark,
     fontWeight: '600',
+  },
+  taskCountText: {
+    fontSize: 11,
+    color: Colors.neutral.medium,
+    fontWeight: '500',
   },
   progressBar: {
     height: 6,
@@ -188,40 +137,7 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 3,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  metaInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  metaText: {
-    fontSize: 12,
-    color: Colors.neutral.medium,
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  priorityText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  dueDate: {
-    fontSize: 12,
-    fontWeight: '500',
+    backgroundColor: Colors.primary, // Using a consistent color for progress
   },
 });
 

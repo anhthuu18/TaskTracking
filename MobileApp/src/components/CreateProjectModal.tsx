@@ -22,7 +22,7 @@ import { projectService, workspaceService } from '../services';
 interface CreateProjectModalProps {
   visible: boolean;
   onClose: () => void;
-  onProjectCreated: () => void; // Simplified callback
+  onProjectCreated?: () => void; // Optional callback
   workspaceId: number;
 }
 
@@ -56,15 +56,16 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
   // Load workspace members when modal opens
   useEffect(() => {
-    if (visible && workspaceId) {
-      loadWorkspaceMembers();
+    const wsId = Number(workspaceId);
+    if (visible && !isNaN(wsId) && wsId > 0) {
+      loadWorkspaceMembers(wsId);
     }
   }, [visible, workspaceId]);
 
-  const loadWorkspaceMembers = async () => {
+  const loadWorkspaceMembers = async (wsId: number) => {
     try {
       setIsFetchingMembers(true);
-      const response = await workspaceService.getWorkspaceMembers(workspaceId);
+      const response = await workspaceService.getWorkspaceMembers(wsId);
       
       if (response.success && response.data) {
         setWorkspaceMembers(response.data);
@@ -136,10 +137,12 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       return;
     }
 
+    console.log('--- DEBUG --- Creating project with workspaceId:', workspaceId, '| Type:', typeof workspaceId);
+
     const projectData: CreateProjectRequest = {
       projectName: projectName.trim(),
       description: description.trim() || undefined,
-      workspaceId: workspaceId,
+      workspaceId: Number(workspaceId),
     };
 
     try {
@@ -157,10 +160,27 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       // Step 2: Add selected members to the project (if any)
       if (selectedMembers.length > 0) {
         const memberUserIds = selectedMembers.map(id => Number(id)).filter(n => !isNaN(n));
+
+        // Determine project role id for 'Member'
+        let memberRoleId: number | undefined;
+        try {
+          const details = await projectService.getProjectDetails(newProject.id);
+          const roles = (details.data as any)?.projectRoles as any[] | undefined;
+          memberRoleId = roles?.find(r => String(r.roleName).toLowerCase() === 'member')?.id
+            || roles?.find(r => r.roleName && r.roleName !== 'Admin')?.id;
+          if (!memberRoleId) {
+            const createdRole = await projectService.createProjectRole(newProject.id, 'Member', 'Default member role');
+            memberRoleId = createdRole?.id;
+          }
+        } catch (e) {
+          console.error('Failed to resolve project role for members:', e);
+        }
         
         for (const userId of memberUserIds) {
           try {
-            await projectService.addMemberToProject(newProject.id, userId);
+            if (memberRoleId) {
+              await projectService.addMemberToProject(newProject.id, userId, Number(memberRoleId));
+            }
           } catch (memberError) {
             console.error(`Failed to add member ${userId}:`, memberError);
             // Continue adding other members even if one fails
@@ -169,7 +189,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       }
       
       showSuccess('Project created successfully!');
-      onProjectCreated(); // Trigger parent to reload projects
+      onProjectCreated?.(); // Trigger parent to reload projects if provided
       handleClose();
     } catch (error) {
       console.error('Error creating project:', error);

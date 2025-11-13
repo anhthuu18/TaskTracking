@@ -1,8 +1,55 @@
 import { Project, ProjectMember, ProjectMemberRole } from '../types/Project';
 import { Task, TaskStatus, TaskPriority } from '../types/Task';
-import { WorkspaceType, MemberRole } from '../types/Workspace';
+import { WorkspaceType, MemberRole, WorkspaceMember } from '../types/Workspace';
+import { Event } from '../types/Event';
 
 // Shared Mock Data for both Dashboard and Project Detail
+
+// Mock Events Data
+export const mockEvents: Event[] = [
+  {
+    id: '1',
+    title: 'Team Meeting',
+    description: 'Weekly team sync meeting',
+    startDate: new Date(new Date().setDate(new Date().getDate() + 1)), // Tomorrow
+    endDate: new Date(new Date().setDate(new Date().getDate() + 1)),
+    startTime: '10:00',
+    endTime: '11:00',
+    includeTime: true,
+    location: 'Conference Room A',
+    assignedMembers: ['1', '2'],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+  {
+    id: '2',
+    title: 'Project Review',
+    description: 'Review project progress and milestones',
+    startDate: new Date(new Date().setDate(new Date().getDate() + 2)), // In 2 days
+    endDate: new Date(new Date().setDate(new Date().getDate() + 2)),
+    startTime: '14:30',
+    endTime: '16:00',
+    includeTime: true,
+    location: 'Virtual Meeting',
+    assignedMembers: ['1', '2', '3'],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+    {
+    id: '4',
+    title: 'Client Presentation',
+    description: 'Present project status to client',
+    startDate: new Date(), // Today
+    endDate: new Date(),
+    startTime: '15:00',
+    endTime: '16:30',
+    includeTime: true,
+    location: 'Client Office',
+    assignedMembers: ['1', '2'],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+];
 
 // Mock Project Data
 export const mockProject: Project = {
@@ -89,6 +136,52 @@ export const mockProjectMembers: ProjectMember[] = [
       email: 'alex.brown@example.com',
     },
   },
+];
+
+// Mock Workspace Members
+export const mockWorkspaceMembers: WorkspaceMember[] = [
+    {
+        id: 1,
+        workspaceId: 1,
+        userId: 1,
+        role: MemberRole.OWNER,
+        joinedAt: new Date('2024-01-01'),
+        user: {
+            id: 1,
+            username: 'john_doe',
+            email: 'john@example.com',
+            name: 'John Doe',
+            avatar: 'https://i.pravatar.cc/150?img=1',
+        },
+    },
+    {
+        id: 2,
+        workspaceId: 1,
+        userId: 2,
+        role: MemberRole.MEMBER,
+        joinedAt: new Date('2024-01-15'),
+        user: {
+            id: 2,
+            username: 'jane_smith',
+            email: 'jane@example.com',
+            name: 'Jane Smith',
+            avatar: 'https://i.pravatar.cc/150?img=2',
+        },
+    },
+    {
+        id: 3,
+        workspaceId: 1,
+        userId: 3,
+        role: MemberRole.MEMBER,
+        joinedAt: new Date('2024-02-01'),
+        user: {
+            id: 3,
+            username: 'bob_wilson',
+            email: 'bob@example.com',
+            name: 'Bob Wilson',
+            avatar: 'https://i.pravatar.cc/150?img=3',
+        },
+    },
 ];
 
 // Mock Tasks Data - Same format as dashboard

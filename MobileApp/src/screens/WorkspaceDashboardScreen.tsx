@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { CreateProjectModal, ProjectCard, TaskCardModern } from '../components';
+import { CreateProjectModal, TaskCardModern } from '../components';
 import { Colors } from '../constants/Colors';
 import WorkspaceMembersTab from '../components/WorkspaceMembersTab';
 import InviteMemberModal from '../components/InviteMemberModal';
@@ -20,7 +20,7 @@ import { useToastContext } from '../context/ToastContext';
 
 const Tab = createBottomTabNavigator();
 
-const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highlightProjectId }: { navigation: any; route?: any; onInviteMember: () => void; reloadKey?: number; highlightProjectId?: number }) => {
+const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highlightProjectId, onProjectCreated }: { navigation: any; route?: any; onInviteMember: () => void; reloadKey?: number; highlightProjectId?: number; onProjectCreated: () => void; }) => {
   const workspace = route?.params?.workspace;
   const [selectedTab, setSelectedTab] = React.useState<'overview' | 'analytics' | 'members'>('overview');
   const [projects, setProjects] = useState<any[]>([]);
@@ -28,9 +28,7 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
   const [taskFilter, setTaskFilter] = useState<string>('all');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   
-  // Note: We removed dynamic workspace members loading to simplify modal per requirements
 
-  // Load projects when workspace changes
   useEffect(() => {
     if (workspace?.id) {
       loadProjects();
@@ -295,24 +293,18 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
                       task={{
                         id: task.id,
                         title: task.title,
-                        description: task.description || '',
-                        status: task.status || 'todo',
+                        description: '',
+                        status: 'todo',
                         priority: task.priority || 'medium',
                         dueDate: task.dueDate,
                         projectName: task.project,
-                        assigneeName: task.assignee || '',
-                        tags: task.tags || [],
+                        assigneeName: '',
+                        tags: [],
                         estimatedHours: (task as any).estimatedHours,
                         actualHours: (task as any).actualHours,
                       } as any}
                       onPress={() => {
                         console.log('Task pressed:', task.id);
-                      }}
-                      onStatusPress={() => {
-                        console.log('Status pressed:', task.id);
-                      }}
-                      onAssigneePress={() => {
-                        console.log('Assignee pressed:', task.id);
                       }}
                     />
                   ))}
@@ -372,24 +364,18 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
                     task={{
                       id: task.id,
                       title: task.title,
-                      description: task.description || '',
-                      status: task.status || 'todo',
+                      description: '',
+                      status: 'todo',
                       priority: task.priority || 'medium',
                       dueDate: task.dueDate,
                       projectName: task.project,
-                      assigneeName: task.assignee || '',
-                      tags: task.tags || [],
+                      assigneeName: '',
+                      tags: [],
                       estimatedHours: (task as any).estimatedHours,
                       actualHours: (task as any).actualHours,
                     } as any}
                     onPress={() => {
                       console.log('Task pressed:', task.id);
-                    }}
-                    onStatusPress={() => {
-                      console.log('Status pressed:', task.id);
-                    }}
-                    onAssigneePress={() => {
-                      console.log('Assignee pressed:', task.id);
                     }}
                   />
                 ))}
@@ -503,17 +489,14 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
                   {Array.from({ length: 35 }, (_, index) => {
                     const dayNumber = index - 6 + 1;
                     const isCurrentMonth = dayNumber > 0 && dayNumber <= 31;
-                    const hasEvent = [5, 12, 18, 25].includes(dayNumber); // Meeting days
-                    const hasUrgentTask = [15, 16].includes(dayNumber); // Urgent tasks
-                    const hasHighTask = [20, 22].includes(dayNumber); // High priority tasks
-                    const hasMediumTask = [18, 24].includes(dayNumber); // Medium priority tasks
+                    // Show red dots for days with tasks due (simplified mock data)
+                    const hasTasksDue = [15, 16, 17, 18, 19, 20].includes(dayNumber); // Tasks due dates
                     const isToday = dayNumber === 15;
                     
                     return (
                       <TouchableOpacity key={index} style={[
                         styles.calendarDay,
                         isToday && styles.calendarToday,
-                        hasEvent && styles.calendarEventDay
                       ]}>
                         {isCurrentMonth ? (
                           <Text style={[
@@ -527,10 +510,7 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
                             {dayNumber}
                           </Text>
                         )}
-                        {hasEvent && <View style={[styles.eventDot, styles.meetingDot]} />}
-                        {hasUrgentTask && <View style={[styles.eventDot, styles.urgentTaskDot]} />}
-                        {hasHighTask && <View style={[styles.eventDot, styles.highTaskDot]} />}
-                        {hasMediumTask && <View style={[styles.eventDot, styles.mediumTaskDot]} />}
+                        {hasTasksDue && <View style={styles.taskDueDot} />}
                       </TouchableOpacity>
                     );
                   })}
@@ -687,6 +667,11 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
     setShowInviteMemberModal(true);
   };
 
+  const handleProjectCreated = () => {
+    setReloadKey(prev => prev + 1);
+    setShowCreateProjectModal(false);
+  };
+
   const handleInviteSent = () => {
     setReloadKey(prev => prev + 1);
   };
@@ -730,7 +715,7 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
         </View>
         <TouchableOpacity 
           style={styles.addButton}
-          onPress={handleCreateProject}
+          onPress={() => setShowCreateProjectModal(true)}
         >
           <MaterialIcons name="add" size={24} color={Colors.surface} />
         </TouchableOpacity>
@@ -787,7 +772,7 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
             ),
           }}
         >
-          {() => <DashboardContent navigation={navigation} route={route} onInviteMember={handleInviteMember} reloadKey={reloadKey} highlightProjectId={highlightProjectId} />}
+          {() => <DashboardContent navigation={navigation} route={route} onInviteMember={handleInviteMember} reloadKey={reloadKey} highlightProjectId={highlightProjectId} onProjectCreated={handleProjectCreated} />}
         </Tab.Screen>
         <Tab.Screen 
           name="Voice" 
@@ -825,17 +810,15 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
       <InviteMemberModal
         visible={showInviteMemberModal}
         onClose={() => setShowInviteMemberModal(false)}
-        workspaceId={workspace?.id || 0}
+        workspaceId={Number(workspace?.id || 0)}
         onInviteSent={handleInviteSent}
       />
 
       <CreateProjectModal
         visible={showCreateProjectModal}
         onClose={() => setShowCreateProjectModal(false)}
-        workspaceId={workspace?.id || 0}
-        onProjectCreated={() => {
-          setReloadKey(prev => prev + 1);
-        }}
+        workspaceId={Number(workspace?.id || 0)}
+        onProjectCreated={handleProjectCreated}
       />
     </View>
   );
@@ -1296,10 +1279,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderRadius: 20,
   },
-  calendarEventDay: {
-    backgroundColor: Colors.primary + '20',
-    borderRadius: 20,
-  },
+
   calendarDayText: {
     fontSize: 14,
     color: Colors.neutral.dark,
@@ -1313,29 +1293,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.neutral.light,
   },
-  eventDot: {
+  taskDueDot: {
     position: 'absolute',
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-  },
-  meetingDot: {
-    backgroundColor: Colors.primary,
-    bottom: 8,
-  },
-  urgentTaskDot: {
-    backgroundColor: Colors.error,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.semantic.error,
+    shadowColor: Colors.semantic.error,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 2.5,
+    elevation: 4,
     bottom: 4,
-  },
-  highTaskDot: {
-    backgroundColor: Colors.warning,
-    bottom: 4,
-    right: 8,
-  },
-  mediumTaskDot: {
-    backgroundColor: Colors.success,
-    bottom: 4,
-    left: 8,
   },
 
   // Upcoming Events Styles
@@ -1604,16 +1573,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   projectCardSimple: {
-    backgroundColor: Colors.neutral.white,
+    backgroundColor: '#F8F7FD', // Light purple/lavender background
     borderRadius: 12,
     padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
+    borderWidth: 2,
+    borderColor: Colors.primary + '30', // Purple border
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   projectCardActive: {
-    borderColor: Colors.semantic.info,
+    borderColor: Colors.primary,
     borderLeftWidth: 4,
-    borderLeftColor: Colors.semantic.info,
+    borderLeftColor: Colors.primary,
   },
   projectCardContent: {
     flexDirection: 'row',

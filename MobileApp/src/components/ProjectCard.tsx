@@ -33,7 +33,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
   return (
     <TouchableOpacity 
-      style={cardStyles.projectCard}
+      style={styles.projectCard}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -41,44 +41,111 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         <Text style={cardStyles.projectName} numberOfLines={1}>
           {project.projectName}
         </Text>
-        <Text style={cardStyles.memberCount}>
-          Members: {project.memberCount || 1}
-        </Text>
+        <View style={styles.memberInfo}>
+          <MaterialIcons name="people-outline" size={16} color={Colors.primary} />
+          <Text style={styles.memberCountText}>{project.memberCount || 0}</Text>
+        </View>
       </View>
       
-      {/* Project Description and Creation Date Row */}
-      <View style={cardStyles.projectInfoRow}>
-        <View style={cardStyles.projectDescriptionContainer}>
-          <Text style={cardStyles.projectDescription} numberOfLines={1}>
-            {project.description || 'No description'}
-          </Text>
-        </View>
-        
-        <View style={cardStyles.projectDateContainer}>
-          <MaterialIcons name="schedule" size={14} color={Colors.neutral.medium} />
-          <Text style={cardStyles.projectDateText}>
-            {formatDate(project.dateCreated)}
-          </Text>
-        </View>
-      </View>
+      {/* Project Description */}
+      <Text style={styles.description} numberOfLines={2}>
+        {project.description || 'No description available'}
+      </Text>
       
       {showProgress && (
-        <View style={cardStyles.projectProgress}>
-          <View style={cardStyles.progressBar}>
+        <View style={styles.progressContainer}>
+          <View style={styles.progressHeader}>
+            <Text style={styles.progressLabel}>Progress</Text>
+            <View style={styles.progressStats}>
+              <Text style={styles.progressValue}>{progressPercentage}%</Text>
+              <Text style={styles.taskCountText}>({completedTasks}/{totalTasks})</Text>
+            </View>
+          </View>
+          <View style={styles.progressBar}>
             <View 
               style={[
-                cardStyles.progressFill, 
+                styles.progressFill, 
                 { width: `${progressPercentage}%` }
               ]} 
             />
           </View>
-          <Text style={cardStyles.tasksText}>
-            {completedTasks}/{totalTasks} tasks
-          </Text>
         </View>
       )}
     </TouchableOpacity>
   );
 };
+
+const styles = StyleSheet.create({
+  projectCard: {
+    backgroundColor: '#F8F7FD', // Light purple/lavender background
+    borderRadius: 12,
+    padding: 14,
+    marginVertical: 6,
+    borderWidth: 2,
+    borderColor: Colors.primary + '30', // Purple border
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  memberInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 12,
+  },
+  memberCountText: {
+    fontSize: 13,
+    color: Colors.primary,
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  description: {
+    fontSize: 13,
+    color: Colors.neutral.medium,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  progressContainer: {
+    // No margin bottom to make card smaller
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  progressLabel: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    fontWeight: '500',
+  },
+  progressStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  progressValue: {
+    fontSize: 12,
+    color: Colors.neutral.dark,
+    fontWeight: '600',
+  },
+  taskCountText: {
+    fontSize: 11,
+    color: Colors.neutral.medium,
+    fontWeight: '500',
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: Colors.neutral.light,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: Colors.primary,
+  },
+});
 
 export default ProjectCard;

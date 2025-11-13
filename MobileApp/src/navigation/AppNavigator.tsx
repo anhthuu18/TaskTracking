@@ -20,7 +20,8 @@ import {
   ProjectListScreen,
   ProjectDetailScreen,
   CreateTaskScreen,
-  CreateEventScreen
+  CreateEventScreen,
+  ProjectSettingsScreen
 } from '../screens';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
 import MainNavigator from './MainNavigator';
@@ -42,6 +43,7 @@ export type RootStackParamList = {
   ProjectDetail: { project: any };
   CreateTask: { projectMembers?: any[]; projectId?: string };
   CreateEvent: { projectMembers?: any[]; projectId?: string };
+  ProjectSettings: { project: any };
   AcceptInvitation: { token: string };
 };
 
@@ -319,12 +321,22 @@ const AppNavigator: React.FC = () => {
               }}
             />
             <Stack.Screen
+              name="ProjectSettings"
+              component={ProjectSettingsScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="AcceptInvitation"
               component={AcceptInvitationScreen}
               options={{
                 headerShown: false,
               }}
             />
+
+
+
           </>
         ) : shouldNavigateToWorkspace && lastUsedWorkspace ? (
           <>
@@ -381,6 +393,13 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen
               name="CreateEvent"
               component={CreateEventScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="ProjectSettings"
+              component={ProjectSettingsScreen}
               options={{
                 headerShown: false,
               }}
@@ -455,6 +474,13 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen
               name="CreateEvent"
               component={CreateEventScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="ProjectSettings"
+              component={ProjectSettingsScreen}
               options={{
                 headerShown: false,
               }}

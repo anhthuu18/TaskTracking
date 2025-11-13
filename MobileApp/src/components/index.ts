@@ -22,3 +22,5 @@ export { default as TaskCardModern } from './TaskCardModern';
 export { default as WorkspaceMembersTab } from './WorkspaceMembersTab';
 export { default as ProjectMembersTab } from './ProjectMembersTab';
 export { default as InviteMemberModal } from './InviteMemberModal';
+export { default as CreateOptionsModal } from './CreateOptionsModal';
+export { default as TaskDetailModal } from './TaskDetailModal';
