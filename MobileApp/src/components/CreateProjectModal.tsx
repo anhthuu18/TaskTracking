@@ -22,7 +22,7 @@ import { projectService, workspaceService } from '../services';
 interface CreateProjectModalProps {
   visible: boolean;
   onClose: () => void;
-  onProjectCreated?: () => void; // Optional callback
+  onProjectCreated?: (project: any, hasMembers: boolean) => void; // Optional callback with project and member selection info
   workspaceId: number;
 }
 
@@ -189,7 +189,13 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       }
       
       showSuccess('Project created successfully!');
-      onProjectCreated?.(); // Trigger parent to reload projects if provided
+      const hasMembers = selectedMembers.length > 0;
+      // Ensure workspaceId is included in the project object
+      const projectWithWorkspace = {
+        ...newProject,
+        workspaceId: newProject.workspaceId || workspaceId,
+      };
+      onProjectCreated?.(projectWithWorkspace, hasMembers); // Pass project and member selection info
       handleClose();
     } catch (error) {
       console.error('Error creating project:', error);

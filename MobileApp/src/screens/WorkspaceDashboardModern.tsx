@@ -132,6 +132,7 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   const [selectedTask, setSelectedTask] = useState<TaskSummary | null>(null);
   const [showTaskDetail, setShowTaskDetail] = useState(false);
   const [activeTab, setActiveTab] = useState('projects'); // 'projects' or 'tasks'
+  const [taskOverrides, setTaskOverrides] = useState<Record<string, TaskSummary>>({});
 
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -379,6 +380,7 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
         renderItem={({ item }) => (
           <TaskCardModern
             task={item}
+            showProjectName={false}
             onPress={() => handleTaskPress(item)}
             onTrackTime={() => handleTrackTime(item)}
             onDelete={() => handleDeleteTask(item.id)}
@@ -627,6 +629,7 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
           visible={showTaskDetail}
           task={selectedTask as any}
           onClose={() => setShowTaskDetail(false)}
+          showProjectChip={true}
           onUpdateTask={(updated) => {
             setSelectedTask(updated as any);
             try { refresh(); } catch {}
@@ -634,6 +637,19 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
           onDeleteTask={(taskId) => {
             handleDeleteTask(String(taskId));
             setShowTaskDetail(false);
+          }}
+          onNavigateToProject={(projectId) => {
+            const project = workspaceData?.projects.find(p => p.id === projectId);
+            if (project && navigation) {
+              navigation.navigate('ProjectDetail', {
+                project: {
+                  id: projectId,
+                  name: project.name,
+                  description: project.description,
+                }
+              });
+              setShowTaskDetail(false);
+            }
           }}
         />
       </SafeAreaView>

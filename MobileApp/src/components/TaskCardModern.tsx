@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Swipeable } from 'react-native-gesture-handler';
+
 import { Colors } from '../constants/Colors';
 import { TaskSummary } from '../hooks/useWorkspaceData';
 
@@ -11,6 +12,7 @@ interface TaskCardModernProps {
   onTrackTime?: () => void;
   onDelete?: () => void;
   onToggleStatus?: () => void;
+  showProjectName?: boolean; // when true, show a small project chip under description (default true)
 }
 
 const TaskCardModern: React.FC<TaskCardModernProps> = ({ 
@@ -18,10 +20,29 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
   onPress,
   onTrackTime,
   onDelete,
-  onToggleStatus
+  onToggleStatus,
+  showProjectName = true,
 }) => {
+  // Helper function to normalize priority to string
+  const normalizePriority = (priority: any): string => {
+    if (typeof priority === 'number') {
+      // Convert numeric priority (1-5) to string
+      switch (priority) {
+        case 5: return 'urgent';
+        case 4: return 'high';
+        case 3: return 'medium';
+        case 2:
+        case 1:
+        default: return 'low';
+      }
+    }
+    // If it's already a string or undefined, return it (or default to 'medium')
+    return priority?.toLowerCase() || 'medium';
+  };
+
   const getPriorityColor = (priority: string) => {
-    switch (priority) {
+    const normalizedPriority = normalizePriority(priority);
+    switch (normalizedPriority) {
       case 'urgent': return Colors.semantic.error;
       case 'high': return Colors.warning;
       case 'medium': return Colors.accent;
@@ -116,7 +137,10 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.projectName} numberOfLines={1}>{task.projectName}</Text>
+          {/* Description (truncate, fallback) */}
+          <Text style={styles.description} numberOfLines={1}>
+            {task.description && task.description.trim().length > 0 ? task.description : 'No description'}
+          </Text>
 
           <View style={styles.footer}>
             <View style={styles.leftFooter}>
@@ -138,22 +162,30 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
             </View>
 
             <View style={styles.rightFooter}>
-              {task.assigneeName && (
-                <View style={styles.assigneeContainer}>
-                  <View style={styles.assigneeAvatar}>
-                    <Text style={styles.assigneeInitial}>
-                      {task.assigneeName.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text style={styles.assigneeName} numberOfLines={1}>
-                    {task.assigneeName}
-                  </Text>
+              {showProjectName && !!task.projectName && (
+                <View style={styles.projectChipRight}>
+                  <MaterialIcons name="folder" size={12} color={Colors.neutral.medium} />
+                  <Text style={styles.projectChipText} numberOfLines={1}>{task.projectName}</Text>
                 </View>
               )}
-              <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(task.priority) + '15' }]}>
-                <Text style={[styles.priorityText, { color: getPriorityColor(task.priority) }]}>
-                  {task.priority.toUpperCase()}
-                </Text>
+              <View style={styles.rightFooterRow}>
+                {task.assigneeName && (
+                  <View style={styles.assigneeContainer}>
+                    <View style={styles.assigneeAvatar}>
+                      <Text style={styles.assigneeInitial}>
+                        {task.assigneeName.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text style={styles.assigneeName} numberOfLines={1}>
+                      {task.assigneeName}
+                    </Text>
+                  </View>
+                )}
+                <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(task.priority) + '15' }]}>
+                  <Text style={[styles.priorityText, { color: getPriorityColor(task.priority) }]}>
+                    {normalizePriority(task.priority).toUpperCase()}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
@@ -220,11 +252,42 @@ const styles = StyleSheet.create({
   trackButton: {
     padding: 2,
   },
-  projectName: {
+  description: {
     fontSize: 12,
-    color: Colors.primary,
-    fontWeight: '500',
+    color: Colors.neutral.medium,
+    marginBottom: 6,
+  },
+  projectChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    backgroundColor: Colors.neutral.light + '30',
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
     marginBottom: 8,
+  },
+  projectChipText: {
+    fontSize: 11,
+    color: Colors.neutral.medium,
+    maxWidth: '85%',
+  },
+  projectChipRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    backgroundColor: Colors.neutral.light + '30',
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    marginBottom: 4,
+    maxWidth: '70%',
   },
   footer: {
     flexDirection: 'row',
@@ -235,6 +298,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rightFooter: {
+    alignItems: 'flex-end',
+  },
+  rightFooterRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

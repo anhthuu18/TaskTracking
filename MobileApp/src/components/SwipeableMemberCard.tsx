@@ -27,8 +27,14 @@ const SwipeableMemberCard: React.FC<SwipeableMemberCardProps> = ({
   const deleteOpacity = useRef(new Animated.Value(0)).current;
   const [showDeleteAction, setShowDeleteAction] = useState(false);
 
-  const formatJoinedDate = (date: Date | string) => {
+  const formatJoinedDate = (date: Date | string | undefined | null) => {
+    if (!date) {
+      return 'Recently';
+    }
     const dateObj = typeof date === 'string' ? new Date(date) : date;
+    if (!dateObj || isNaN(dateObj.getTime())) {
+      return 'Recently';
+    }
     return dateObj.toLocaleDateString('en-US', { 
       month: 'short', 
       day: 'numeric', 
@@ -124,6 +130,8 @@ const SwipeableMemberCard: React.FC<SwipeableMemberCardProps> = ({
     ) : null
   );
 
+  const roleLabel = member.role ? member.role.toString().toUpperCase() : 'MEMBER';
+
   return (
     <View style={styles.container}>
       <PanGestureHandler
@@ -156,9 +164,9 @@ const SwipeableMemberCard: React.FC<SwipeableMemberCardProps> = ({
             
             {showActions && (
               <View style={cardStyles.memberActions}>
-                <View style={[cardStyles.roleContainer, { backgroundColor: getRoleColor(member.role) }]}>
+                <View style={[cardStyles.roleContainer, { backgroundColor: getRoleColor(roleLabel) }]}>
                   <Text style={cardStyles.roleText}>
-                    {member.role}
+                    {roleLabel}
                   </Text>
                 </View>
                 <TouchableOpacity 

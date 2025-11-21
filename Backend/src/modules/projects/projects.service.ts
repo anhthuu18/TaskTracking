@@ -104,7 +104,7 @@ export class ProjectsService {
           select: { id: true, username: true, email: true }
         },
         workspace: {
-          select: { id: true, workspaceName: true }
+          select: { id: true, workspaceName: true, workspaceType: true }
         },
         members: {
           include: {

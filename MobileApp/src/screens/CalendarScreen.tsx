@@ -33,9 +33,11 @@ interface EnrichedTimeTracking extends TimeTracking {
 interface CalendarScreenProps {
   navigation?: any;
   route?: any;
+  contentTopSpacing?: number;
+  safeAreaEdges?: Array<'top' | 'right' | 'bottom' | 'left'>;
 }
 
-const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route }) => {
+const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, contentTopSpacing, safeAreaEdges }) => {
   const { colors } = useTheme();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -57,6 +59,19 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route }) =>
       loadData();
     }
   }, [selectedDate, passedTasks]);
+
+  useEffect(() => {
+    if (passedTasks) {
+      setTasks(passedTasks);
+      setLoading(false);
+    }
+  }, [passedTasks]);
+
+  useEffect(() => {
+    if (passedTimeTrackings) {
+      setTimeTrackings(passedTimeTrackings);
+    }
+  }, [passedTimeTrackings]);
 
   const loadData = async () => {
     try {
@@ -468,11 +483,17 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route }) =>
   const isPastDate = isDateInPast(selectedDate);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={safeAreaEdges ?? ['top']}
+    >
       <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: contentTopSpacing ?? 20 },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -617,7 +638,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
+    paddingHorizontal: 20,
     paddingBottom: 20,
   },
   headerRow: {

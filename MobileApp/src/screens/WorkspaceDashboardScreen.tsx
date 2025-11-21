@@ -20,7 +20,7 @@ import { useToastContext } from '../context/ToastContext';
 
 const Tab = createBottomTabNavigator();
 
-const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highlightProjectId, onProjectCreated }: { navigation: any; route?: any; onInviteMember: () => void; reloadKey?: number; highlightProjectId?: number; onProjectCreated: () => void; }) => {
+const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highlightProjectId, onProjectCreated }: { navigation: any; route?: any; onInviteMember: () => void; reloadKey?: number; highlightProjectId?: number; onProjectCreated: (project: any, hasMembers: boolean) => void; }) => {
   const workspace = route?.params?.workspace;
   const [selectedTab, setSelectedTab] = React.useState<'overview' | 'analytics' | 'members'>('overview');
   const [projects, setProjects] = useState<any[]>([]);
@@ -667,9 +667,19 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
     setShowInviteMemberModal(true);
   };
 
-  const handleProjectCreated = () => {
+  const handleProjectCreated = (createdProject: any, hasMembers: boolean) => {
     setReloadKey(prev => prev + 1);
     setShowCreateProjectModal(false);
+    
+    // Navigate to project detail screen
+    if (createdProject) {
+      // If no members selected, go to members tab; otherwise go to tasks tab
+      const initialTab = hasMembers ? 'tasks' : 'members';
+      navigation.navigate('ProjectDetail', {
+        project: createdProject,
+        initialTab: initialTab,
+      });
+    }
   };
 
   const handleInviteSent = () => {

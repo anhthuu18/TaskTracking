@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   StatusBar,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -16,7 +17,8 @@ import { Colors } from '../constants/Colors';
 import { useTheme } from '../hooks/useTheme';
 
 import TaskCardModern from '../components/TaskCardModern';
-import { TaskSummary } from '../hooks/useWorkspaceData';
+import TaskDetailModal from '../components/TaskDetailModal';
+import { TaskSummary, useWorkspaceData } from '../hooks/useWorkspaceData';
 import {Task, TaskStatus, TaskPriority} from '../types/Task';
 
 interface TaskListScreenProps {
@@ -27,100 +29,28 @@ interface TaskListScreenProps {
 
 const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onViewAllTasksComplete }) => {
   const { colors } = useTheme();
-  const [tasks, setTasks] = useState<TaskSummary[]>([]);
   const [filteredTasks, setFilteredTasks] = useState<TaskSummary[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   // Initialize filter - default to 'all', will be set to 'upcoming' if coming from View All
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
-  const [refreshing, setRefreshing] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<TaskSummary | null>(null);
+  const [isTaskDetailVisible, setIsTaskDetailVisible] = useState(false);
   
   const showAllTasks = route?.params?.showAllTasks || false;
 
-  // Convert Task to TaskSummary
-  const convertTaskToTaskSummary = (task: Task): TaskSummary => {
-    const statusMap: { [key: string]: 'todo' | 'in_progress' | 'completed' } = {
-      [TaskStatus.TODO]: 'todo',
-      [TaskStatus.IN_PROGRESS]: 'in_progress',
-      [TaskStatus.DONE]: 'completed',
-      [TaskStatus.CANCELLED]: 'todo',
-    };
+  // Get workspace ID from route or default to '1'
+  const workspaceId = route?.params?.workspaceId || '1';
+  console.log('[TaskListScreen] workspaceId:', workspaceId);
+  console.log('[TaskListScreen] route.params:', route?.params);
 
-    const priorityMap: { [key: string]: 'low' | 'medium' | 'high' | 'urgent' } = {
-      [TaskPriority.LOWEST]: 'low',
-      [TaskPriority.LOW]: 'low',
-      [TaskPriority.MEDIUM]: 'medium',
-      [TaskPriority.HIGH]: 'high',
-      [TaskPriority.URGENT]: 'urgent',
-    };
-
-    return {
-      id: task.id,
-      title: task.title,
-      description: task.description,
-      status: statusMap[task.status] || 'todo',
-      priority: priorityMap[task.priority] || 'medium',
-      dueDate: task.dueDate,
-      projectId: (task as any).projectId || '1',
-      projectName: task.project || 'Default Project',
-      assigneeName: task.assignee,
-      tags: task.tags || [],
-    };
-  };
-
-  // Mock data for demonstration
-  const mockTasks: (Task & { projectId?: string })[] = [
-    {
-      id: '1',
-      title: 'Phát triển giao diện đăng nhập',
-      description: 'Tạo màn hình đăng nhập với xác thực JWT và validation form',
-      status: TaskStatus.IN_PROGRESS,
-      priority: TaskPriority.HIGH,
-      assignee: 'Nguyễn Văn A',
-      dueDate: new Date('2025-11-05T10:31:45.987Z'), // Upcoming
-      createdAt: new Date('2024-01-01'),
-      updatedAt: new Date('2024-01-10'),
-      tags: ['Frontend', 'Authentication', 'UI/UX'],
-      projectId: '1',
-    },
-    {
-      id: '2',
-      title: 'Thiết kế database schema',
-      description: 'Thiết kế cấu trúc cơ sở dữ liệu cho hệ thống quản lý task',
-      status: TaskStatus.TODO,
-      priority: TaskPriority.URGENT,
-      assignee: 'Trần Thị B',
-      dueDate: new Date('2025-10-20T10:31:45.987Z'), // Overdue
-      createdAt: new Date('2024-01-02'),
-      updatedAt: new Date('2024-01-02'),
-      tags: ['Database', 'Backend'],
-      projectId: '1',
-    },
-    {
-      id: '3',
-      title: 'Viết API endpoints',
-      description: 'Phát triển các API REST cho CRUD operations của tasks',
-      status: TaskStatus.DONE,
-      priority: TaskPriority.MEDIUM,
-      assignee: 'Lê Văn C',
-      dueDate: new Date('2025-11-10T10:31:45.987Z'), // Completed
-      createdAt: new Date('2024-01-01'),
-      updatedAt: new Date('2024-01-08'),
-      tags: ['Backend', 'API'],
-      projectId: '2',
-    },
-    {
-      id: '4',
-      title: 'Thiết lập CI/CD pipeline',
-      description: 'Cấu hình GitHub Actions cho auto deployment',
-      status: TaskStatus.TODO,
-      priority: TaskPriority.LOW,
-      assignee: 'Phạm Văn D',
-      createdAt: new Date('2024-01-03'),
-      updatedAt: new Date('2024-01-03'),
-      tags: ['DevOps', 'Automation'],
-      projectId: '2',
-    },
-  ];
+  // Use the real API hook
+  const {
+    data: workspaceData,
+    loading,
+    error,
+    refreshing,
+    refresh,
+  } = useWorkspaceData(workspaceId);
 
   // Track if filter was set from View All to prevent resetting it
   // Use ref instead of state to persist across re-renders
@@ -130,16 +60,6 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
 
   useEffect(() => {
     const currentShowAllTasks = route?.params?.showAllTasks || false;
-    const tasksToProcess = mockTasks.map(convertTaskToTaskSummary);
-
-    const sorted = tasksToProcess.sort((a, b) => {
-      if (!a.dueDate && !b.dueDate) return 0;
-      if (!a.dueDate) return 1;
-      if (!b.dueDate) return -1;
-      return a.dueDate.getTime() - b.dueDate.getTime();
-    });
-    
-    setTasks(sorted);
 
     // Update filter based on showAllTasks
     if (currentShowAllTasks) {
@@ -188,12 +108,15 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
     }
   }, [selectedFilter]);
 
-
+  // Filter tasks from workspace data
   useEffect(() => {
     filterTasks();
-  }, [tasks, searchQuery, selectedFilter]);
+  }, [workspaceData?.allTasks, searchQuery, selectedFilter]);
 
   const filterTasks = () => {
+    const tasks = workspaceData?.allTasks || [];
+    console.log('[TaskListScreen] filterTasks - workspaceData:', workspaceData);
+    console.log('[TaskListScreen] filterTasks - tasks:', tasks);
     let filtered = tasks;
     const now = new Date();
     const sevenDaysLater = new Date(now);
@@ -251,18 +174,29 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
     setFilteredTasks(filtered);
   };
 
-  const handleTaskPress = (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (task && navigation) {
-      navigation.navigate('ProjectDetail' as never, { projectId: task.projectId });
-    }
+  const handleTaskPress = (task: TaskSummary) => {
+    setSelectedTask(task);
+    setIsTaskDetailVisible(true);
   };
 
   const handleRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    refresh();
+  };
+
+  const handleNavigateToProject = (projectId: string) => {
+    if (navigation) {
+      const project = workspaceData?.projects.find(p => p.id === projectId);
+      if (project) {
+        navigation.navigate('ProjectDetail', {
+          project: {
+            id: projectId,
+            name: project.name,
+            description: project.description,
+          }
+        });
+      }
+    }
+    setIsTaskDetailVisible(false);
   };
 
   const filterButtons = [
@@ -275,7 +209,8 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
   const renderTaskItem = ({item}: {item: TaskSummary}) => (
     <TaskCardModern
       task={item}
-      onPress={() => handleTaskPress(item.id)}
+      showProjectName={false}
+      onPress={() => handleTaskPress(item)}
     />
   );
 
@@ -290,6 +225,34 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
       </Text>
     </View>
   );
+
+  if (loading && !workspaceData) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <StatusBar backgroundColor={Colors.neutral.white} barStyle="dark-content" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.text }]}>Loading tasks...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error && !workspaceData) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <StatusBar backgroundColor={Colors.neutral.white} barStyle="dark-content" />
+        <View style={styles.errorContainer}>
+          <MaterialIcons name="error-outline" size={48} color={Colors.semantic.error} />
+          <Text style={[styles.errorText, { color: colors.text }]}>Error loading tasks</Text>
+          <Text style={[styles.errorSubText, { color: colors.textSecondary }]}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -360,6 +323,22 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
           />
         }
         ListEmptyComponent={renderEmptyList}
+      />
+
+      <TaskDetailModal
+        visible={isTaskDetailVisible}
+        task={selectedTask as any}
+        onClose={() => setIsTaskDetailVisible(false)}
+        showProjectChip={true}
+        onUpdateTask={(updated) => {
+          setSelectedTask(updated as any);
+          try { refresh(); } catch {}
+        }}
+        onDeleteTask={(taskId) => {
+          setIsTaskDetailVisible(false);
+          try { refresh(); } catch {}
+        }}
+        onNavigateToProject={handleNavigateToProject}
       />
     </SafeAreaView>
   );
@@ -440,6 +419,43 @@ const styles = StyleSheet.create({
   emptySubText: {
     fontSize: 14,
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    marginTop: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  errorSubText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: Colors.neutral.white,
+    fontWeight: '600',
   },
 });
 

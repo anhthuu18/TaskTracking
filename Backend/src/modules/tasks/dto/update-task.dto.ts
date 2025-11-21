@@ -34,6 +34,11 @@ export class UpdateTaskDto {
   endTime?: string;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  estimatedMinutes?: number;
+
+  @IsOptional()
   @IsString()
   @MaxLength(20)
   type?: string;

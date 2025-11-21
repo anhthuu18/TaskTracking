@@ -87,14 +87,13 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, onLoginSuccess 
       
       if (response.success && response.data) {
         // Success - show success message and navigate to signin
-
         
           // Show success toast with short duration
           showSuccess(`Tài khoản ${response.data.user.username} đã được tạo thành công!`);
           
-          // Navigate to main screen (TaskList) after very short delay
+          // Navigate to SignIn screen after short delay
           setTimeout(() => {
-            navigation.navigate('TaskList');
+            navigation.navigate('SignIn');
           }, 800);
       } else {
         // API returned error

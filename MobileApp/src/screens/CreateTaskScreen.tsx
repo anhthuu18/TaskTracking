@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,383 +8,474 @@ import {
   StatusBar,
   ScrollView,
   Modal,
-  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Colors } from '../constants/Colors';
 import { ScreenLayout, ButtonStyles, Typography } from '../constants/Dimensions';
-import { ProjectMember } from '../types/Project';
 import { useToastContext } from '../context/ToastContext';
+import { taskService } from '../services/taskService';
+import { projectService } from '../services/projectService';
+import { workspaceService } from '../services/workspaceService';
+import { CreateTaskDto, TaskPriority, TaskUser } from '../types/Task';
+import { WorkspaceType } from '../types/Workspace';
+
+// Custom Date Picker Modal Component
+const CustomDatePickerModal = ({
+  visible,
+  onClose,
+  onConfirm,
+  initialDate,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onConfirm: (date: Date) => void;
+  initialDate: Date;
+}) => {
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [displayMonth, setDisplayMonth] = useState(initialDate.getMonth());
+  const [displayYear, setDisplayYear] = useState(initialDate.getFullYear());
+
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const handleMonthChange = (direction: 'prev' | 'next') => {
+    let newMonth = displayMonth;
+    let newYear = displayYear;
+
+    if (direction === 'prev') {
+      newMonth -= 1;
+      if (newMonth < 0) {
+        newMonth = 11;
+        newYear -= 1;
+      }
+    } else {
+      newMonth += 1;
+      if (newMonth > 11) {
+        newMonth = 0;
+        newYear += 1;
+      }
+    }
+    setDisplayMonth(newMonth);
+    setDisplayYear(newYear);
+  };
+
+  const renderCalendarDays = () => {
+    const daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
+    const firstDayOfMonth = new Date(displayYear, displayMonth, 1).getDay();
+    const calendarDays = [] as React.ReactNode[];
+
+    for (let i = 0; i < firstDayOfMonth; i++) {
+      calendarDays.push(<View key={`empty-start-${i}`} style={styles.calendarDay} />);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isSelected = 
+        day === selectedDate.getDate() &&
+        displayMonth === selectedDate.getMonth() &&
+        displayYear === selectedDate.getFullYear();
+
+      calendarDays.push(
+        <TouchableOpacity
+          key={day}
+          style={[styles.calendarDay, isSelected && styles.calendarDaySelected]}
+          onPress={() => setSelectedDate(new Date(displayYear, displayMonth, day))}
+        >
+          <Text style={[styles.calendarDayText, isSelected && styles.calendarDayTextSelected]}>
+            {day}
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+
+    return calendarDays;
+  };
+
+  return (
+    <Modal visible={visible} transparent={true} animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.datePickerContainer}>
+          <View style={styles.calendarHeader}>
+            <TouchableOpacity onPress={() => handleMonthChange('prev')} style={styles.navButton}>
+              <MaterialIcons name="chevron-left" size={24} color={Colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.calendarTitle}>
+              {monthNames[displayMonth]} {displayYear}
+            </Text>
+            <TouchableOpacity onPress={() => handleMonthChange('next')} style={styles.navButton}>
+              <MaterialIcons name="chevron-right" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.calendarWeekDays}>
+            {daysOfWeek.map(day => (
+              <Text key={day} style={styles.calendarDayHeader}>{day}</Text>
+            ))}
+          </View>
+
+          <View style={styles.calendarGrid}>{renderCalendarDays()}</View>
+
+          <View style={styles.datePickerFooter}>
+            <TouchableOpacity style={styles.datePickerButton} onPress={onClose}>
+              <Text style={styles.datePickerButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.datePickerButton, styles.datePickerConfirmButton]} onPress={() => onConfirm(selectedDate)}>
+              <Text style={[styles.datePickerButtonText, styles.datePickerConfirmButtonText]}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 interface CreateTaskScreenProps {
   navigation: any;
-  route?: any;
+  route?: {
+    params: {
+      projectId?: number | string;
+      workspaceType?: WorkspaceType | string;
+      workspaceId?: number | string;
+    };
+  };
 }
 
 const CreateTaskScreen: React.FC<CreateTaskScreenProps> = ({ navigation, route }) => {
-  const { projectMembers = [], projectId } = route?.params || {};
+  const incomingProjectId = route?.params?.projectId;
+  const incomingWorkspaceType = route?.params?.workspaceType;
+  const incomingWorkspaceId = route?.params?.workspaceId;
   const { showSuccess, showError } = useToastContext();
-  
+
+  // Form State
   const [taskName, setTaskName] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
-  const [priority, setPriority] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [estimatedDuration, setEstimatedDuration] = useState('');
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [startDateValue, setStartDateValue] = useState(new Date());
-  const [endDateValue, setEndDateValue] = useState(new Date());
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [endCurrentMonth, setEndCurrentMonth] = useState(new Date().getMonth());
-  const [endCurrentYear, setEndCurrentYear] = useState(new Date().getFullYear());
+  const [assignedTo, setAssignedTo] = useState<number | null>(null);
+  const [priority, setPriority] = useState<number | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+
+  // Resolved metadata
+  const [projectId, setProjectId] = useState<number | null>(
+    typeof incomingProjectId === 'string' ? parseInt(incomingProjectId) : (incomingProjectId ?? null)
+  );
+  const [workspaceId, setWorkspaceId] = useState<number | null>(
+    typeof incomingWorkspaceId === 'string' ? parseInt(incomingWorkspaceId) : (incomingWorkspaceId ?? null)
+  );
+  const [workspaceType, setWorkspaceType] = useState<WorkspaceType | null>(() => {
+    if (!incomingWorkspaceType) return null;
+    const typeStr = String(incomingWorkspaceType).toUpperCase();
+    if (typeStr === 'GROUP') return WorkspaceType.GROUP;
+    if (typeStr === 'PERSONAL') return WorkspaceType.PERSONAL;
+    return null;
+  });
+
+  // UI State
+  const [availableAssignees, setAvailableAssignees] = useState<TaskUser[]>([]);
+  const [availableProjects, setAvailableProjects] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingAssignees, setIsFetchingAssignees] = useState(false);
+  const [isFetchingProjects, setIsFetchingProjects] = useState(false);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
+  // Dropdown/Modal Visibility
   const [showPriorityDropdown, setShowPriorityDropdown] = useState(false);
   const [showMembersDropdown, setShowMembersDropdown] = useState(false);
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
-  const handleBack = () => {
-    navigation.goBack();
+  // Load current user for PERSONAL auto-assign
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('user');
+        if (storedUser) {
+          const u = JSON.parse(storedUser);
+          if (u?.id) setCurrentUserId(Number(u.id));
+          if (workspaceType === WorkspaceType.PERSONAL && u?.id) {
+            setAssignedTo(Number(u.id));
+          }
+          if (!u?.id && u?.email && workspaceId) {
+            try {
+              const membersRes = await workspaceService.getWorkspaceMembers(Number(workspaceId));
+              if (membersRes.success && Array.isArray(membersRes.data)) {
+                const me = membersRes.data.find((m: any) => m.user?.email === u.email);
+                if (me?.user?.id) {
+                  setCurrentUserId(Number(me.user.id));
+                  if (workspaceType === WorkspaceType.PERSONAL) {
+                    setAssignedTo(Number(me.user.id));
+                  }
+                }
+              }
+            } catch {}
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load current user', e);
+      }
+    };
+    loadCurrentUser();
+  }, [workspaceId, workspaceType]);
+
+  // Resolve metadata
+  useEffect(() => {
+    const resolveMeta = async () => {
+      try {
+        let currentProjectId = projectId;
+        let currentWorkspaceId = workspaceId;
+
+        if (!currentProjectId && incomingProjectId !== undefined) {
+          const id = typeof incomingProjectId === 'string' ? parseInt(incomingProjectId) : incomingProjectId;
+          setProjectId(id ?? null);
+          currentProjectId = id ?? null;
+        }
+
+        if (!currentWorkspaceId && incomingWorkspaceId !== undefined) {
+          const id = typeof incomingWorkspaceId === 'string' ? parseInt(incomingWorkspaceId) : incomingWorkspaceId;
+          setWorkspaceId(id ?? null);
+          currentWorkspaceId = id ?? null;
+        }
+
+        if (!workspaceType && currentProjectId) {
+          const res = await projectService.getProjectDetails(currentProjectId);
+          if (res?.success && res.data?.workspace) {
+            const wt = (res.data.workspace as any).workspaceType as string | undefined;
+            if (wt) setWorkspaceType(wt === 'GROUP' ? WorkspaceType.GROUP : WorkspaceType.PERSONAL);
+            if (res.data.workspace?.id && !currentWorkspaceId) {
+              setWorkspaceId(res.data.workspace.id);
+              currentWorkspaceId = res.data.workspace.id;
+            }
+          }
+        }
+
+        if (currentWorkspaceId && !workspaceType) {
+          try {
+            const wsRes = await workspaceService.getWorkspaceDetails(currentWorkspaceId);
+            if (wsRes?.success && wsRes.data?.workspaceType) {
+              setWorkspaceType(wsRes.data.workspaceType);
+            }
+          } catch {}
+        }
+
+        if (!currentProjectId && currentWorkspaceId) {
+          await fetchProjects(currentWorkspaceId);
+        }
+      } catch (e: any) {
+        console.warn('CreateTaskScreen: Failed to resolve project/workspace type', e?.message || e);
+      }
+    };
+    resolveMeta();
+  }, [incomingProjectId, incomingWorkspaceType, incomingWorkspaceId, workspaceId, projectId]);
+
+  // Fetch projects
+  const fetchProjects = async (wsId: number) => {
+    try {
+      setIsFetchingProjects(true);
+      const response = await projectService.getProjectsByWorkspace(wsId);
+      if (response.success && response.data) {
+        setAvailableProjects(response.data);
+      } else {
+        setAvailableProjects([]);
+        showError('Failed to load projects');
+      }
+    } catch (error: any) {
+      console.error('Error fetching projects:', error);
+      showError('Failed to load projects: ' + error.message);
+      setAvailableProjects([]);
+    } finally {
+      setIsFetchingProjects(false);
+    }
   };
 
-  const handleMembersDropdownToggle = () => {
-    setShowMembersDropdown(!showMembersDropdown);
-    // Close other dropdowns
-    setShowPriorityDropdown(false);
-    setShowStartDatePicker(false);
-    setShowEndDatePicker(false);
-  };
+  // Fetch assignees
+  useEffect(() => {
+    if (workspaceType === WorkspaceType.GROUP && projectId) {
+      const fetchAssignees = async () => {
+        try {
+          setIsFetchingAssignees(true);
+          const assignees = await taskService.getAvailableAssignees(projectId);
+          setAvailableAssignees(assignees || []);
+        } catch (error: any) {
+          showError('Failed to load assignees: ' + error.message);
+        } finally {
+          setIsFetchingAssignees(false);
+        }
+      };
+      fetchAssignees();
+    }
+  }, [projectId, workspaceType]);
 
-  const handlePriorityDropdownToggle = () => {
-    setShowPriorityDropdown(!showPriorityDropdown);
-    // Close other dropdowns
-    setShowMembersDropdown(false);
-    setShowStartDatePicker(false);
-    setShowEndDatePicker(false);
-  };
-
-  const handleStartDatePickerToggle = () => {
-    const today = new Date();
-    setStartDateValue(today);
-    setCurrentMonth(today.getMonth());
-    setCurrentYear(today.getFullYear());
-    setShowStartDatePicker(true);
-    // Close other dropdowns
-    setShowMembersDropdown(false);
-    setShowPriorityDropdown(false);
-    setShowEndDatePicker(false);
-  };
-
-  const handleEndDatePickerToggle = () => {
-    const today = new Date();
-    setEndDateValue(today);
-    setEndCurrentMonth(today.getMonth());
-    setEndCurrentYear(today.getFullYear());
-    setShowEndDatePicker(true);
-    // Close other dropdowns
-    setShowMembersDropdown(false);
-    setShowPriorityDropdown(false);
-    setShowStartDatePicker(false);
-  };
+  const handleBack = () => navigation.goBack();
 
   const validateForm = () => {
-    const newErrors: {[key: string]: string} = {};
-    
-    if (!taskName.trim()) {
-      newErrors.taskName = 'Task name is required';
-    }
-
-    if (!priority) {
-      newErrors.priority = 'Priority is required';
-    }
-
+    const newErrors: { [key: string]: string } = {};
+    if (!taskName.trim()) newErrors.taskName = 'Task name is required';
+    if (priority === null) newErrors.priority = 'Priority is required';
+    if (!projectId) newErrors.projectId = 'Project is required. Please select a project.';
+    if (!startDate) newErrors.startDate = 'Start date is required';
+    if (!endDate) newErrors.endDate = 'Due date is required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleCreateTask = async () => {
-    if (!validateForm()) {
-      return;
-    }
-
+    if (!validateForm()) return;
     try {
       setIsLoading(true);
-      
-      const taskData = {
+      const effectiveAssignedTo = workspaceType === WorkspaceType.PERSONAL
+        ? (assignedTo || currentUserId || undefined)
+        : (assignedTo || undefined);
+
+      const taskData: CreateTaskDto = {
         taskName: taskName.trim(),
+        projectId: projectId!,
         description: description.trim() || undefined,
-        projectId: projectId || undefined,
-        assignedMembers: selectedMembers,
-        priority,
-        status: 'todo', // Always set to todo when creating
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        estimatedDuration: estimatedDuration ? parseInt(estimatedDuration) : undefined,
+        priority: priority || undefined,
+        assignedTo: effectiveAssignedTo,
+        startTime: startDate?.toISOString() || undefined,
+        endTime: endDate?.toISOString() || undefined,
       };
 
-      // TODO: Implement actual task creation API call
-      // await taskService.createTask(taskData);
-      
+      await taskService.createTask(taskData);
       showSuccess('Task created successfully!');
       navigation.goBack();
     } catch (error: any) {
       console.error('Error creating task:', error);
       showError(error.message || 'Failed to create task');
+      setErrors(prev => ({ ...prev, general: error.message || 'An unknown error occurred' }));
     } finally {
       setIsLoading(false);
     }
   };
 
   const priorityOptions = [
-    { value: 'urgent', label: 'Urgent', color: Colors.error },
-    { value: 'high', label: 'High', color: Colors.warning },
-    { value: 'medium', label: 'Medium', color: Colors.primary },
-    { value: 'low', label: 'Low', color: Colors.accent },
-    { value: 'lowest', label: 'Lowest', color: Colors.neutral.medium },
+    { value: TaskPriority.URGENT, label: 'Urgent', color: Colors.error },
+    { value: TaskPriority.HIGHEST, label: 'High', color: Colors.warning },
+    { value: TaskPriority.MEDIUM, label: 'Medium', color: Colors.primary },
+    { value: TaskPriority.LOW, label: 'Low', color: Colors.accent },
+    { value: TaskPriority.LOWEST, label: 'Lowest', color: Colors.neutral.medium },
   ];
 
-  const getSelectedMembersDisplay = () => {
-    const selectedMemberObjects = projectMembers.filter((member: ProjectMember) => 
-      selectedMembers.includes(String(member.id))
+  const getSelectedProjectDisplay = () => {
+    if (!projectId) return 'Select project';
+    const selectedProject = availableProjects.find(p => p.id === projectId);
+    return selectedProject?.projectName || `Project ID: ${projectId}`;
+  };
+
+  const getSelectedAssigneeDisplay = () => {
+    if (!assignedTo) return 'Select assignee';
+    const selectedUser = availableAssignees.find(u => u.id === assignedTo);
+    return selectedUser?.username || `User ID: ${assignedTo}`;
+  };
+
+  const formatDateForDisplay = (date: Date | null) => {
+    if (!date) return null;
+    return date.toLocaleDateString('en-GB');
+  };
+
+  const renderProjectDropdownMenu = () => {
+    if (!showProjectDropdown) return null;
+    return (
+      <View style={styles.dropdownMenu}>
+        <ScrollView style={styles.projectsScrollView} nestedScrollEnabled={true}>
+          {availableProjects.length > 0 ? (
+            availableProjects.map((project: any) => (
+              <TouchableOpacity
+                key={project.id}
+                style={styles.projectOption}
+                onPress={() => {
+                  setProjectId(project.id);
+                  setShowProjectDropdown(false);
+                  setAssignedTo(null);
+                  if (workspaceType === WorkspaceType.GROUP) {
+                    const fetchAssignees = async () => {
+                      try {
+                        setIsFetchingAssignees(true);
+                        const assignees = await taskService.getAvailableAssignees(project.id);
+                        setAvailableAssignees(assignees || []);
+                      } catch (error: any) {
+                        showError('Failed to load assignees: ' + error.message);
+                      } finally {
+                        setIsFetchingAssignees(false);
+                      }
+                    };
+                    fetchAssignees();
+                  }
+                }}
+              >
+                <View style={styles.projectInfo}>
+                  <View style={styles.projectIcon}>
+                    <MaterialIcons name="folder" size={20} color={Colors.primary} />
+                  </View>
+                  <View style={styles.projectDetails}>
+                    <Text style={styles.projectName}>{project.projectName}</Text>
+                    <Text style={styles.projectDescription} numberOfLines={1}>
+                      {project.description || 'No description'}
+                    </Text>
+                  </View>
+                </View>
+                {projectId === project.id && (
+                  <View style={styles.checkbox}>
+                    <MaterialIcons name="check" size={20} color={Colors.primary} />
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.emptyProjectsContainer}>
+              <Text style={styles.emptyProjectsText}>No projects available</Text>
+            </View>
+          )}
+        </ScrollView>
+      </View>
     );
-    const totalSelected = selectedMemberObjects.length;
-    if (totalSelected === 0) {
-      return 'Select members';
-    }
-    
-    if (totalSelected <= 3) {
-      const names = selectedMemberObjects.map((m: ProjectMember) => m.user.username);
-      return names.join(', ');
-    }
-    
-    return `${totalSelected} members selected`;
   };
 
-  const toggleMember = (memberId: string) => {
-    if (selectedMembers.includes(memberId)) {
-      setSelectedMembers(selectedMembers.filter(id => id !== memberId));
-    } else {
-      setSelectedMembers([...selectedMembers, memberId]);
-    }
-  };
-
-
-  const formatDateForDisplay = (dateStr: string) => {
-    if (!dateStr) return '';
-    // Convert from dd/mm/yyyy to dd/mm/yyyy format for display
-    return dateStr;
-  };
-
-  const formatDateToString = (date: Date) => {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
-
-  const formatDateToDisplayString = (date: Date) => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-    const dayName = days[date.getDay()];
-    const day = date.getDate();
-    const monthName = months[date.getMonth()];
-    
-    return `${dayName}, ${monthName} ${day}`;
-  };
-
-  const handleStartDateConfirm = () => {
-    console.log('Start date confirm clicked');
-    setStartDate(formatDateToString(startDateValue));
-    setShowStartDatePicker(false);
-  };
-
-  const handleEndDateConfirm = () => {
-    console.log('End date confirm clicked');
-    setEndDate(formatDateToString(endDateValue));
-    setShowEndDatePicker(false);
-  };
-
-  const handleStartDateCancel = () => {
-    console.log('Start date cancel clicked');
-    setShowStartDatePicker(false);
-  };
-
-  const renderCalendarDays = () => {
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
-    
-    const days = [];
-    
-    // Add empty cells for days before the first day of the month
-    for (let i = 0; i < firstDayOfMonth; i++) {
-      days.push(
-        <View key={`empty-${i}`} style={styles.calendarDay}>
-          <Text style={styles.calendarDayText}></Text>
-        </View>
-      );
-    }
-    
-    // Add days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      const isSelected = day === startDateValue.getDate() && 
-                        currentMonth === startDateValue.getMonth() && 
-                        currentYear === startDateValue.getFullYear();
-      const isToday = day === new Date().getDate() && 
-                     currentMonth === new Date().getMonth() && 
-                     currentYear === new Date().getFullYear();
-      
-      days.push(
-        <TouchableOpacity
-          key={day}
-          style={[
-            styles.calendarDay,
-            isSelected && styles.calendarDaySelected,
-            isToday && styles.calendarDayToday
-          ]}
-          onPress={() => {
-            const newDate = new Date(currentYear, currentMonth, day);
-            setStartDateValue(newDate);
-          }}
-        >
-          <Text style={[
-            styles.calendarDayText,
-            isSelected && styles.calendarDayTextSelected,
-            isToday && !isSelected && styles.calendarDayTextToday
-          ]}>
-            {day}
-          </Text>
-        </TouchableOpacity>
-      );
-    }
-    
-    // Add empty cells to always have 42 cells (6 rows x 7 days)
-    const totalCells = firstDayOfMonth + daysInMonth;
-    const remainingCells = 42 - totalCells;
-    for (let i = 0; i < remainingCells; i++) {
-      days.push(
-        <View key={`empty-end-${i}`} style={styles.calendarDay}>
-          <Text style={styles.calendarDayText}></Text>
-        </View>
-      );
-    }
-    
-    return days;
-  };
-
-  const renderEndCalendarDays = () => {
-    const daysInMonth = new Date(endCurrentYear, endCurrentMonth + 1, 0).getDate();
-    const firstDayOfMonth = new Date(endCurrentYear, endCurrentMonth, 1).getDay();
-    
-    const days = [];
-    
-    // Add empty cells for days before the first day of the month
-    for (let i = 0; i < firstDayOfMonth; i++) {
-      days.push(
-        <View key={`empty-${i}`} style={styles.calendarDay}>
-          <Text style={styles.calendarDayText}></Text>
-        </View>
-      );
-    }
-    
-    // Add days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      const isSelected = day === endDateValue.getDate() && 
-                        endCurrentMonth === endDateValue.getMonth() && 
-                        endCurrentYear === endDateValue.getFullYear();
-      const isToday = day === new Date().getDate() && 
-                     endCurrentMonth === new Date().getMonth() && 
-                     endCurrentYear === new Date().getFullYear();
-      
-      days.push(
-        <TouchableOpacity
-          key={day}
-          style={[
-            styles.calendarDay,
-            isSelected && styles.calendarDaySelected,
-            isToday && styles.calendarDayToday
-          ]}
-          onPress={() => {
-            const newDate = new Date(endCurrentYear, endCurrentMonth, day);
-            setEndDateValue(newDate);
-          }}
-        >
-          <Text style={[
-            styles.calendarDayText,
-            isSelected && styles.calendarDayTextSelected,
-            isToday && !isSelected && styles.calendarDayTextToday
-          ]}>
-            {day}
-          </Text>
-        </TouchableOpacity>
-      );
-    }
-    
-    // Add empty cells to always have 42 cells (6 rows x 7 days)
-    const totalCells = firstDayOfMonth + daysInMonth;
-    const remainingCells = 42 - totalCells;
-    for (let i = 0; i < remainingCells; i++) {
-      days.push(
-        <View key={`empty-end-${i}`} style={styles.calendarDay}>
-          <Text style={styles.calendarDayText}></Text>
-        </View>
-      );
-    }
-    
-    return days;
-  };
-
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    if (direction === 'prev') {
-      if (currentMonth === 0) {
-        setCurrentMonth(11);
-        setCurrentYear(currentYear - 1);
-      } else {
-        setCurrentMonth(currentMonth - 1);
-      }
-    } else {
-      if (currentMonth === 11) {
-        setCurrentMonth(0);
-        setCurrentYear(currentYear + 1);
-      } else {
-        setCurrentMonth(currentMonth + 1);
-      }
-    }
-  };
-
-  const navigateEndMonth = (direction: 'prev' | 'next') => {
-    if (direction === 'prev') {
-      if (endCurrentMonth === 0) {
-        setEndCurrentMonth(11);
-        setEndCurrentYear(endCurrentYear - 1);
-      } else {
-        setEndCurrentMonth(endCurrentMonth - 1);
-      }
-    } else {
-      if (endCurrentMonth === 11) {
-        setEndCurrentMonth(0);
-        setEndCurrentYear(endCurrentYear + 1);
-      } else {
-        setEndCurrentMonth(endCurrentMonth + 1);
-      }
-    }
-  };
-
-  const getMonthName = (month: number) => {
-    const months = ['January', 'February', 'March', 'April', 'May', 'June',
-                   'July', 'August', 'September', 'October', 'November', 'December'];
-    return months[month];
+  const renderMembersDropdownMenu = () => {
+    if (!showMembersDropdown) return null;
+    return (
+      <View style={styles.dropdownMenu}>
+        <ScrollView style={styles.membersScrollView} nestedScrollEnabled={true}>
+          {availableAssignees.map((member: TaskUser) => (
+            <TouchableOpacity
+              key={member.id}
+              style={styles.memberOption}
+              onPress={() => {
+                setAssignedTo(member.id);
+                setShowMembersDropdown(false);
+              }}
+            >
+              <View style={styles.memberInfo}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{(member.username || 'U').charAt(0).toUpperCase()}</Text>
+                </View>
+                <View style={styles.memberDetails}>
+                  <Text style={styles.memberName}>{member.username}</Text>
+                  <Text style={styles.memberEmail}>{member.email}</Text>
+                </View>
+              </View>
+              {assignedTo === member.id && (
+                <View style={styles.checkbox}>
+                  <MaterialIcons name="check" size={20} color={Colors.primary} />
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      
-      {/* Header */}
+
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <MaterialIcons name="chevron-left" size={24} color={Colors.text} />
@@ -393,8 +484,35 @@ const CreateTaskScreen: React.FC<CreateTaskScreenProps> = ({ navigation, route }
         <View style={styles.headerSpacer} />
       </View>
 
-      {/* Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Project Selection - Only show if no projectId provided */}
+        {!incomingProjectId && (
+          <View style={styles.inputSection}>
+            <Text style={styles.sectionLabel}>Project</Text>
+            <View style={styles.dropdownContainer}>
+              <TouchableOpacity
+                style={[styles.dropdownButton, errors.projectId && styles.dropdownButtonError]}
+                onPress={() => setShowProjectDropdown(!showProjectDropdown)}
+                disabled={isFetchingProjects}
+              >
+                <View style={styles.dropdownContent}>
+                  <MaterialIcons name="folder" size={20} color={Colors.neutral.medium} />
+                  <Text style={styles.dropdownText} numberOfLines={1}>
+                    {isFetchingProjects ? 'Loading projects...' : getSelectedProjectDisplay()}
+                  </Text>
+                </View>
+                {isFetchingProjects ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <MaterialIcons name={showProjectDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={24} color={Colors.neutral.medium} />
+                )}
+              </TouchableOpacity>
+              {renderProjectDropdownMenu()}
+            </View>
+            {errors.projectId && <Text style={styles.errorText}>{errors.projectId}</Text>}
+          </View>
+        )}
+
         {/* Task Name */}
         <View style={styles.inputSection}>
           <Text style={styles.sectionLabel}>Name</Text>
@@ -403,14 +521,8 @@ const CreateTaskScreen: React.FC<CreateTaskScreenProps> = ({ navigation, route }
             placeholder="Task name"
             value={taskName}
             onChangeText={setTaskName}
-            style={[
-              styles.textInput,
-              errors.taskName && styles.textInputError
-            ]}
-            outlineStyle={[
-              styles.inputOutline,
-              errors.taskName && styles.inputOutlineError
-            ]}
+            style={[styles.textInput, errors.taskName && styles.textInputError]}
+            outlineStyle={[styles.inputOutline, errors.taskName && styles.inputOutlineError]}
             theme={{
               colors: {
                 primary: errors.taskName ? Colors.semantic.error : Colors.primary,
@@ -418,15 +530,9 @@ const CreateTaskScreen: React.FC<CreateTaskScreenProps> = ({ navigation, route }
                 onSurface: Colors.text,
               },
             }}
-            left={
-              <TextInput.Icon 
-                icon={() => <MaterialIcons name="assignment" size={20} color={Colors.neutral.medium} />}
-              />
-            }
+            left={<TextInput.Icon icon={() => <MaterialIcons name="assignment" size={20} color={Colors.neutral.medium} />} />}
           />
-          {errors.taskName && (
-            <Text style={styles.errorText}>{errors.taskName}</Text>
-          )}
+          {errors.taskName && <Text style={styles.errorText}>{errors.taskName}</Text>}
         </View>
 
         {/* Description */}
@@ -449,66 +555,36 @@ const CreateTaskScreen: React.FC<CreateTaskScreenProps> = ({ navigation, route }
                 onSurface: Colors.text,
               },
             }}
-            left={
-              <TextInput.Icon 
-                icon={() => <MaterialIcons name="description" size={20} color={Colors.neutral.medium} />}
-              />
-            }
+            left={<TextInput.Icon icon={() => <MaterialIcons name="description" size={20} color={Colors.neutral.medium} />} />}
           />
         </View>
 
-        {/* Assigned Members */}
-        <View style={styles.inputSection}>
-          <Text style={styles.sectionLabel}>Assigned to</Text>
-          <View style={styles.dropdownContainer}>
-            <TouchableOpacity
-              style={styles.dropdownButton}
-              onPress={handleMembersDropdownToggle}
-            >
-              <View style={styles.dropdownContent}>
-                <MaterialIcons name="people" size={20} color={Colors.neutral.medium} />
-                <Text style={styles.dropdownText} numberOfLines={1}>
-                  {getSelectedMembersDisplay()}
-                </Text>
-              </View>
-              <MaterialIcons name={showMembersDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={24} color={Colors.neutral.medium} />
-            </TouchableOpacity>
-            {showMembersDropdown && (
-              <View style={styles.dropdownMenu}>
-                <ScrollView style={styles.membersScrollView} nestedScrollEnabled>
-                  {projectMembers.map((member: ProjectMember) => (
-                    <TouchableOpacity
-                      key={String(member.id)}
-                      style={styles.memberOption}
-                      onPress={() => toggleMember(String(member.id))}
-                    >
-                      <View style={styles.memberInfo}>
-                        <View style={styles.avatar}>
-                          <Text style={styles.avatarText}>
-                            {(member.user.username || member.user.email || 'U').charAt(0).toUpperCase()}
-                          </Text>
-                        </View>
-                        <View style={styles.memberDetails}>
-                          <Text style={styles.memberName}>
-                            {member.user.username || member.user.email}
-                          </Text>
-                          <Text style={styles.memberEmail}>
-                            {member.user.email}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={styles.checkbox}>
-                        {selectedMembers.includes(String(member.id)) && (
-                          <MaterialIcons name="check" size={20} color={Colors.primary} />
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
+        {/* Assignee - only for Group Workspaces */}
+        {workspaceType === WorkspaceType.GROUP && (
+          <View style={styles.inputSection}>
+            <Text style={styles.sectionLabel}>Assignee</Text>
+            <View style={styles.dropdownContainer}>
+              <TouchableOpacity
+                style={styles.dropdownButton}
+                onPress={() => { setShowMembersDropdown(!showMembersDropdown); if (!showMembersDropdown) setShowPriorityDropdown(false); }}
+                disabled={isFetchingAssignees}
+              >
+                <View style={styles.dropdownContent}>
+                  <MaterialIcons name="people" size={20} color={Colors.neutral.medium} />
+                  <Text style={styles.dropdownText} numberOfLines={1}>
+                    {isFetchingAssignees ? 'Loading members...' : getSelectedAssigneeDisplay()}
+                  </Text>
+                </View>
+                {isFetchingAssignees ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <MaterialIcons name={showMembersDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={24} color={Colors.neutral.medium} />
+                )}
+              </TouchableOpacity>
+              {renderMembersDropdownMenu()}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Priority */}
         <View style={styles.inputSection}>
@@ -516,7 +592,7 @@ const CreateTaskScreen: React.FC<CreateTaskScreenProps> = ({ navigation, route }
           <View style={styles.dropdownContainer}>
             <TouchableOpacity
               style={[styles.dropdownButton, errors.priority && styles.dropdownButtonError]}
-              onPress={handlePriorityDropdownToggle}
+              onPress={() => { setShowPriorityDropdown(!showPriorityDropdown); if (!showPriorityDropdown) setShowMembersDropdown(false); }}
             >
               <View style={styles.dropdownContent}>
                 <MaterialIcons name="flag" size={20} color={Colors.neutral.medium} />
@@ -528,19 +604,12 @@ const CreateTaskScreen: React.FC<CreateTaskScreenProps> = ({ navigation, route }
             </TouchableOpacity>
             {showPriorityDropdown && (
               <View style={styles.dropdownMenu}>
-                <ScrollView 
-                  style={styles.dropdownScrollView}
-                  showsVerticalScrollIndicator={true}
-                  nestedScrollEnabled={true}
-                >
+                <ScrollView style={styles.dropdownScrollView} showsVerticalScrollIndicator={true} nestedScrollEnabled={true}>
                   {priorityOptions.map((option) => (
                     <TouchableOpacity
                       key={option.value}
                       style={styles.dropdownOption}
-                      onPress={() => {
-                        setPriority(option.value);
-                        setShowPriorityDropdown(false);
-                      }}
+                      onPress={() => { setPriority(option.value); setShowPriorityDropdown(false); }}
                     >
                       <View style={[styles.priorityIndicator, { backgroundColor: option.color + '20' }]}>
                         <View style={[styles.priorityDot, { backgroundColor: option.color }]} />
@@ -552,777 +621,185 @@ const CreateTaskScreen: React.FC<CreateTaskScreenProps> = ({ navigation, route }
               </View>
             )}
           </View>
-          {errors.priority && (
-            <Text style={styles.errorText}>{errors.priority}</Text>
-          )}
+          {errors.priority && <Text style={styles.errorText}>{errors.priority}</Text>}
         </View>
 
-
-        {/* Start Date */}
+        {/* Start Date & End Date */}
         <View style={styles.inputSection}>
           <Text style={styles.sectionLabel}>Start date</Text>
-        <TouchableOpacity
-          style={styles.dateFieldButton}
-          onPress={handleStartDatePickerToggle}
-        >
+          <TouchableOpacity style={[styles.dateFieldButton, errors.startDate && styles.inputOutlineError]} onPress={() => setShowStartDatePicker(true)}>
             <View style={styles.dateFieldContent}>
               <MaterialIcons name="calendar-today" size={20} color={Colors.neutral.medium} />
-              <Text style={styles.dateFieldText}>
-                {startDate || 'Select start date'}
-              </Text>
+              <Text style={styles.dateFieldText}>{formatDateForDisplay(startDate) || 'Select start date'}</Text>
             </View>
           </TouchableOpacity>
+          {errors.startDate && <Text style={styles.errorText}>{errors.startDate}</Text>}
         </View>
-
-        {/* Due Date */}
         <View style={styles.inputSection}>
           <Text style={styles.sectionLabel}>Due date</Text>
-        <TouchableOpacity
-          style={styles.dateFieldButton}
-          onPress={handleEndDatePickerToggle}
-        >
+          <TouchableOpacity style={[styles.dateFieldButton, errors.endDate && styles.inputOutlineError]} onPress={() => setShowEndDatePicker(true)}>
             <View style={styles.dateFieldContent}>
               <MaterialIcons name="calendar-today" size={20} color={Colors.neutral.medium} />
-              <Text style={styles.dateFieldText}>
-                {endDate || 'Select due date'}
-              </Text>
+              <Text style={styles.dateFieldText}>{formatDateForDisplay(endDate) || 'Select due date'}</Text>
             </View>
           </TouchableOpacity>
-        </View>
-
-        {/* Estimated Duration */}
-        <View style={styles.inputSection}>
-          <Text style={styles.sectionLabel}>Estimated duration (minutes)</Text>
-          <TextInput
-            mode="outlined"
-            placeholder="Enter estimated duration"
-            value={estimatedDuration}
-            onChangeText={setEstimatedDuration}
-            keyboardType="numeric"
-            style={styles.textInput}
-            outlineStyle={styles.inputOutline}
-            theme={{
-              colors: {
-                primary: Colors.primary,
-                outline: Colors.neutral.light,
-                onSurface: Colors.text,
-              },
-            }}
-            left={
-              <TextInput.Icon 
-                icon={() => <MaterialIcons name="timer" size={20} color={Colors.neutral.medium} />}
-              />
-            }
-          />
+          {errors.endDate && <Text style={styles.errorText}>{errors.endDate}</Text>}
         </View>
 
       </ScrollView>
 
       {/* Create Button */}
       <View style={styles.footer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.createButton, isLoading && styles.createButtonDisabled]}
           onPress={handleCreateTask}
           disabled={isLoading}
         >
-          <Text style={[styles.createButtonText, isLoading && styles.createButtonTextDisabled]}>
-            {isLoading ? 'Creating...' : 'Create task'}
-          </Text>
+          {isLoading ? (
+            <ActivityIndicator size="small" color={Colors.surface} />
+          ) : (
+            <Text style={styles.createButtonText}>Create task</Text>
+          )}
         </TouchableOpacity>
-        
-        {/* Error Message */}
-        {errors.general && (
-          <Text style={styles.errorText}>{errors.general}</Text>
-        )}
+        {errors.general && <Text style={[styles.errorText, { textAlign: 'center', marginTop: 10 }]}>{errors.general}</Text>}
       </View>
 
-
-      {/* Start Date Picker Modal - Simple Test */}
+      {/* Date Picker Modals */}
       {showStartDatePicker && (
-        <Modal
+        <CustomDatePickerModal
           visible={showStartDatePicker}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={() => {
-            console.log('Modal onRequestClose called');
-            setShowStartDatePicker(false);
-          }}
-        >
-          <View style={styles.datePickerOverlay}>
-            <View style={styles.datePickerContainer}>
-              {/* Header with selected date and buttons */}
-              <View style={[styles.datePickerHeader, styles.datePickerHeaderOverride]}>
-                <Text style={styles.datePickerSelectedText}>
-                  {formatDateToDisplayString(startDateValue)}
-                </Text>
-                <View style={styles.headerButtons}>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      console.log('Cancel button pressed');
-                      setShowStartDatePicker(false);
-                    }}
-                    style={styles.headerButton}
-                  >
-                    <Text style={styles.headerButtonText}>CANCEL</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      console.log('OK button pressed');
-                      setStartDate(formatDateToString(startDateValue));
-                      setShowStartDatePicker(false);
-                    }}
-                    style={styles.headerButton}
-                  >
-                    <Text style={styles.headerButtonText}>OK</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              
-              {/* Calendar content */}
-              <View style={styles.datePickerContent}>
-                <View style={styles.calendarContainer}>
-                  <View style={styles.calendarNavigation}>
-                    <TouchableOpacity 
-                      onPress={() => navigateMonth('prev')}
-                      style={styles.navButton}
-                    >
-                      <MaterialIcons name="chevron-left" size={24} color={Colors.text} />
-                    </TouchableOpacity>
-                    <Text style={styles.calendarTitle}>
-                      {getMonthName(currentMonth)} {currentYear}
-                    </Text>
-                    <TouchableOpacity 
-                      onPress={() => navigateMonth('next')}
-                      style={styles.navButton}
-                    >
-                      <MaterialIcons name="chevron-right" size={24} color={Colors.text} />
-                    </TouchableOpacity>
-                  </View>
-                  
-                  <View style={styles.calendarGrid}>
-                    <View style={styles.calendarHeader}>
-                      <Text style={styles.calendarDayHeader}>S</Text>
-                      <Text style={styles.calendarDayHeader}>M</Text>
-                      <Text style={styles.calendarDayHeader}>T</Text>
-                      <Text style={styles.calendarDayHeader}>W</Text>
-                      <Text style={styles.calendarDayHeader}>T</Text>
-                      <Text style={styles.calendarDayHeader}>F</Text>
-                      <Text style={styles.calendarDayHeader}>S</Text>
-                    </View>
-                    <View style={styles.calendarDays}>
-                      {renderCalendarDays()}
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </View>
-        </Modal>
+          initialDate={startDate || new Date()}
+          onConfirm={(date) => { setShowStartDatePicker(false); setStartDate(date); }}
+          onClose={() => setShowStartDatePicker(false)}
+        />
+      )}
+      {showEndDatePicker && (
+        <CustomDatePickerModal
+          visible={showEndDatePicker}
+          initialDate={endDate || new Date()}
+          onConfirm={(date) => { setShowEndDatePicker(false); setEndDate(date); }}
+          onClose={() => setShowEndDatePicker(false)}
+        />
       )}
 
-      {/* End Date Picker Modal */}
-      {showEndDatePicker && (
-        <Modal
-          visible={showEndDatePicker}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={() => {
-            console.log('End Modal onRequestClose called');
-            setShowEndDatePicker(false);
-          }}
-        >
-          <View style={styles.datePickerOverlay}>
-            <View style={styles.datePickerContainer}>
-              {/* Header with selected date and buttons */}
-              <View style={[styles.datePickerHeader, styles.datePickerHeaderOverride]}>
-                <Text style={styles.datePickerSelectedText}>
-                  {formatDateToDisplayString(endDateValue)}
-                </Text>
-                <View style={styles.headerButtons}>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      console.log('End Cancel button pressed');
-                      setShowEndDatePicker(false);
-                    }}
-                    style={styles.headerButton}
-                  >
-                    <Text style={styles.headerButtonText}>CANCEL</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      console.log('End OK button pressed');
-                      setEndDate(formatDateToString(endDateValue));
-                      setShowEndDatePicker(false);
-                    }}
-                    style={styles.headerButton}
-                  >
-                    <Text style={styles.headerButtonText}>OK</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              
-              {/* Calendar content */}
-              <View style={styles.datePickerContent}>
-                <View style={styles.calendarContainer}>
-                  <View style={styles.calendarNavigation}>
-                    <TouchableOpacity 
-                      onPress={() => navigateEndMonth('prev')}
-                      style={styles.navButton}
-                    >
-                      <MaterialIcons name="chevron-left" size={24} color={Colors.text} />
-                    </TouchableOpacity>
-                    <Text style={styles.calendarTitle}>
-                      {getMonthName(endCurrentMonth)} {endCurrentYear}
-                    </Text>
-                    <TouchableOpacity 
-                      onPress={() => navigateEndMonth('next')}
-                      style={styles.navButton}
-                    >
-                      <MaterialIcons name="chevron-right" size={24} color={Colors.text} />
-                    </TouchableOpacity>
-                  </View>
-                  
-                  <View style={styles.calendarGrid}>
-                    <View style={styles.calendarHeader}>
-                      <Text style={styles.calendarDayHeader}>S</Text>
-                      <Text style={styles.calendarDayHeader}>M</Text>
-                      <Text style={styles.calendarDayHeader}>T</Text>
-                      <Text style={styles.calendarDayHeader}>W</Text>
-                      <Text style={styles.calendarDayHeader}>T</Text>
-                      <Text style={styles.calendarDayHeader}>F</Text>
-                      <Text style={styles.calendarDayHeader}>S</Text>
-                    </View>
-                    <View style={styles.calendarDays}>
-                      {renderEndCalendarDays()}
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: ScreenLayout.contentHorizontalPadding,
     paddingTop: ScreenLayout.headerTopSpacing,
     paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.light,
+    borderBottomWidth: 1, borderBottomColor: Colors.neutral.light,
   },
-  backButton: {
-    padding: 8,
-    width: 44,
-    height: 44,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: Colors.text,
-    flex: 1,
-    textAlign: 'center',
-    marginRight: 44, // Compensate for back button width
-  },
-  headerSpacer: {
-    width: 44,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
-    paddingTop: ScreenLayout.contentTopSpacing,
-  },
-  inputSection: {
-    marginBottom: 24,
-  },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 12,
-  },
-  textInput: {
-    backgroundColor: Colors.background,
-    fontSize: 16,
-  },
-  inputOutline: {
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  textInputError: {
-    backgroundColor: Colors.background,
-  },
-  inputOutlineError: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.semantic.error,
-  },
-  multilineTextInput: {
-    minHeight: 80,
-  },
-  multilineContent: {
-    paddingTop: 12,
-    textAlignVertical: 'top',
-  },
-  dropdownContainer: {
-    position: 'relative',
-  },
+  backButton: { padding: 8, marginLeft: -8 },
+  headerTitle: { fontSize: 20, fontWeight: '600', color: Colors.text, flex: 1, textAlign: 'center', marginRight: 36 },
+  headerSpacer: { width: 36 },
+  content: { flex: 1, paddingHorizontal: ScreenLayout.contentHorizontalPadding, paddingTop: ScreenLayout.contentTopSpacing },
+  inputSection: { marginBottom: 24 },
+  sectionLabel: { fontSize: 16, fontWeight: '600', color: Colors.text, marginBottom: 12 },
+  textInput: { backgroundColor: Colors.background, fontSize: 16 },
+  inputOutline: { borderRadius: 12, borderWidth: 1 },
+  textInputError: { backgroundColor: Colors.background },
+  inputOutlineError: { borderColor: Colors.semantic.error },
+  multilineTextInput: { minHeight: 80, textAlignVertical: 'top' },
+  multilineContent: { paddingTop: 12 },
+
+  dropdownContainer: { position: 'relative', zIndex: 10 },
   dropdownButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 16, paddingHorizontal: 16,
+    borderRadius: 12, borderWidth: 1, borderColor: Colors.neutral.light,
     backgroundColor: Colors.background,
   },
-  dropdownButtonError: {
-    borderColor: Colors.semantic.error,
-  },
-  dropdownContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  dropdownText: {
-    fontSize: 16,
-    color: Colors.text,
-    flex: 1,
-  },
+  dropdownButtonError: { borderColor: Colors.semantic.error },
+  dropdownContent: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  dropdownText: { fontSize: 16, color: Colors.text, flex: 1 },
   dropdownMenu: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    right: 0,
+    position: 'absolute', top: '100%', left: 0, right: 0,
     backgroundColor: Colors.background,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
-    paddingVertical: 8,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    zIndex: 1000,
+    borderRadius: 12, borderWidth: 1, borderColor: Colors.neutral.light,
+    marginTop: 4, elevation: 12, zIndex: 200,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4,
     maxHeight: 200,
   },
-  dropdownScrollView: {
-    maxHeight: 200,
-  },
-  dropdownOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  dropdownOptionText: {
-    fontSize: 16,
-    color: Colors.text,
-  },
-  membersScrollView: {
-    maxHeight: 200,
-  },
+  dropdownScrollView: { maxHeight: 200 },
+  dropdownOption: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20, gap: 12 },
+  dropdownOptionText: { fontSize: 16, color: Colors.text },
+
+  membersScrollView: { maxHeight: 200 },
   memberOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.light + '50',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, paddingHorizontal: 16,
+    borderBottomWidth: 1, borderBottomColor: Colors.neutral.light + '50',
   },
-  memberInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  avatarText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.surface,
-  },
-  memberDetails: {
-    flex: 1,
-  },
-  memberName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: Colors.neutral.dark,
-  },
-  memberEmail: {
-    fontSize: 14,
-    color: Colors.neutral.medium,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  priorityIndicator: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  priorityDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  modalContainer: {
-    backgroundColor: Colors.background,
-    borderRadius: 16,
-    width: '100%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
-    overflow: 'hidden',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: Colors.primary,
-  },
-  modalTitle: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: Colors.surface,
-    textAlign: 'center',
-    flex: 1,
-  },
-  modalSave: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.surface,
-  },
-  modalDateRangeDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: Colors.primary,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.primary + '50',
-  },
-  modalDateRangeText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.surface,
-    flex: 1,
-  },
-  modalContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  modalDateInputSection: {
-    marginBottom: 20,
-  },
-  modalDateInputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  modalDateInput: {
-    backgroundColor: Colors.background,
-    fontSize: 16,
-  },
-  modalInputOutline: {
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  modalDateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
-    borderRadius: 12,
-    backgroundColor: Colors.background,
-  },
-  modalDateButtonText: {
-    fontSize: 16,
-    color: Colors.text,
-    flex: 1,
-  },
-  // Material Design Date Picker styles
-  datePickerOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  datePickerContainer: {
-    backgroundColor: Colors.background,
-    borderRadius: 16,
-    padding: 0,
-    width: '90%',
-    maxWidth: 350,
-    height: 420, // Fixed height to prevent size changes
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-  },
-  datePickerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: Colors.primary,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  datePickerTitle: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: Colors.surface,
-    textAlign: 'center',
-    flex: 1,
-  },
-  datePickerCancelText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.surface,
-  },
-  datePickerOkText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.surface,
-  },
-  datePickerButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  datePickerSelectedDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: Colors.primary,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.primary + '50',
-  },
-  datePickerSelectedText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.surface,
-    flex: 1,
-  },
-  datePicker: {
-    backgroundColor: Colors.background,
-  },
-  datePickerContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    alignItems: 'center',
-  },
-  // Calendar styles
-  calendarContainer: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  calendarTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 16,
-  },
-  calendarGrid: {
-    width: '100%',
-  },
-  calendarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 8,
-  },
-  calendarDayHeader: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.neutral.medium,
-    width: 40,
-    textAlign: 'center',
-  },
-  calendarDays: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-around',
-  },
-  calendarDay: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 2,
-    borderRadius: 20,
-  },
-  calendarDaySelected: {
-    backgroundColor: Colors.primary + '20',
-    borderWidth: 2,
-    borderColor: Colors.primary,
-  },
-  calendarDayToday: {
-    backgroundColor: Colors.semantic.success + '20',
-    borderWidth: 1,
-    borderColor: Colors.semantic.success,
-  },
-  calendarDayText: {
-    fontSize: 16,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  calendarDayTextSelected: {
-    color: Colors.primary,
-    fontWeight: '700',
-  },
-  calendarDayTextToday: {
-    color: Colors.semantic.success,
-    fontWeight: '600',
-  },
-  // Date Field styles
+  memberInfo: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  avatarText: { fontSize: 14, fontWeight: '600', color: Colors.surface },
+  memberDetails: { flex: 1 },
+  memberName: { fontSize: 16, fontWeight: '500', color: Colors.neutral.dark },
+  memberEmail: { fontSize: 14, color: Colors.neutral.medium },
+  checkbox: { width: 20, height: 20, justifyContent: 'center', alignItems: 'center' },
+
+  priorityIndicator: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  priorityDot: { width: 8, height: 8, borderRadius: 4 },
+
   dateFieldButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 16, paddingHorizontal: 16,
+    borderRadius: 12, borderWidth: 1, borderColor: Colors.neutral.light,
     backgroundColor: Colors.background,
   },
-  dateFieldContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  dateFieldText: {
-    fontSize: 16,
-    color: Colors.text,
-    flex: 1,
-  },
-  errorText: {
-    color: Colors.semantic.error,
-    fontSize: 12,
-    marginTop: 4,
-    marginLeft: 12,
-  },
-  footer: {
-    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
-    paddingBottom: ScreenLayout.footerBottomSpacing,
-    paddingTop: 24,
-  },
+  dateFieldContent: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  dateFieldText: { fontSize: 16, color: Colors.text, flex: 1 },
+
+  errorText: { color: Colors.semantic.error, fontSize: 12, marginTop: 4, marginLeft: 12 },
+
+  footer: { paddingHorizontal: ScreenLayout.contentHorizontalPadding, paddingBottom: ScreenLayout.footerBottomSpacing, paddingTop: 24 },
   createButton: {
-    backgroundColor: Colors.primary,
-    ...ButtonStyles.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    shadowColor: Colors.primary,
+    backgroundColor: Colors.primary, ...ButtonStyles.primary,
+    alignItems: 'center', justifyContent: 'center', alignSelf: 'center', shadowColor: Colors.primary,
   },
-  createButtonDisabled: {
-    backgroundColor: Colors.neutral.medium,
+  createButtonDisabled: { backgroundColor: Colors.neutral.medium },
+  createButtonText: { ...Typography.buttonText, color: Colors.neutral.white },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
+  datePickerContainer: {
+    backgroundColor: Colors.surface, borderRadius: 16, padding: 20,
+    width: '90%', maxWidth: 340, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5,
   },
-  createButtonText: {
-    ...Typography.buttonText,
-    color: Colors.neutral.white,
+  calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  navButton: { padding: 8 },
+  calendarTitle: { fontSize: 18, fontWeight: '600', color: Colors.text },
+  calendarWeekDays: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 },
+  calendarDayHeader: { width: 32, textAlign: 'center', color: Colors.neutral.medium, fontWeight: '500' },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around' },
+  calendarDay: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 20 },
+  calendarDaySelected: { backgroundColor: Colors.primary },
+  calendarDayText: { fontSize: 16, color: Colors.text },
+  calendarDayTextSelected: { color: Colors.surface, fontWeight: 'bold' },
+  datePickerFooter: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 20, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.neutral.light },
+  datePickerButton: { paddingHorizontal: 20, paddingVertical: 10 },
+  datePickerConfirmButton: { backgroundColor: Colors.primary, borderRadius: 8, marginLeft: 8 },
+  datePickerButtonText: { fontSize: 16, fontWeight: '600', color: Colors.primary },
+  datePickerConfirmButtonText: { color: Colors.surface },
+
+  projectsScrollView: { maxHeight: 250 },
+  projectOption: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, paddingHorizontal: 16,
+    borderBottomWidth: 1, borderBottomColor: Colors.neutral.light + '50',
   },
-  createButtonTextDisabled: {
-    color: Colors.neutral.medium,
-  },
-  // Calendar Navigation styles
-  calendarNavigation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    width: '100%',
-  },
-  navButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 20,
-    backgroundColor: Colors.neutral.light,
-  },
-  // Header button styles
-  datePickerHeaderSpacer: {
-    flex: 1,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: Colors.surface + '20',
-  },
-  headerButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.surface,
-  },
-  // Override header styles for rounded corners
-  datePickerHeaderOverride: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
+  projectInfo: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  projectIcon: { width: 36, height: 36, borderRadius: 8, backgroundColor: Colors.primary + '20', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  projectDetails: { flex: 1 },
+  projectName: { fontSize: 16, fontWeight: '500', color: Colors.neutral.dark },
+  projectDescription: { fontSize: 13, color: Colors.neutral.medium, marginTop: 2 },
+  emptyProjectsContainer: { paddingVertical: 24, paddingHorizontal: 16, alignItems: 'center' },
+  emptyProjectsText: { fontSize: 14, color: Colors.neutral.medium, fontStyle: 'italic' },
 });
 
 export default CreateTaskScreen;

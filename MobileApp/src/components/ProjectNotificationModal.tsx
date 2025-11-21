@@ -178,72 +178,75 @@ const ProjectNotificationModal: React.FC<ProjectNotificationModalProps> = ({
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Project Notifications</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <MaterialIcons name="close" size={24} color={Colors.neutral.dark} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Content */}
-          <View style={styles.content}>
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={Colors.primary} />
-                <Text style={styles.loadingText}>Loading notifications...</Text>
-              </View>
-            ) : notifications.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <MaterialIcons name="notifications-none" size={48} color={Colors.neutral.medium} />
-                <Text style={styles.emptyTitle}>No notifications yet</Text>
-                <Text style={styles.emptySubtitle}>You'll see project updates here</Text>
-              </View>
-            ) : (
-              <ScrollView style={styles.notificationsList} showsVerticalScrollIndicator={false}>
-                {notifications.map((notification) => (
-                  <TouchableOpacity
-                    key={notification.id}
-                    style={styles.notificationCard}
-                    onPress={() => markAsRead(notification.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.notificationHeader}>
-                      <View style={styles.notificationInfo}>
-                        <View style={styles.notificationIcon}>
-                          <MaterialIcons 
-                            name={getNotificationIcon(notification.type)} 
-                            size={20} 
-                            color={getNotificationColor(notification.type)} 
-                          />
-                        </View>
-                        <View style={styles.notificationDetails}>
-                          <Text style={styles.notificationTitle}>
-                            {notification.title}
-                          </Text>
-                          <Text style={styles.notificationMessage}>
-                            {notification.message}
-                          </Text>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.title}>Project Notifications</Text>
+              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                <MaterialIcons name="close" size={24} color={Colors.neutral.dark} />
+              </TouchableOpacity>
+            </View>
+    
+            {/* Content */}
+            <View style={styles.content}>
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={Colors.primary} />
+                  <Text style={styles.loadingText}>Loading notifications...</Text>
+                </View>
+              ) : notifications.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <MaterialIcons name="notifications-none" size={48} color={Colors.neutral.medium} />
+                  <Text style={styles.emptyTitle}>No notifications yet</Text>
+                  <Text style={styles.emptySubtitle}>You'll see project updates here</Text>
+                </View>
+              ) : (
+              <ScrollView
+                style={styles.notificationsList}
+                showsVerticalScrollIndicator={false}
+              >
+                  {notifications.map((notification) => (
+                    <TouchableOpacity
+                      key={notification.id}
+                      style={styles.notificationCard}
+                      onPress={() => markAsRead(notification.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.notificationHeader}>
+                        <View style={styles.notificationInfo}>
+                          <View style={styles.notificationIcon}>
+                            <MaterialIcons 
+                              name={getNotificationIcon(notification.type)} 
+                              size={20} 
+                              color={getNotificationColor(notification.type)} 
+                            />
+                          </View>
+                          <View style={styles.notificationDetails}>
+                            <Text style={styles.notificationTitle}>
+                              {notification.title}
+                            </Text>
+                            <Text style={styles.notificationMessage}>
+                              {notification.message}
+                            </Text>
+                          </View>
                         </View>
                       </View>
-                    </View>
 
-                    <View style={styles.notificationFooter}>
-                      <Text style={styles.timeText}>
-                        {formatTimeAgo(notification.createdAt)}
-                      </Text>
-                      {notification.senderName && (
-                        <Text style={styles.senderText}>
-                          by {notification.senderName}
+                      <View style={styles.notificationFooter}>
+                        <Text style={styles.timeText}>
+                          {formatTimeAgo(notification.createdAt)}
                         </Text>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
+                        {notification.senderName && (
+                          <Text style={styles.senderText}>
+                            by {notification.senderName}
+                          </Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
           </View>
-        </View>
       </View>
     </Modal>
   );

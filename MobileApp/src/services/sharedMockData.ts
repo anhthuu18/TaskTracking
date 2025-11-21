@@ -92,7 +92,7 @@ export const mockProjectMembers: ProjectMember[] = [
     id: 2,
     projectId: 1,
     userId: 2,
-    role: ProjectMemberRole.ADMIN,
+    role: ProjectMemberRole.MEMBER,
     joinedAt: new Date('2024-01-02'),
     user: {
       id: 2,

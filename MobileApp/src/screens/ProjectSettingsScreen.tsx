@@ -1,5 +1,16 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  Modal,
+  ActivityIndicator,
+  StatusBar,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
@@ -18,6 +29,9 @@ interface ProjectSettingsScreenProps {
 const ProjectSettingsScreen: React.FC<ProjectSettingsScreenProps> = ({ navigation, route }) => {
   const { project: initialProject } = route.params;
   const [project, setProject] = useState<Project>(initialProject);
+
+  // State for the edit modal
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [projectName, setProjectName] = useState(initialProject.projectName);
   const [projectDescription, setProjectDescription] = useState(initialProject.description || '');
   const [isSaving, setIsSaving] = useState(false);
@@ -35,14 +49,13 @@ const ProjectSettingsScreen: React.FC<ProjectSettingsScreenProps> = ({ navigatio
       });
       if (response.success && response.data) {
         setProject(response.data);
-        navigation.goBack();
+        setIsEditModalVisible(false); // Close modal on success
+        navigation.goBack(); // Or update the parent state
       } else {
         Alert.alert('Error', 'Failed to update project.');
-        console.error('Failed to update project:', response.message);
       }
     } catch (error) {
       Alert.alert('Error', 'An error occurred while updating the project.');
-      console.error('Error updating project:', error);
     } finally {
       setIsSaving(false);
     }
@@ -70,76 +83,150 @@ const ProjectSettingsScreen: React.FC<ProjectSettingsScreenProps> = ({ navigatio
     );
   };
 
+  const renderSettingItem = (item: {
+    id: string;
+    title: string;
+    icon: string;
+    iconColor?: string;
+    onPress?: () => void;
+    showOnlyAdmin?: boolean;
+  }) => {
+    if (item.showOnlyAdmin && !isCurrentUserAdmin) {
+      return null;
+    }
+
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={styles.settingItem}
+        onPress={item.onPress}
+        disabled={!item.onPress}
+      >
+        <View style={[styles.iconContainer, { backgroundColor: (item.iconColor || Colors.primary) + '20' }]}>
+          <MaterialIcons
+            name={item.icon as any}
+            size={20}
+            color={item.iconColor || Colors.primary}
+          />
+        </View>
+        <Text style={styles.settingTitleText}>
+          {item.title}
+        </Text>
+        {item.onPress && <MaterialIcons name="chevron-right" size={20} color={Colors.neutral.medium} />}
+      </TouchableOpacity>
+    );
+  };
+
+  const settingsItems = [
+    {
+      id: 'edit-project',
+      title: 'Project Name & Description',
+      icon: 'edit',
+      iconColor: Colors.primary,
+      showOnlyAdmin: true,
+      onPress: () => setIsEditModalVisible(true),
+    },
+    {
+      id: 'complete-project',
+      title: 'Mark as Complete',
+      icon: 'check-circle',
+      iconColor: Colors.semantic.success,
+      showOnlyAdmin: true,
+      onPress: handleCompleteProject,
+    },
+    {
+      id: 'delete-project',
+      title: 'Delete Project',
+      icon: 'delete',
+      iconColor: Colors.semantic.error,
+      showOnlyAdmin: true,
+      onPress: handleDeleteProject,
+    },
+  ];
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="keyboard-arrow-left" size={32} color={Colors.neutral.dark} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Project Settings</Text>
-        <View style={styles.headerActions} />
+        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.subtitle}>Manage your project details</Text>
       </View>
 
-      <ScrollView style={styles.content}>
-        {/* General Settings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>General</Text>
-          <View style={styles.card}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Project Name</Text>
-              <TextInput
-                style={styles.input}
-                value={projectName}
-                onChangeText={setProjectName}
-                placeholder="Enter project name"
-                editable={isCurrentUserAdmin}
-              />
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Description</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={projectDescription}
-                onChangeText={setProjectDescription}
-                placeholder="Enter project description"
-                multiline
-                editable={isCurrentUserAdmin}
-              />
-            </View>
-          </View>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.settingsContainer}>
+          {settingsItems.map(renderSettingItem)}
         </View>
-
-        {/* Danger Zone */}
-        {isCurrentUserAdmin && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Danger Zone</Text>
-            <View style={styles.card}>
-              <TouchableOpacity style={styles.dangerButton} onPress={handleCompleteProject}>
-                <MaterialIcons name="check-circle" size={20} color={Colors.semantic.success} />
-                <Text style={[styles.dangerButtonText, { color: Colors.semantic.success }]}>Mark as Complete</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.dangerButton} onPress={handleDeleteProject}>
-                <MaterialIcons name="delete" size={20} color={Colors.semantic.error} />
-                <Text style={[styles.dangerButtonText, { color: Colors.semantic.error }]}>Delete Project</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
       </ScrollView>
 
-      {/* Save Button */}
-      {isCurrentUserAdmin && (
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
-            onPress={handleUpdateProject}
-            disabled={isSaving}
-          >
-            <Text style={styles.saveButtonText}>{isSaving ? 'Saving...' : 'Save Changes'}</Text>
-          </TouchableOpacity>
+      {/* Edit Project Modal */}
+      <Modal
+        visible={isEditModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Project</Text>
+              <TouchableOpacity
+                onPress={() => setIsEditModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <MaterialIcons name="close" size={24} color={Colors.neutral.dark} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalContent}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>Project Name *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={projectName}
+                  onChangeText={setProjectName}
+                  placeholder="Enter project name"
+                  placeholderTextColor={Colors.neutral.medium}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>Description</Text>
+                <TextInput
+                  style={[styles.modalInput, styles.modalTextArea]}
+                  value={projectDescription}
+                  onChangeText={setProjectDescription}
+                  placeholder="Add a project description..."
+                  placeholderTextColor={Colors.neutral.medium}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setIsEditModalVisible(false)}
+                disabled={isSaving}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.modalSaveButton, isSaving && styles.modalButtonDisabled]}
+                onPress={handleUpdateProject}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <ActivityIndicator size="small" color={Colors.neutral.white} />
+                ) : (
+                  <Text style={styles.modalSaveText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-      )}
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -149,100 +236,164 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  content: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 20,
+  },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: Colors.surface,
+    paddingTop: 20,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    backgroundColor: Colors.neutral.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral.light,
   },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 8,
     color: Colors.neutral.dark,
   },
-  headerActions: {
-    width: 32, // To balance the header
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
+  subtitle: {
     fontSize: 16,
-    fontWeight: '600',
     color: Colors.neutral.medium,
-    marginBottom: 8,
-    paddingHorizontal: 8,
   },
-  card: {
-    backgroundColor: Colors.surface,
+  settingsContainer: {
+    backgroundColor: Colors.neutral.white,
     borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    overflow: 'hidden',
   },
-  inputGroup: {
-    marginBottom: 16,
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light,
   },
-  label: {
-    fontSize: 14,
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  settingTitleText: {
+    flex: 1,
+    fontSize: 16,
     fontWeight: '500',
     color: Colors.neutral.dark,
-    marginBottom: 6,
   },
-  input: {
-    backgroundColor: Colors.background,
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  modal: {
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  modalLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: Colors.neutral.dark,
+    marginBottom: 8,
+  },
+  modalInput: {
     borderWidth: 1,
     borderColor: Colors.neutral.light,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
     fontSize: 16,
-    color: Colors.neutral.dark,
+    color: Colors.text,
+    backgroundColor: Colors.neutral.light + '20',
   },
-  textArea: {
+  modalTextArea: {
     minHeight: 100,
     textAlignVertical: 'top',
   },
-  dangerButton: {
+  modalActions: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    gap: 8,
-  },
-  dangerButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  footer: {
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: Colors.neutral.light,
-    backgroundColor: Colors.surface,
+    gap: 12,
   },
-  saveButton: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 14,
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  saveButtonDisabled: {
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: Colors.neutral.dark,
+  },
+  modalSaveButton: {
+    flex: 1,
+    flexDirection: 'row',
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  modalButtonDisabled: {
     backgroundColor: Colors.neutral.medium,
   },
-  saveButtonText: {
+  modalSaveText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: Colors.surface,
+    fontWeight: '500',
+    color: Colors.neutral.white,
   },
 });
 

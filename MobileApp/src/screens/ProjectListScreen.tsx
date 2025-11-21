@@ -325,9 +325,10 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
         visible={showCreateProjectModal}
         onClose={() => setShowCreateProjectModal(false)}
         workspaceId={Number(selectedWorkspace?.id || 0)}
-        onProjectCreated={async () => {
+        onProjectCreated={async (createdProject: any, hasMembers: boolean) => {
           await loadProjects();
           setShowCreateProjectModal(false);
+          // Optionally navigate to project detail if needed
         }}
       />
 

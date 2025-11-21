@@ -340,22 +340,23 @@ model ProjectTaskPriority {
 
 // Main Tasks table
 model Task {
-  id            Int       @id @default(autoincrement()) @map("TaskID")
-  projectId     Int?      @map("ProjectID")
-  workspaceId   Int       @map("WorkspaceID")
-  taskName      String    @map("TaskName") @db.VarChar(200)
-  description   String?   @map("Description") @db.Text
-  type          String    @default("basic") @map("Type") @db.VarChar(20)
-  startTime     DateTime? @map("StartTime")
-  endTime       DateTime? @map("EndTime")
-  priority      Int       @default(3) @map("Priority")
-  createdBy     Int       @map("CreatedBy")
-  assignedTo    Int?      @map("AssignedTo")
-  status        String    @default("todo") @map("Status") @db.VarChar(50)
-  isRecurring   Boolean   @default(false) @map("IsRecurring")
-  recurringRule String?   @map("RecurringRule") @db.VarChar(100)
-  dateCreated   DateTime  @default(now()) @map("DateCreated")
-  dateModified  DateTime  @updatedAt @map("DateModified")
+  id                Int       @id @default(autoincrement()) @map("TaskID")
+  projectId         Int?      @map("ProjectID")
+  workspaceId       Int       @map("WorkspaceID")
+  taskName          String    @map("TaskName") @db.VarChar(200)
+  description       String?   @map("Description") @db.Text
+  type              String    @default("basic") @map("Type") @db.VarChar(20)
+  startTime         DateTime? @map("StartTime")
+  endTime           DateTime? @map("EndTime")
+  priority          Int       @default(3) @map("Priority")
+  createdBy         Int       @map("CreatedBy")
+  assignedTo        Int?      @map("AssignedTo")
+  status            String    @default("todo") @map("Status") @db.VarChar(50)
+  estimatedMinutes  Int?      @map("EstimatedMinutes")
+  isRecurring       Boolean   @default(false) @map("IsRecurring")
+  recurringRule     String?   @map("RecurringRule") @db.VarChar(100)
+  dateCreated       DateTime  @default(now()) @map("DateCreated")
+  dateModified      DateTime  @updatedAt @map("DateModified")
 
   // Relations
   project     Project?     @relation(fields: [projectId], references: [id])

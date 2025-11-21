@@ -1,208 +1,155 @@
-import { Task, TaskStatus, TaskPriority } from '../types/Task';
-import { generateId } from '../utils/helpers';
+// Task Service - Connects to the Backend Task APIs
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_CONFIG, buildApiUrl, getCurrentApiConfig } from '../config/api';
+import { Task, CreateTaskDto, UpdateTaskDto, TaskUser } from '../types/Task';
 
-/**
- * Service for managing tasks
- */
+// Generic response structure for a single task
+export interface TaskResponse {
+  success: boolean;
+  message: string;
+  data: Task;
+}
+
+// Generic response for a list of tasks
+export interface TaskListResponse {
+  success: boolean;
+  message: string;
+  data: Task[];
+}
+
+// Generic response for a list of assignees (users)
+export interface AssigneeListResponse {
+  success: boolean;
+  message: string;
+  data: TaskUser[];
+}
+
 class TaskService {
-  private tasks: Task[] = [];
-
-  constructor() {
-    // Initialize with mock data
-    this.initializeMockData();
-  }
-
-  private initializeMockData() {
-    this.tasks = [
-      {
-        id: '1',
-        title: 'Phát triển giao diện đăng nhập',
-        description: 'Tạo màn hình đăng nhập với xác thực JWT và validation form',
-        status: TaskStatus.IN_PROGRESS,
-        priority: TaskPriority.HIGH,
-        assignee: 'Nguyễn Văn A',
-        dueDate: new Date('2024-01-15'),
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date('2024-01-10'),
-        tags: ['Frontend', 'Authentication', 'UI/UX'],
-      },
-      {
-        id: '2',
-        title: 'Thiết kế database schema',
-        description: 'Thiết kế cấu trúc cơ sở dữ liệu cho hệ thống quản lý task',
-        status: TaskStatus.TODO,
-        priority: TaskPriority.URGENT,
-        assignee: 'Trần Thị B',
-        dueDate: new Date('2024-01-12'),
-        createdAt: new Date('2024-01-02'),
-        updatedAt: new Date('2024-01-02'),
-        tags: ['Database', 'Backend'],
-      },
-      {
-        id: '3',
-        title: 'Viết API endpoints',
-        description: 'Phát triển các API REST cho CRUD operations của tasks',
-        status: TaskStatus.DONE,
-        priority: TaskPriority.MEDIUM,
-        assignee: 'Lê Văn C',
-        dueDate: new Date('2024-01-08'),
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date('2024-01-08'),
-        tags: ['Backend', 'API'],
-      },
-      {
-        id: '4',
-        title: 'Thiết lập CI/CD pipeline',
-        description: 'Cấu hình GitHub Actions cho auto deployment',
-        status: TaskStatus.TODO,
-        priority: TaskPriority.LOW,
-        assignee: 'Phạm Văn D',
-        createdAt: new Date('2024-01-03'),
-        updatedAt: new Date('2024-01-03'),
-        tags: ['DevOps', 'Automation'],
-      },
-    ];
-  }
-
-  /**
-   * Get all tasks
-   */
-  public async getAllTasks(): Promise<Task[]> {
-    // Simulate API delay
-    await new Promise<void>(resolve => setTimeout(resolve, 300));
-    return [...this.tasks];
-  }
-
-  /**
-   * Get task by ID
-   */
-  public async getTaskById(id: string): Promise<Task | null> {
-    await new Promise<void>(resolve => setTimeout(resolve, 200));
-    return this.tasks.find(task => task.id === id) || null;
-  }
-
-  /**
-   * Create new task
-   */
-  public async createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> {
-    await new Promise<void>(resolve => setTimeout(resolve, 500));
-    
-    const newTask: Task = {
-      ...taskData,
-      id: generateId(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    this.tasks.push(newTask);
-    return newTask;
-  }
-
-  /**
-   * Update task
-   */
-  public async updateTask(id: string, updates: Partial<Task>): Promise<Task | null> {
-    await new Promise<void>(resolve => setTimeout(resolve, 500));
-    
-    const taskIndex = this.tasks.findIndex(task => task.id === id);
-    if (taskIndex === -1) return null;
-
-    this.tasks[taskIndex] = {
-      ...this.tasks[taskIndex],
-      ...updates,
-      updatedAt: new Date(),
-    };
-
-    return this.tasks[taskIndex];
-  }
-
-  /**
-   * Delete task
-   */
-  public async deleteTask(id: string): Promise<boolean> {
-    await new Promise<void>(resolve => setTimeout(resolve, 300));
-    
-    const taskIndex = this.tasks.findIndex(task => task.id === id);
-    if (taskIndex === -1) return false;
-
-    this.tasks.splice(taskIndex, 1);
-    return true;
-  }
-
-  /**
-   * Update task status
-   */
-  public async updateTaskStatus(id: string, status: TaskStatus): Promise<Task | null> {
-    return this.updateTask(id, { status });
-  }
-
-  /**
-   * Search tasks
-   */
-  public async searchTasks(query: string): Promise<Task[]> {
-    await new Promise<void>(resolve => setTimeout(resolve, 200));
-    
-    const lowercaseQuery = query.toLowerCase();
-    return this.tasks.filter(task =>
-      task.title.toLowerCase().includes(lowercaseQuery) ||
-      task.description.toLowerCase().includes(lowercaseQuery) ||
-      task.assignee?.toLowerCase().includes(lowercaseQuery) ||
-      task.tags?.some(tag => tag.toLowerCase().includes(lowercaseQuery))
-    );
-  }
-
-  /**
-   * Filter tasks by status
-   */
-  public async filterTasksByStatus(status: TaskStatus): Promise<Task[]> {
-    await new Promise<void>(resolve => setTimeout(resolve, 200));
-    return this.tasks.filter(task => task.status === status);
-  }
-
-  /**
-   * Get tasks by workspace ID (for compatibility with new dashboard)
-   */
-  public async getTasksByWorkspace(workspaceId: string): Promise<{ success: boolean; data?: Task[]; message?: string }> {
+  private async getAuthToken(): Promise<string | null> {
     try {
-      await new Promise<void>(resolve => setTimeout(resolve, 500));
-      return {
-        success: true,
-        data: [...this.tasks],
-      };
+      return await AsyncStorage.getItem('authToken');
     } catch (error) {
-      return {
-        success: false,
-        message: 'Failed to fetch tasks',
-      };
+      console.error('Error getting auth token:', error);
+      return null;
     }
   }
 
-  /**
-   * Get upcoming tasks (for compatibility with new dashboard)
-   */
-  public async getUpcomingTasks(workspaceId: string, days: number = 7): Promise<{ success: boolean; data?: Task[]; message?: string }> {
+  private async request<T>(url: string, options: RequestInit): Promise<T> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
+
     try {
-      await new Promise<void>(resolve => setTimeout(resolve, 500));
-      
-      const now = new Date();
-      const futureDate = new Date();
-      futureDate.setDate(now.getDate() + days);
-      
-      const upcomingTasks = this.tasks.filter(task => {
-        if (!task.dueDate) return false;
-        return task.dueDate >= now && task.dueDate <= futureDate && task.status !== TaskStatus.DONE;
+      const token = await this.getAuthToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...(options.headers as Record<string, string> || {}),
+      };
+
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        signal: controller.signal,
       });
-      
-      return {
-        success: true,
-        data: upcomingTasks,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: 'Failed to fetch upcoming tasks',
-      };
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse JSON response:', jsonError);
+        data = {};
+      }
+
+      if (!response.ok) {
+        const errorMessage = data?.message || `HTTP ${response.status}: ${response.statusText}`;
+        console.error('API Error:', errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      return data as T;
+    } catch (error: any) {
+      console.error('Request failed:', error);
+      const isAbort = error?.name === 'AbortError';
+      const errorMessage = isAbort ? 'Request timeout' : (error?.message || 'Network error');
+      throw new Error(errorMessage);
+    } finally {
+      clearTimeout(timeout);
     }
+  }
+
+  /**
+   * Create a new task.
+   * @param taskData - The data for the new task.
+   * @returns The created task.
+   */
+  async createTask(taskData: CreateTaskDto): Promise<Task> {
+    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.TASK.CREATE);
+    return this.request<Task>(url, {
+      method: 'POST',
+      body: JSON.stringify(taskData),
+    });
+  }
+
+  /**
+   * Get all tasks for a specific project.
+   * @param projectId - The ID of the project.
+   * @returns A list of tasks.
+   */
+  async getTasksByProject(projectId: number): Promise<Task[]> {
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.GET_BY_PROJECT}/${projectId}`);
+    return this.request<Task[]>(url, {
+      method: 'GET',
+    });
+  }
+
+  /**
+   * Update an existing task.
+   * @param taskId - The ID of the task to update.
+   * @param updates - The fields to update.
+   * @returns The updated task.
+   */
+  async updateTask(taskId: number, updates: UpdateTaskDto): Promise<Task> {
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.UPDATE}/${taskId}`);
+    return this.request<Task>(url, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  /**
+   * Delete a task.
+   * @param taskId - The ID of the task to delete.
+   * @returns A confirmation message.
+   */
+  async deleteTask(taskId: number): Promise<{ message: string }> {
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.DELETE}/${taskId}`);
+    return this.request<{ message: string }>(url, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * Get available assignees for a project (i.e., workspace members).
+   * @param projectId - The ID of the project.
+   * @returns A list of users who can be assigned to tasks.
+   */
+  async getAvailableAssignees(projectId: number): Promise<TaskUser[]> {
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.GET_ASSIGNEES}/${projectId}/assignees`);
+    return this.request<TaskUser[]>(url, {
+      method: 'GET',
+    });
+  }
+
+  /**
+   * Get all tasks for a specific workspace.
+   * @param workspaceId - The ID of the workspace.
+   * @returns A list of tasks.
+   */
+  async getTasksByWorkspace(workspaceId: number | string): Promise<Task[]> {
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.GET_BY_WORKSPACE}/${workspaceId}`);
+    return this.request<Task[]>(url, {
+      method: 'GET',
+    });
   }
 }
 

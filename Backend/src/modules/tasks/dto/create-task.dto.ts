@@ -36,6 +36,11 @@ export class CreateTaskDto {
   endTime?: string;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  estimatedMinutes?: number; // Estimated time to complete task in minutes
+
+  @IsOptional()
   @IsString()
   @MaxLength(20)
   type?: string; // Default 'basic'

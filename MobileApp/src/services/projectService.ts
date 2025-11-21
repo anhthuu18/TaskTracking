@@ -301,7 +301,7 @@ class ProjectService {
   }
 
   async updateProjectLastOpened(projectId: number): Promise<{ success: boolean }> {
-    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.PROJECT.UPDATE_LAST_OPENED.replace(':id', String(projectId)));
+    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.PROJECT.UPDATE_LAST_OPENED.replace(':id', String(projectId)));  
     return this.request<{ success: boolean }>(url, {
       method: 'POST',
     });

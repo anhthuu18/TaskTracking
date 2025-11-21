@@ -19,6 +19,7 @@ export interface Project {
   workspace?: {
     id: number;
     workspaceName: string;
+    workspaceType?: string;
   };
   memberCount?: number;
   userRole?: ProjectMemberRole;

@@ -66,10 +66,7 @@ const CustomFooter: React.FC<CustomFooterProps> = ({ activeTab, onTabPress }) =>
     return (
       <TouchableOpacity
         key={tab.id}
-        style={[
-          styles.tabContainer,
-          isActive && styles.activeTabContainer,
-        ]}
+        style={styles.tabContainer}
         onPress={tab.onPress}
         activeOpacity={0.7}
       >
@@ -136,24 +133,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 6,
     paddingHorizontal: 8,
-    borderRadius: 16,
     marginHorizontal: 2,
-  },
-  activeTabContainer: {
-    backgroundColor: '#F8FAFC',
-    shadowColor: '#8B5CF6',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 3,
   },
   iconContainer: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 0, 
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,

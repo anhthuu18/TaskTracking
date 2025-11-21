@@ -53,6 +53,7 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
         }
         
         if (workspaceId) {
+          console.log('[MainNavigator] Setting currentWorkspaceId:', workspaceId);
           setCurrentWorkspaceId(Number(workspaceId));
           
           // Load workspace members
@@ -60,6 +61,8 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
           if (membersResponse.success && membersResponse.data) {
             setWorkspaceMembers(membersResponse.data);
           }
+        } else {
+          console.log('[MainNavigator] No workspaceId found');
         }
       } catch (error) {
         console.error('Error loading workspace data:', error);
@@ -100,7 +103,9 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
 
     switch (optionId) {
       case 'task':
-        (navigation as any).navigate('CreateTask');
+        (navigation as any).navigate('CreateTask', {
+          workspaceId: currentWorkspaceId,
+        });
         break;
       case 'project':
         setShowCreateProjectModal(true);
@@ -133,7 +138,8 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
         return (
           <TaskListScreen 
             key="tasks" 
-            route={{ params: { workspace, showAllTasks } }} 
+            navigation={navigation}
+            route={{ params: { workspace, showAllTasks, workspaceId: currentWorkspaceId?.toString() || '1' } }} 
             onViewAllTasksComplete={() => setShowAllTasks(false)}
           />
         );
@@ -170,10 +176,21 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
         visible={showCreateProjectModal}
         onClose={() => setShowCreateProjectModal(false)}
         workspaceId={Number(currentWorkspaceId || 0)}
-        onProjectCreated={() => {
+        onProjectCreated={(createdProject: any, hasMembers: boolean) => {
           setShowCreateProjectModal(false);
           setReloadKey((k) => k + 1);
-          setActiveTab('home');
+          
+          // Navigate to project detail screen
+          if (createdProject) {
+            // If no members selected, go to members tab; otherwise go to tasks tab
+            const initialTab = hasMembers ? 'tasks' : 'members';
+            (navigation as any).navigate('ProjectDetail', {
+              project: createdProject,
+              initialTab: initialTab,
+            });
+          } else {
+            setActiveTab('home');
+          }
         }}
       />
     </View>

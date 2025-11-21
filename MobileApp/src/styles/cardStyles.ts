@@ -324,7 +324,8 @@ export const getPriorityColor = (priority: string): string => {
 };
 
 export const getRoleColor = (role: string): string => {
-  switch (role) {
+  const normalizedRole = role ? role.toString().toUpperCase() : '';
+  switch (normalizedRole) {
     case 'OWNER':
       return Colors.error;
     case 'ADMIN':
