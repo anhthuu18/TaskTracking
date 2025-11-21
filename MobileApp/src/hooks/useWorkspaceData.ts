@@ -42,6 +42,7 @@ export interface TaskSummary {
   projectName: string;
   assigneeId?: string;
   assigneeName?: string;
+  createdById?: number;
   tags: string[];
   estimatedHours?: number;
   actualHours?: number;
@@ -173,6 +174,7 @@ export const useWorkspaceData = (workspaceId: string) => {
           projectName: projectName || 'No Project',
           assigneeId: assigneeId ? String(assigneeId) : undefined,
           assigneeName,
+          createdById: typeof t.createdBy === 'number' ? t.createdBy : (t.creator?.id ?? undefined),
           tags: [],
           estimatedHours: t.estimatedMinutes ? t.estimatedMinutes / 60 : undefined,
           actualHours: undefined,

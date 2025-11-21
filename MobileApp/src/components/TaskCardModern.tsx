@@ -13,6 +13,7 @@ interface TaskCardModernProps {
   onDelete?: () => void;
   onToggleStatus?: () => void;
   showProjectName?: boolean; // when true, show a small project chip under description (default true)
+  canDelete?: boolean; // controls whether swipe-to-delete action is shown
 }
 
 const TaskCardModern: React.FC<TaskCardModernProps> = ({ 
@@ -22,6 +23,7 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
   onDelete,
   onToggleStatus,
   showProjectName = true,
+  canDelete = false,
 }) => {
   // Helper function to normalize priority to string
   const normalizePriority = (priority: any): string => {
@@ -90,6 +92,7 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
 
 
   const renderRightActions = () => {
+    if (!canDelete) return null;
     return (
       <TouchableOpacity onPress={onDelete} style={styles.deleteAction}>
         <MaterialIcons name="delete-outline" size={24} color={Colors.semantic.error} />

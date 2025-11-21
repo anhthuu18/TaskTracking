@@ -9,6 +9,7 @@ import {
   Modal,
   TextInput,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -31,6 +32,7 @@ import CalendarScreen from './CalendarScreen';
 import ProjectNotificationModal from '../components/ProjectNotificationModal';
 import ProjectSettingsScreen from './ProjectSettingsScreen';
 import { projectService, workspaceService, taskService } from '../services';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getRoleColor } from '../styles/cardStyles';
 import { useToastContext } from '../context/ToastContext';
 
@@ -66,6 +68,11 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
   const [showProjectSettingModal, setShowProjectSettingModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isTaskDetailVisible, setIsTaskDetailVisible] = useState(false);
+
+  // Current user for delete permission
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+  const [currentEmail, setCurrentEmail] = useState<string | null>(null);
 
   const isCurrentUserAdmin = true; // Mock for now
 
@@ -120,6 +127,22 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     }
   }, [showError]);
 
+  // Load current user for delete permission
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('user');
+        if (stored) {
+          const u = JSON.parse(stored);
+          if (u?.id) setCurrentUserId(Number(u.id));
+          if (u?.username) setCurrentUsername(u.username);
+          if (u?.email) setCurrentEmail(u.email);
+        }
+      } catch {}
+    };
+    loadUser();
+  }, []);
+
   const loadInitialData = useCallback(async (id: number) => {
     try {
       setLoading(true);
@@ -167,6 +190,40 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     }, [project?.id, loadProjectTasks])
   );
 
+  const canDeleteTask = (task: Task): boolean => {
+    const ids = projectMembers.map(m => m.userId);
+    const usernames = projectMembers.map(m => m.user?.username).filter(Boolean) as string[];
+    const emails = projectMembers.map(m => m.user?.email).filter(Boolean) as string[];
+    if (currentUserId && ids.includes(currentUserId)) return true;
+    if (currentUsername && usernames.includes(currentUsername)) return true;
+    if (currentEmail && emails.includes(currentEmail)) return true;
+    return false;
+  };
+
+  const confirmAndDeleteTask = (task: Task) => {
+    if (!canDeleteTask(task)) return;
+    Alert.alert(
+      'Xóa task',
+      'Bạn có chắc muốn xóa task này? Hành động này không thể hoàn tác.',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await taskService.deleteTask(Number(task.id));
+              setProjectTasks(prev => prev.filter(t => t.id !== task.id));
+              showSuccess('Đã xóa task');
+            } catch (e: any) {
+              showError(e?.message || 'Xóa task thất bại');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderTaskCard = (task: Task) => {
     const taskSummary = {
       id: String(task.id),
@@ -185,6 +242,8 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         key={task.id}
         task={taskSummary as any}
         showProjectName={false}
+        canDelete={canDeleteTask(task)}
+        onDelete={() => confirmAndDeleteTask(task)}
         onPress={() => {
           setSelectedTask(task);
           setIsTaskDetailVisible(true);

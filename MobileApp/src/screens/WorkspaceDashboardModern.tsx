@@ -12,6 +12,7 @@ import {
   FlatList,
   Modal,
   TextInput,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -20,7 +21,8 @@ import { useWorkspaceData, TaskSummary, WorkspaceData } from '../hooks/useWorksp
 import ProjectCardModern from '../components/ProjectCardModern';
 import TaskCardModern from '../components/TaskCardModern';
 import TaskDetailModal from '../components/TaskDetailModal';
-import { projectService, workspaceService } from '../services';
+import { projectService, workspaceService, taskService } from '../services';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface WorkspaceDashboardModernProps {
   navigation: any;
@@ -133,10 +135,18 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   const [showTaskDetail, setShowTaskDetail] = useState(false);
   const [activeTab, setActiveTab] = useState('projects'); // 'projects' or 'tasks'
   const [taskOverrides, setTaskOverrides] = useState<Record<string, TaskSummary>>({});
+  const [deletedTaskIds, setDeletedTaskIds] = useState<Set<string>>(new Set());
 
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
+
+  // Deletion permission/context
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+  const [currentEmail, setCurrentEmail] = useState<string | null>(null);
+  type ProjectMemberCache = { ids: number[]; usernames: string[]; emails: string[] };
+  const [membersByProject, setMembersByProject] = useState<Record<string, ProjectMemberCache>>({});
 
 
   const {
@@ -220,6 +230,51 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
       refresh();
     }
   }, [workspace?.id, externalReloadKey, refresh]);
+
+  // Load current user for permission
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('user');
+        if (stored) {
+          const u = JSON.parse(stored);
+          if (u?.id) setCurrentUserId(Number(u.id));
+          if (u?.username) setCurrentUsername(u.username);
+          if (u?.email) setCurrentEmail(u.email);
+        }
+      } catch {}
+    };
+    loadUser();
+  }, []);
+
+  // Prefetch project members for all tasks
+  useEffect(() => {
+    const fetchMembers = async () => {
+      if (!workspaceData?.allTasks) return;
+      const ids = Array.from(new Set(workspaceData.allTasks.map(t => t.projectId).filter(Boolean)));
+      const newMap: Record<string, ProjectMemberCache> = { ...membersByProject } as any;
+      for (const pid of ids) {
+        if (!newMap[pid]) {
+          try {
+            const res = await projectService.getProjectMembers(Number(pid));
+            if (res?.success && Array.isArray(res.data)) {
+              newMap[pid] = {
+                ids: res.data.map(m => m.userId),
+                usernames: res.data.map(m => m.user?.username).filter(Boolean) as string[],
+                emails: res.data.map(m => m.user?.email).filter(Boolean) as string[],
+              };
+            } else {
+              newMap[pid] = { ids: [], usernames: [], emails: [] };
+            }
+          } catch {
+            newMap[pid] = { ids: [], usernames: [], emails: [] };
+          }
+        }
+      }
+      setMembersByProject(newMap);
+    };
+    fetchMembers();
+  }, [workspaceData?.allTasks]);
 
   // Debounce search query
   useEffect(() => {
@@ -324,29 +379,19 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
     const currentUser = { id: 'user-1', role: 'admin' }; // or 'member'
 
     const filteredTasks = (workspaceData.allTasks || [])
+      .filter(task => !deletedTaskIds.has(task.id))
       .filter(task => {
-        // Role-based filtering
-        const isMyTask = task.assigneeId === currentUser.id || !task.assigneeId; // Assume unassigned is for everyone
-        if (currentUser.role !== 'admin' && !isMyTask) {
-          return false;
-        }
-
-        // Search query filtering
-        if (debouncedSearchQuery && !task.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase())) {
-          return false;
-        }
-
-        // Quick filter
+        const isMyTask = task.assigneeId === currentUser.id || !task.assigneeId;
+        if (currentUser.role !== 'admin' && !isMyTask) return false;
+        if (debouncedSearchQuery && !task.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase())) return false;
         if (activeFilter !== 'All') {
           if (activeFilter === 'Urgent' && task.priority !== 'urgent') return false;
           if (activeFilter === 'High' && task.priority !== 'high') return false;
           if (activeFilter === 'Pending' && task.status !== 'todo') return false;
         }
-        
         return true;
       })
       .sort((a, b) => {
-        // Sorting logic: priority first, then due date
         const priorityWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
         if (priorityWeight[a.priority] !== priorityWeight[b.priority]) {
           return priorityWeight[b.priority] - priorityWeight[a.priority];
@@ -365,6 +410,39 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
 
     const filters = ['All', 'Urgent', 'High', 'Pending'];
 
+    const canDeleteTask = (task: TaskSummary) => {
+      const cache = membersByProject[task.projectId];
+      if (!cache) return false;
+      if (currentUserId && cache.ids.includes(currentUserId)) return true;
+      if (currentUsername && cache.usernames.includes(currentUsername)) return true;
+      if (currentEmail && cache.emails.includes(currentEmail)) return true;
+      return false;
+    };
+
+    const confirmAndDeleteTask = (task: TaskSummary) => {
+      if (!canDeleteTask(task)) return;
+      Alert.alert(
+        'Xóa task',
+        'Bạn có chắc muốn xóa task này? Hành động này không thể hoàn tác.',
+        [
+          { text: 'Hủy', style: 'cancel' },
+          {
+            text: 'Xóa',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await taskService.deleteTask(Number(task.id));
+                setDeletedTaskIds(prev => new Set([...prev, task.id]));
+                refresh();
+              } catch (e) {
+                console.error('Delete task failed', e);
+              }
+            },
+          },
+        ]
+      );
+    };
+
     return (
       <FlatList
         data={filteredTasks}
@@ -381,9 +459,10 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
           <TaskCardModern
             task={item}
             showProjectName={false}
+            canDelete={canDeleteTask(item)}
+            onDelete={() => confirmAndDeleteTask(item)}
             onPress={() => handleTaskPress(item)}
             onTrackTime={() => handleTrackTime(item)}
-            onDelete={() => handleDeleteTask(item.id)}
             onToggleStatus={() => handleToggleTaskStatus(item)}
           />
         )}

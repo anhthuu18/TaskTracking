@@ -236,16 +236,36 @@ class ProjectService {
     };
   }
 
-  // Lấy members của project
+  // Lấy members của project (backend không có GET /projects/get-members/:id)
+  // -> dùng GET /projects/get-details/:id rồi lấy field members
   async getProjectMembers(projectId: number): Promise<ProjectMemberResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockGetProjectMembers(projectId);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.GET_MEMBERS}/${projectId}`);
-    return this.request<ProjectMemberResponse>(url, {
-        method: 'GET',
-    });
+    const detailsUrl = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.GET_DETAILS}/${projectId}`);
+    const project = await this.request<any>(detailsUrl, { method: 'GET' });
+    let members: ProjectMember[] = project?.members || project?.data?.members || [];
+
+    // Ensure project owner appears as a member-like entry for permission mapping
+    const owner = project?.user || project?.data?.user;
+    if (owner && !members.some((m: any) => m.userId === owner.id)) {
+      const ownerMember: ProjectMember = {
+        id: -owner.id,
+        projectId: project?.id || project?.data?.id || projectId,
+        userId: owner.id,
+        role: 'OWNER' as any,
+        joinedAt: new Date(),
+        user: { id: owner.id, username: owner.username, email: owner.email },
+      };
+      members = [ownerMember, ...members];
+    }
+
+    return {
+      success: true,
+      message: 'Fetched project members',
+      data: members,
+    };
   }
 
   // Mời member vào project

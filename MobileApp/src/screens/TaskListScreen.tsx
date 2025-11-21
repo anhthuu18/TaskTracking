@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef} from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,17 +9,20 @@ import {
   StatusBar,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { TextInput } from 'react-native-paper';
 import { Colors } from '../constants/Colors';
 import { useTheme } from '../hooks/useTheme';
-
 import TaskCardModern from '../components/TaskCardModern';
 import TaskDetailModal from '../components/TaskDetailModal';
+import Toast from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 import { TaskSummary, useWorkspaceData } from '../hooks/useWorkspaceData';
-import {Task, TaskStatus, TaskPriority} from '../types/Task';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { projectService, taskService } from '../services';
 
 interface TaskListScreenProps {
   navigation?: any;
@@ -29,94 +32,100 @@ interface TaskListScreenProps {
 
 const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onViewAllTasksComplete }) => {
   const { colors } = useTheme();
+  const { toast, showSuccess, showError, hideToast } = useToast();
   const [filteredTasks, setFilteredTasks] = useState<TaskSummary[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  // Initialize filter - default to 'all', will be set to 'upcoming' if coming from View All
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [selectedTask, setSelectedTask] = useState<TaskSummary | null>(null);
   const [isTaskDetailVisible, setIsTaskDetailVisible] = useState(false);
-  
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+  const [currentEmail, setCurrentEmail] = useState<string | null>(null);
+  type ProjectMemberCache = { ids: number[]; usernames: string[]; emails: string[]; rolesById: Record<number, string>; rolesByUsername: Record<string, string>; rolesByEmail: Record<string, string> };
+  const [membersByProject, setMembersByProject] = useState<Record<string, ProjectMemberCache>>({});
+  const [allowedDeleteProjects, setAllowedDeleteProjects] = useState<Set<string>>(new Set());
+  const [hiddenTaskIds, setHiddenTaskIds] = useState<Set<string>>(new Set());
   const showAllTasks = route?.params?.showAllTasks || false;
-
-  // Get workspace ID from route or default to '1'
   const workspaceId = route?.params?.workspaceId || '1';
-  console.log('[TaskListScreen] workspaceId:', workspaceId);
-  console.log('[TaskListScreen] route.params:', route?.params);
 
-  // Use the real API hook
-  const {
-    data: workspaceData,
-    loading,
-    error,
-    refreshing,
-    refresh,
-  } = useWorkspaceData(workspaceId);
+  const { data: workspaceData, loading, error, refreshing, refresh } = useWorkspaceData(workspaceId);
 
-  // Track if filter was set from View All to prevent resetting it
-  // Use ref instead of state to persist across re-renders
   const filterSetFromViewAllRef = useRef(false);
-  // Track if this is the first mount to distinguish between View All and direct tab click
   const isFirstMountRef = useRef(true);
 
   useEffect(() => {
-    const currentShowAllTasks = route?.params?.showAllTasks || false;
-
-    // Update filter based on showAllTasks
-    if (currentShowAllTasks) {
-      console.log('[TaskListScreen] Setting filter to upcoming from View All');
+    const isShowAll = route?.params?.showAllTasks || false;
+    if (isShowAll) {
       setSelectedFilter('upcoming');
-      filterSetFromViewAllRef.current = true; // Mark that filter was set from View All
-      isFirstMountRef.current = false; // No longer first mount
-      
-      // Call onViewAllTasksComplete after a delay to ensure filter is set and applied
-      if (onViewAllTasksComplete) {
-        setTimeout(() => {
-          onViewAllTasksComplete();
-        }, 500); // Increase delay to ensure filter is fully applied
-      }
+      filterSetFromViewAllRef.current = true;
+      isFirstMountRef.current = false;
+      if (onViewAllTasksComplete) setTimeout(onViewAllTasksComplete, 500);
     } else {
-      // showAllTasks is false
-      // Only reset to 'all' if:
-      // 1. This is the first mount (component just mounted)
-      // 2. Filter wasn't set from View All (user clicked tab directly)
-      // 3. Filter is not already 'all'
       if (isFirstMountRef.current && !filterSetFromViewAllRef.current && selectedFilter !== 'all') {
-        console.log('[TaskListScreen] First mount with showAllTasks=false, setting filter to all');
         setSelectedFilter('all');
       }
-      // Mark that first mount is done
-      if (isFirstMountRef.current) {
-        isFirstMountRef.current = false;
-      }
-      // If filterSetFromViewAllRef.current is true, filter was set from View All
-      // and should remain 'upcoming' - DON'T reset it
+      if (isFirstMountRef.current) isFirstMountRef.current = false;
     }
-  }, [route?.params?.showAllTasks, onViewAllTasksComplete]);
+  }, [route?.params?.showAllTasks, onViewAllTasksComplete, selectedFilter]);
 
-  // Guard effect: Protect filter from being reset after onViewAllTasksComplete is called
-  // This effect runs whenever selectedFilter changes and ensures it stays 'upcoming' 
-  // if it was set from View All
   useEffect(() => {
-    // If filter was set from View All and somehow got reset, restore it immediately
     if (filterSetFromViewAllRef.current && selectedFilter !== 'upcoming') {
-      console.log('[TaskListScreen] Guard: Restoring filter to upcoming (was set from View All)');
-      // Use a small timeout to avoid infinite loops and allow state updates to settle
-      const timeoutId = setTimeout(() => {
-        setSelectedFilter('upcoming');
-      }, 0);
-      return () => clearTimeout(timeoutId);
+      const id = setTimeout(() => setSelectedFilter('upcoming'), 0);
+      return () => clearTimeout(id);
     }
   }, [selectedFilter]);
 
-  // Filter tasks from workspace data
   useEffect(() => {
-    filterTasks();
-  }, [workspaceData?.allTasks, searchQuery, selectedFilter]);
+    const loadUser = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('user');
+        if (storedUser) {
+          const u = JSON.parse(storedUser);
+          if (u?.id) setCurrentUserId(Number(u.id));
+          if (u?.username) setCurrentUsername(u.username);
+          if (u?.email) setCurrentEmail(u.email);
+        }
+      } catch {}
+    };
+    loadUser();
+  }, []);
 
-  const filterTasks = () => {
-    const tasks = workspaceData?.allTasks || [];
-    console.log('[TaskListScreen] filterTasks - workspaceData:', workspaceData);
-    console.log('[TaskListScreen] filterTasks - tasks:', tasks);
+  useEffect(() => {
+    const fetchMembers = async () => {
+      if (!workspaceData?.allTasks) return;
+      const projectIds = Array.from(new Set((workspaceData.allTasks || []).map(t => t.projectId).filter(Boolean)));
+      const newMap: Record<string, ProjectMemberCache> = { ...membersByProject };
+      let changed = false;
+      for (const pid of projectIds) {
+        if (!newMap[pid]) {
+          try {
+            const res = await projectService.getProjectMembers(Number(pid));
+            if (res?.success && Array.isArray(res.data)) {
+              newMap[pid] = {
+                ids: res.data.map(m => m.userId),
+                usernames: res.data.map(m => m.user?.username).filter(Boolean) as string[],
+                emails: res.data.map(m => m.user?.email).filter(Boolean) as string[],
+                rolesById: res.data.reduce((acc: Record<number, string>, m: any) => { acc[m.userId] = m.role; return acc; }, {}),
+                rolesByUsername: res.data.reduce((acc: Record<string, string>, m: any) => { if (m.user?.username) acc[m.user.username] = m.role; return acc; }, {}),
+                rolesByEmail: res.data.reduce((acc: Record<string, string>, m: any) => { if (m.user?.email) acc[m.user.email] = m.role; return acc; }, {}),
+              };
+            } else {
+              newMap[pid] = { ids: [], usernames: [], emails: [] };
+            }
+            changed = true;
+          } catch {
+            newMap[pid] = { ids: [], usernames: [], emails: [] };
+            changed = true;
+          }
+        }
+      }
+      if (changed) setMembersByProject(newMap);
+    };
+    fetchMembers();
+  }, [workspaceData?.allTasks]);
+
+  useEffect(() => {
+    const tasks = (workspaceData?.allTasks || []).filter(t => !hiddenTaskIds.has(t.id));
     let filtered = tasks;
     const now = new Date();
     const sevenDaysLater = new Date(now);
@@ -124,54 +133,72 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
 
     switch (selectedFilter) {
       case 'upcoming':
-        filtered = tasks.filter(task => {
-          if (!task.dueDate || task.status === 'completed') return false;
-          const dueDate = task.dueDate.getTime();
-          return dueDate > now.getTime() && dueDate <= sevenDaysLater.getTime();
-        });
-        // Sort upcoming tasks by due date (nearest first)
-        filtered.sort((a, b) => {
-          if (!a.dueDate && !b.dueDate) return 0;
-          if (!a.dueDate) return 1;
-          if (!b.dueDate) return -1;
-          return a.dueDate.getTime() - b.dueDate.getTime();
-        });
+        filtered = tasks.filter(t => t.dueDate && t.status !== 'completed' && t.dueDate.getTime() > now.getTime() && t.dueDate.getTime() <= sevenDaysLater.getTime());
+        filtered.sort((a, b) => (!a.dueDate ? 1 : !b.dueDate ? -1 : a.dueDate.getTime() - b.dueDate.getTime()));
         break;
       case 'overdue':
-        filtered = tasks.filter(task => task.dueDate && task.dueDate < now && task.status !== 'completed');
-        // Sort overdue tasks by due date (most overdue first)
-        filtered.sort((a, b) => {
-          if (!a.dueDate && !b.dueDate) return 0;
-          if (!a.dueDate) return 1;
-          if (!b.dueDate) return -1;
-          return a.dueDate.getTime() - b.dueDate.getTime();
-        });
+        filtered = tasks.filter(t => t.dueDate && t.status !== 'completed' && t.dueDate < now);
+        filtered.sort((a, b) => (!a.dueDate ? 1 : !b.dueDate ? -1 : a.dueDate.getTime() - b.dueDate.getTime()));
         break;
       case 'completed':
-        filtered = tasks.filter(task => task.status === 'completed');
+        filtered = tasks.filter(t => t.status === 'completed');
         break;
       case 'all':
       default:
-        // Sort all tasks by due date (nearest first, no due date at end)
-        filtered.sort((a, b) => {
-          if (!a.dueDate && !b.dueDate) return 0;
-          if (!a.dueDate) return 1;
-          if (!b.dueDate) return -1;
-          return a.dueDate.getTime() - b.dueDate.getTime();
-        });
+        filtered.sort((a, b) => (!a.dueDate ? 1 : !b.dueDate ? -1 : a.dueDate.getTime() - b.dueDate.getTime()));
         break;
     }
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        task =>
-          task.title.toLowerCase().includes(query) ||
-          task.description.toLowerCase().includes(query)
-      );
+      filtered = filtered.filter(t => t.title.toLowerCase().includes(query) || t.description.toLowerCase().includes(query));
     }
 
     setFilteredTasks(filtered);
+  }, [workspaceData?.allTasks, searchQuery, selectedFilter, hiddenTaskIds]);
+
+  const canDeleteTask = (task: TaskSummary) => {
+    const cache = membersByProject[task.projectId];
+    if (!currentUserId) return false;
+    if (task.createdById && task.createdById === currentUserId) return true;
+    const role = cache?.rolesById?.[currentUserId];
+    const roleNorm = role ? String(role).toLowerCase() : '';
+    if (roleNorm === 'owner' || roleNorm === 'admin') return true;
+    return false;
+  };
+
+
+  const confirmAndDeleteTask = (task: TaskSummary) => {
+    if (!canDeleteTask(task)) return;
+    Alert.alert(
+      'Xóa task',
+      'Bạn có chắc muốn xóa task này? Hành động này không thể hoàn tác.',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: async () => {
+            // Optimistic hide
+            setHiddenTaskIds(prev => new Set([...prev, task.id]));
+            try {
+              await taskService.deleteTask(Number(task.id));
+              setFilteredTasks(prev => prev.filter(t => t.id !== task.id));
+              showSuccess('Đã xóa task');
+              refresh();
+            } catch (e: any) {
+              // Revert optimistic hide on failure
+              setHiddenTaskIds(prev => {
+                const next = new Set(prev);
+                next.delete(task.id);
+                return next;
+              });
+              showError(e?.message || 'Xóa task thất bại');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleTaskPress = (task: TaskSummary) => {
@@ -187,29 +214,25 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
     if (navigation) {
       const project = workspaceData?.projects.find(p => p.id === projectId);
       if (project) {
-        navigation.navigate('ProjectDetail', {
-          project: {
-            id: projectId,
-            name: project.name,
-            description: project.description,
-          }
-        });
+        navigation.navigate('ProjectDetail', { project: { id: projectId, name: project.name, description: project.description } });
       }
     }
     setIsTaskDetailVisible(false);
   };
 
   const filterButtons = [
-    {value: 'all', label: 'All'},
-    {value: 'upcoming', label: 'Upcoming'},
-    {value: 'overdue', label: 'Overdue'},
-    {value: 'completed', label: 'Completed'},
+    { value: 'all', label: 'All' },
+    { value: 'upcoming', label: 'Upcoming' },
+    { value: 'overdue', label: 'Overdue' },
+    { value: 'completed', label: 'Completed' },
   ];
 
-  const renderTaskItem = ({item}: {item: TaskSummary}) => (
+  const renderTaskItem = ({ item }: { item: TaskSummary }) => (
     <TaskCardModern
       task={item}
       showProjectName={false}
+      canDelete={canDeleteTask(item)}
+      onDelete={() => confirmAndDeleteTask(item)}
       onPress={() => handleTaskPress(item)}
     />
   );
@@ -217,12 +240,8 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
       <MaterialIcons name="assignment" size={48} color={Colors.neutral.medium} />
-      <Text style={[styles.emptyText, { color: colors.text }]}>
-        No tasks found
-      </Text>
-      <Text style={[styles.emptySubText, { color: colors.textSecondary }]}>
-        Try changing the filter or creating a new task.
-      </Text>
+      <Text style={[styles.emptyText, { color: colors.text }]}>No tasks found</Text>
+      <Text style={[styles.emptySubText, { color: colors.textSecondary }]}>Try changing the filter or creating a new task.</Text>
     </View>
   );
 
@@ -257,7 +276,6 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <StatusBar backgroundColor={Colors.neutral.white} barStyle="dark-content" />
-      
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>All Tasks</Text>
       </View>
@@ -278,7 +296,7 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
               background: Colors.neutral.light + '50',
               text: colors.text,
               placeholder: Colors.neutral.medium,
-            }
+            },
           }}
         />
       </View>
@@ -288,20 +306,13 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
           {filterButtons.map(button => (
             <TouchableOpacity
               key={button.value}
-              style={[
-                styles.filterButton,
-                selectedFilter === button.value && styles.activeFilterButton
-              ]}
+              style={[styles.filterButton, selectedFilter === button.value && styles.activeFilterButton]}
               onPress={() => {
                 setSelectedFilter(button.value);
-                // Reset flag when user manually selects a filter
                 filterSetFromViewAllRef.current = false;
               }}
             >
-              <Text style={[
-                styles.filterButtonText,
-                selectedFilter === button.value && styles.activeFilterButtonText
-              ]}>
+              <Text style={[styles.filterButtonText, selectedFilter === button.value && styles.activeFilterButtonText]}>
                 {button.label}
               </Text>
             </TouchableOpacity>
@@ -315,13 +326,7 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
         keyExtractor={item => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={handleRefresh}
-            colors={[Colors.primary]}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[Colors.primary]} />}
         ListEmptyComponent={renderEmptyList}
       />
 
@@ -330,133 +335,44 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
         task={selectedTask as any}
         onClose={() => setIsTaskDetailVisible(false)}
         showProjectChip={true}
-        onUpdateTask={(updated) => {
-          setSelectedTask(updated as any);
+        onUpdateTask={() => {
           try { refresh(); } catch {}
         }}
-        onDeleteTask={(taskId) => {
+        onDeleteTask={() => {
           setIsTaskDetailVisible(false);
           try { refresh(); } catch {}
         }}
         onNavigateToProject={handleNavigateToProject}
       />
+
+      <Toast visible={toast.visible} message={toast.message} type={toast.type} onHide={hideToast} />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingTop: 10,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    backgroundColor: Colors.neutral.white,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  searchAndFilterContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: Colors.neutral.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.light,
-  },
-  searchInput: {
-    fontSize: 15,
-    backgroundColor: Colors.neutral.light + '50',
-  },
-  searchOutline: {
-    borderRadius: 12,
-    borderWidth: 1.5,
-  },
-  filterContainer: {
-    paddingVertical: 12,
-    backgroundColor: Colors.neutral.white,
-    paddingHorizontal: 0, // Remove horizontal padding from the container
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: Colors.neutral.light + '50',
-    marginHorizontal: 4,
-    height: 36,
-    justifyContent: 'center',
-  },
-  activeFilterButton: {
-    backgroundColor: Colors.primary,
-  },
-  filterButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.neutral.dark,
-  },
-  activeFilterButtonText: {
-    color: Colors.neutral.white,
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 100,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 32,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptySubText: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    marginTop: 16,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  errorText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  errorSubText: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  retryButton: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: Colors.neutral.white,
-    fontWeight: '600',
-  },
+  container: { flex: 1 },
+  header: { paddingTop: 10, paddingBottom: 16, paddingHorizontal: 20, backgroundColor: Colors.neutral.white },
+  headerTitle: { fontSize: 24, fontWeight: 'bold' },
+  searchAndFilterContainer: { paddingHorizontal: 20, paddingVertical: 12, backgroundColor: Colors.neutral.white, borderBottomWidth: 1, borderBottomColor: Colors.neutral.light },
+  searchInput: { fontSize: 15, backgroundColor: Colors.neutral.light + '50' },
+  searchOutline: { borderRadius: 12, borderWidth: 1.5 },
+  filterContainer: { paddingVertical: 12, backgroundColor: Colors.neutral.white, paddingHorizontal: 0 },
+  filterButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.neutral.light + '50', marginHorizontal: 4, height: 36, justifyContent: 'center' },
+  activeFilterButton: { backgroundColor: Colors.primary },
+  filterButtonText: { fontSize: 14, fontWeight: '600', color: Colors.neutral.dark },
+  activeFilterButtonText: { color: Colors.neutral.white },
+  listContent: { paddingHorizontal: 20, paddingBottom: 100 },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60, paddingHorizontal: 32 },
+  emptyText: { fontSize: 18, fontWeight: '600', marginTop: 16, marginBottom: 8, textAlign: 'center' },
+  emptySubText: { fontSize: 14, textAlign: 'center' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { fontSize: 16, marginTop: 16 },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
+  errorText: { fontSize: 18, fontWeight: '600', marginTop: 16, marginBottom: 8, textAlign: 'center' },
+  errorSubText: { fontSize: 14, textAlign: 'center', marginBottom: 24 },
+  retryButton: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
+  retryButtonText: { color: Colors.neutral.white, fontWeight: '600' },
 });
 
 export default TaskListScreen;
