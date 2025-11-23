@@ -21,7 +21,8 @@ import {
   ProjectDetailScreen,
   CreateTaskScreen,
   CreateEventScreen,
-  ProjectSettingsScreen
+  ProjectSettingsScreen,
+  TaskTrackingScreen
 } from '../screens';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
 import MainNavigator from './MainNavigator';
@@ -45,6 +46,7 @@ export type RootStackParamList = {
   CreateEvent: { projectMembers?: any[]; projectId?: string };
   ProjectSettings: { project: any };
   AcceptInvitation: { token: string };
+  TaskTracking: { task: any };
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -334,9 +336,13 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             />
-
-
-
+            <Stack.Screen
+              name="TaskTracking"
+              component={TaskTrackingScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
           </>
         ) : shouldNavigateToWorkspace && lastUsedWorkspace ? (
           <>
@@ -407,6 +413,13 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen
               name="AcceptInvitation"
               component={AcceptInvitationScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="TaskTracking"
+              component={TaskTrackingScreen}
               options={{
                 headerShown: false,
               }}
@@ -488,6 +501,13 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen
               name="AcceptInvitation"
               component={AcceptInvitationScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="TaskTracking"
+              component={TaskTrackingScreen}
               options={{
                 headerShown: false,
               }}

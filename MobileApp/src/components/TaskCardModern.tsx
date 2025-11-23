@@ -9,7 +9,8 @@ import { TaskSummary } from '../hooks/useWorkspaceData';
 interface TaskCardModernProps {
   task: TaskSummary;
   onPress?: () => void;
-  onTrackTime?: () => void;
+  onEdit?: () => void;
+  onNavigateToTracking?: () => void;
   onDelete?: () => void;
   onToggleStatus?: () => void;
   showProjectName?: boolean; // when true, show a small project chip under description (default true)
@@ -19,7 +20,8 @@ interface TaskCardModernProps {
 const TaskCardModern: React.FC<TaskCardModernProps> = ({ 
   task, 
   onPress,
-  onTrackTime,
+  onEdit,
+  onNavigateToTracking,
   onDelete,
   onToggleStatus,
   showProjectName = true,
@@ -102,13 +104,11 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
 
   return (
     <Swipeable renderRightActions={renderRightActions} overshootRight={false}>
-      <TouchableOpacity 
+      <View 
         style={[
           styles.container,
           { borderLeftColor: getPriorityColor(task.priority) }
         ]}
-        onPress={onPress}
-        activeOpacity={0.7}
       >
         <TouchableOpacity
             onPress={(e) => {
@@ -123,20 +123,24 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
                 )}
             </View>
         </TouchableOpacity>
-        <View style={styles.content}>
+        <TouchableOpacity 
+          style={styles.content}
+          onPress={onNavigateToTracking}
+          activeOpacity={0.7}
+        >
           <View style={styles.header}>
             <Text style={[styles.title, task.status === 'completed' && styles.completedTitle]} numberOfLines={2}>
               {task.title}
             </Text>
             <TouchableOpacity 
-              style={styles.trackButton}
+              style={styles.editButton}
               onPress={(e) => {
                 e.stopPropagation();
-                if (onTrackTime) onTrackTime();
+                if (onEdit) onEdit();
               }}
               activeOpacity={0.7}
             >
-              <MaterialIcons name="access-time" size={20} color={Colors.primary} />
+              <MaterialIcons name="edit" size={18} color={Colors.neutral.medium} />
             </TouchableOpacity>
           </View>
 
@@ -192,8 +196,8 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
               </View>
             </View>
           </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
     </Swipeable>
   );
 };
@@ -252,8 +256,9 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
     color: Colors.neutral.medium,
   },
-  trackButton: {
-    padding: 2,
+  editButton: {
+    padding: 4,
+    marginLeft: 8,
   },
   description: {
     fontSize: 12,

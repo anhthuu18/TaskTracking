@@ -435,7 +435,7 @@ export class TasksService {
     if (updateTaskDto.status) {
       const validStatuses = ['To Do', 'In Progress', 'Review', 'Done', 'todo', 'in progress', 'review', 'done'];
       const statusLower = updateTaskDto.status.toLowerCase();
-      
+
       if (!validStatuses.map(s => s.toLowerCase()).includes(statusLower)) {
         throw new BadRequestException('Invalid status. Valid values: To Do, In Progress, Review, Done');
       }

@@ -21,6 +21,8 @@ import { useWorkspaceData, TaskSummary, WorkspaceData } from '../hooks/useWorksp
 import ProjectCardModern from '../components/ProjectCardModern';
 import TaskCardModern from '../components/TaskCardModern';
 import TaskDetailModal from '../components/TaskDetailModal';
+import Toast from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 import { projectService, workspaceService, taskService } from '../services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -194,6 +196,7 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   const workspace = route?.params?.workspace;
   const externalReloadKey: number | undefined = route?.params?.reloadKey;
   const onViewAllTasks = route?.params?.onViewAllTasks;
+  const { toast, showSuccess, showError, hideToast } = useToast();
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
   const [availableWorkspaces, setAvailableWorkspaces] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<TaskSummary | null>(null);
@@ -398,8 +401,9 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   };
 
   const handleTrackTime = (task: TaskSummary) => {
-    // TODO: Implement time tracking functionality
-    console.log('Track time for task:', task.id);
+    if (navigation) {
+      navigation.navigate('TaskTracking', { task });
+    }
   };
 
   const handleDeleteTask = (taskId: string) => {
@@ -604,8 +608,8 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
               showProjectName={false}
               canDelete={canDeleteTask(effective)}
               onDelete={() => confirmAndDeleteTask(effective)}
-              onPress={() => handleTaskPress(effective)}
-              onTrackTime={() => handleTrackTime(effective)}
+              onEdit={() => handleTaskPress(effective)}
+              onNavigateToTracking={() => handleTrackTime(effective)}
               onToggleStatus={() => confirmComplete(effective)}
             />
           );
@@ -875,6 +879,8 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
             }
           }}
         />
+
+        <Toast visible={toast.visible} message={toast.message} type={toast.type} onHide={hideToast} />
       </SafeAreaView>
     </TouchableWithoutFeedback>
   );
