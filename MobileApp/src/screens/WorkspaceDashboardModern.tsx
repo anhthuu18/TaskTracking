@@ -37,6 +37,11 @@ interface TaskTabHeaderProps {
   setSearchInput: (value: string) => void;
   activeFilter: string;
   setActiveFilter: (value: string) => void;
+  currentUserId: number | null;
+  statusFilter: string;
+  setStatusFilter: (value: string) => void;
+  showStatusDropdown: boolean;
+  setShowStatusDropdown: (value: boolean) => void;
 }
 
 const TaskTabHeader = React.memo<TaskTabHeaderProps>(({ 
@@ -44,20 +49,39 @@ const TaskTabHeader = React.memo<TaskTabHeaderProps>(({
   searchInput, 
   setSearchInput, 
   activeFilter, 
-  setActiveFilter 
+  setActiveFilter,
+  currentUserId,
+  statusFilter,
+  setStatusFilter,
+  showStatusDropdown,
+  setShowStatusDropdown,
 }) => {
   if (!workspaceData) return null;
 
-  const userTasks = workspaceData.allTasks || [];
+  // Filter tasks: only count tasks assigned to current user
+  const allTasks = workspaceData.allTasks || [];
+  const userTasks = allTasks.filter(t => {
+    const assigneeNum = t.assigneeId ? Number(t.assigneeId) : undefined;
+    return assigneeNum === currentUserId;
+  });
+
+  // URGENT: priority = urgent (not completed)
   const urgentCount = userTasks.filter(t => t.priority === 'urgent' && t.status !== 'completed').length;
+  
+  // TODAY: due date = today (not completed)
   const todayCount = userTasks.filter(t => {
     if (!t.dueDate || t.status === 'completed') return false;
     const today = new Date();
     return new Date(t.dueDate).toDateString() === today.toDateString();
   }).length;
-  const activeCount = userTasks.filter(t => t.status === 'in_progress').length;
+  
+  // ACTIVE: status != done/completed
+  const activeCount = userTasks.filter(t => {
+    const s = String(t.status || '').toLowerCase();
+    return !s.includes('done') && !s.includes('complete');
+  }).length;
 
-  const filters = ['All', 'Urgent', 'High', 'Pending'];
+  const filters = ['All', 'Overdue', 'Upcoming'];
 
   return (
     <>
@@ -103,18 +127,59 @@ const TaskTabHeader = React.memo<TaskTabHeaderProps>(({
         </View>
       </View>
 
-      {/* Quick Filters */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
-        {filters.map(filter => (
+      {/* Quick Filters + Status Dropdown */}
+      <View style={styles.filtersRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView}>
+          {filters.map(filter => (
+            <TouchableOpacity
+              key={filter}
+              style={[styles.filterButton, activeFilter === filter && styles.activeFilterButton]}
+              onPress={() => setActiveFilter(filter)}
+            >
+              <Text style={[styles.filterButtonText, activeFilter === filter && styles.activeFilterButtonText]}>{filter}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        
+        {/* Status Dropdown Filter */}
+        <View style={[styles.statusDropdownWrap, { zIndex: showStatusDropdown ? 100 : 1 }]}>
           <TouchableOpacity
-            key={filter}
-            style={[styles.filterButton, activeFilter === filter && styles.activeFilterButton]}
-            onPress={() => setActiveFilter(filter)}
+            style={styles.statusDropdownBtn}
+            onPress={() => setShowStatusDropdown(!showStatusDropdown)}
           >
-            <Text style={[styles.filterButtonText, activeFilter === filter && styles.activeFilterButtonText]}>{filter}</Text>
+            <MaterialIcons name="filter-list" size={16} color={Colors.neutral.dark} />
+            <Text style={styles.statusDropdownText}>
+              {statusFilter === 'all' ? 'Status' : statusFilter === 'todo' ? 'To Do' : statusFilter === 'in_progress' ? 'In Progress' : statusFilter === 'review' ? 'Review' : 'Done'}
+            </Text>
+            <MaterialIcons name={showStatusDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={18} color={Colors.neutral.medium} />
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+          {showStatusDropdown && (
+            <View style={styles.statusDropdownMenu}>
+              {[
+                { value: 'all', label: 'All Status' },
+                { value: 'todo', label: 'To Do' },
+                { value: 'in_progress', label: 'In Progress' },
+                { value: 'review', label: 'Review' },
+                { value: 'done', label: 'Done' },
+              ].map(opt => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={styles.statusDropdownOption}
+                  onPress={() => {
+                    setStatusFilter(opt.value);
+                    setShowStatusDropdown(false);
+                  }}
+                >
+                  <Text style={[styles.statusDropdownOptionText, statusFilter === opt.value && styles.statusDropdownOptionTextActive]}>
+                    {opt.label}
+                  </Text>
+                  {statusFilter === opt.value && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      </View>
       
       <Text style={styles.listHeader}>All Tasks</Text>
     </>
@@ -140,13 +205,16 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
   // Deletion permission/context
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   const [currentEmail, setCurrentEmail] = useState<string | null>(null);
-  type ProjectMemberCache = { ids: number[]; usernames: string[]; emails: string[] };
+  type ProjectMemberCache = { ids: number[]; usernames: string[]; emails: string[]; rolesById: Record<number, string> };
   const [membersByProject, setMembersByProject] = useState<Record<string, ProjectMemberCache>>({});
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, 'todo'|'in_progress'|'completed'>>({});
 
 
   const {
@@ -253,6 +321,7 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
       if (!workspaceData?.allTasks) return;
       const ids = Array.from(new Set(workspaceData.allTasks.map(t => t.projectId).filter(Boolean)));
       const newMap: Record<string, ProjectMemberCache> = { ...membersByProject } as any;
+      let changed = false;
       for (const pid of ids) {
         if (!newMap[pid]) {
           try {
@@ -262,16 +331,19 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
                 ids: res.data.map(m => m.userId),
                 usernames: res.data.map(m => m.user?.username).filter(Boolean) as string[],
                 emails: res.data.map(m => m.user?.email).filter(Boolean) as string[],
+                rolesById: res.data.reduce((acc: Record<number, string>, m: any) => { acc[m.userId] = m.role; return acc; }, {}),
               };
             } else {
-              newMap[pid] = { ids: [], usernames: [], emails: [] };
+              newMap[pid] = { ids: [], usernames: [], emails: [], rolesById: {} } as any;
             }
+            changed = true;
           } catch {
-            newMap[pid] = { ids: [], usernames: [], emails: [] };
+            newMap[pid] = { ids: [], usernames: [], emails: [], rolesById: {} } as any;
+            changed = true;
           }
         }
       }
-      setMembersByProject(newMap);
+      if (changed) setMembersByProject(newMap);
     };
     fetchMembers();
   }, [workspaceData?.allTasks]);
@@ -375,22 +447,57 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
       );
     }
 
-    // Mock current user - replace with actual user data from auth context
-    const currentUser = { id: 'user-1', role: 'admin' }; // or 'member'
-
-    const filteredTasks = (workspaceData.allTasks || [])
+    // Filter tasks: only show tasks assigned to current user
+    const allTasks = (workspaceData.allTasks || [])
       .filter(task => !deletedTaskIds.has(task.id))
-      .filter(task => {
-        const isMyTask = task.assigneeId === currentUser.id || !task.assigneeId;
-        if (currentUser.role !== 'admin' && !isMyTask) return false;
-        if (debouncedSearchQuery && !task.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase())) return false;
-        if (activeFilter !== 'All') {
-          if (activeFilter === 'Urgent' && task.priority !== 'urgent') return false;
-          if (activeFilter === 'High' && task.priority !== 'high') return false;
-          if (activeFilter === 'Pending' && task.status !== 'todo') return false;
+      .map(t => statusOverrides[t.id] ? { ...t, status: statusOverrides[t.id] } : t);
+    
+    const userTasks = allTasks.filter(task => {
+      const assigneeNum = task.assigneeId ? Number(task.assigneeId) : undefined;
+      return assigneeNum === currentUserId;
+    });
+
+    const filteredTasks = userTasks.filter(task => {
+      // Search filter
+      if (debouncedSearchQuery && !task.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase())) {
+        return false;
+      }
+
+      // Base filter (All/Overdue/Upcoming)
+      if (activeFilter !== 'All') {
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        
+        if (activeFilter === 'Overdue') {
+          if (!task.dueDate) return false;
+          const taskDate = new Date(task.dueDate);
+          taskDate.setHours(0, 0, 0, 0);
+          const s = String(task.status || '').toLowerCase();
+          const isDone = s.includes('done') || s.includes('complete');
+          if (isDone || taskDate.getTime() >= now.getTime()) return false;
+        } else if (activeFilter === 'Upcoming') {
+          if (!task.dueDate) return false;
+          const taskDate = new Date(task.dueDate);
+          taskDate.setHours(0, 0, 0, 0);
+          const s = String(task.status || '').toLowerCase();
+          const isDone = s.includes('done') || s.includes('complete');
+          if (isDone || taskDate.getTime() < now.getTime()) return false;
         }
-        return true;
-      })
+      }
+
+      // Status filter
+      if (statusFilter !== 'all') {
+        const s = String(task.status || '').toLowerCase();
+        let matchesStatus = false;
+        if (statusFilter === 'todo') matchesStatus = s.includes('to do') || s.includes('todo');
+        else if (statusFilter === 'in_progress') matchesStatus = s.includes('progress');
+        else if (statusFilter === 'review') matchesStatus = s.includes('review');
+        else if (statusFilter === 'done') matchesStatus = s.includes('done') || s.includes('complete');
+        if (!matchesStatus) return false;
+      }
+
+      return true;
+    })
       .sort((a, b) => {
         const priorityWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
         if (priorityWeight[a.priority] !== priorityWeight[b.priority]) {
@@ -399,16 +506,45 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
         return (a.dueDate?.getTime() || Infinity) - (b.dueDate?.getTime() || Infinity);
       });
 
-    const userTasks = workspaceData.allTasks || [];
-    const urgentCount = userTasks.filter(t => t.priority === 'urgent' && t.status !== 'completed').length;
-    const todayCount = userTasks.filter(t => {
-        if (!t.dueDate || t.status === 'completed') return false;
-        const today = new Date();
-        return new Date(t.dueDate).toDateString() === today.toDateString();
-    }).length;
-    const activeCount = userTasks.filter(t => t.status === 'in_progress').length;
+    const confirmComplete = (task: TaskSummary) => {
+      if (task.status === 'completed') return;
+      
+      const cache = membersByProject[task.projectId];
+      const role = cache?.rolesById?.[currentUserId ?? -999];
+      const roleNorm = role ? String(role).toLowerCase() : '';
+      const isCreator = task.createdById && currentUserId && task.createdById === currentUserId;
+      const assigneeNum = task.assigneeId ? Number(task.assigneeId) : undefined;
+      const isAssignee = assigneeNum && currentUserId && assigneeNum === currentUserId;
+      const isOwnerAdmin = roleNorm === 'owner' || roleNorm === 'admin';
+      const canUpdate = Boolean(isCreator || isAssignee || isOwnerAdmin);
+      
+      if (!canUpdate) {
+        showError('Bạn không có quyền cập nhật trạng thái task này');
+        return;
+      }
 
-    const filters = ['All', 'Urgent', 'High', 'Pending'];
+      Alert.alert(
+        'Hoàn thành task',
+        'Bạn có muốn đánh dấu hoàn thành task này?',
+        [
+          { text: 'Hủy', style: 'cancel' },
+          {
+            text: 'Đồng ý',
+            onPress: async () => {
+              setStatusOverrides(prev => ({ ...prev, [task.id]: 'completed' }));
+              try {
+                await taskService.updateTask(Number(task.id), { status: 'Done' });
+                refresh();
+              } catch (e: any) {
+                const msg = String(e?.message || '');
+                setStatusOverrides(prev => { const n = { ...prev }; delete n[task.id]; return n; });
+                showError(msg || 'Cập nhật trạng thái thất bại');
+              }
+            },
+          },
+        ]
+      );
+    };
 
     const canDeleteTask = (task: TaskSummary) => {
       const cache = membersByProject[task.projectId];
@@ -453,19 +589,27 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
           searchInput={searchInput} 
           setSearchInput={setSearchInput} 
           activeFilter={activeFilter} 
-          setActiveFilter={setActiveFilter} 
+          setActiveFilter={setActiveFilter}
+          currentUserId={currentUserId}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          showStatusDropdown={showStatusDropdown}
+          setShowStatusDropdown={setShowStatusDropdown}
         />}
-        renderItem={({ item }) => (
-          <TaskCardModern
-            task={item}
-            showProjectName={false}
-            canDelete={canDeleteTask(item)}
-            onDelete={() => confirmAndDeleteTask(item)}
-            onPress={() => handleTaskPress(item)}
-            onTrackTime={() => handleTrackTime(item)}
-            onToggleStatus={() => handleToggleTaskStatus(item)}
-          />
-        )}
+        renderItem={({ item }) => {
+          const effective = statusOverrides[item.id] ? { ...item, status: statusOverrides[item.id] } : item;
+          return (
+            <TaskCardModern
+              task={effective}
+              showProjectName={false}
+              canDelete={canDeleteTask(effective)}
+              onDelete={() => confirmAndDeleteTask(effective)}
+              onPress={() => handleTaskPress(effective)}
+              onTrackTime={() => handleTrackTime(effective)}
+              onToggleStatus={() => confirmComplete(effective)}
+            />
+          );
+        }}
         ListEmptyComponent={() => (
             <View style={styles.emptyStateContainer}>
               <MaterialIcons name="check-circle-outline" size={48} color={Colors.neutral.medium} />
@@ -1065,6 +1209,15 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 99,
   },
+  filtersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  filterScrollView: {
+    flex: 1,
+  },
   filterContainer: {
     marginBottom: 16,
   },
@@ -1085,6 +1238,61 @@ const styles = StyleSheet.create({
   },
   activeFilterButtonText: {
     color: Colors.neutral.white,
+  },
+  statusDropdownWrap: {
+    position: 'relative',
+    minWidth: 120,
+  },
+  statusDropdownBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.neutral.white,
+    borderWidth: 1.5,
+    borderColor: Colors.neutral.light,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  statusDropdownText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: Colors.neutral.dark,
+  },
+  statusDropdownMenu: {
+    position: 'absolute',
+    top: 38,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    maxHeight: 200,
+    zIndex: 1000,
+  },
+  statusDropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light + '30',
+  },
+  statusDropdownOptionText: {
+    fontSize: 13,
+    color: Colors.neutral.dark,
+  },
+  statusDropdownOptionTextActive: {
+    fontWeight: '600',
+    color: Colors.primary,
   },
   listHeader: {
     fontSize: 18,

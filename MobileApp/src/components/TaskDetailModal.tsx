@@ -117,6 +117,13 @@ const priorityOptions = [
   { value: TaskPriority.LOWEST, label: 'Lowest', color: Colors.neutral.medium },
 ];
 
+const statusOptions = [
+  { value: 'To Do', label: 'To Do', icon: 'radio-button-unchecked', color: Colors.neutral.medium },
+  { value: 'In Progress', label: 'In Progress', icon: 'pending', color: Colors.primary },
+  { value: 'Review', label: 'Review', icon: 'rate-review', color: Colors.warning },
+  { value: 'Done', label: 'Done', icon: 'check-circle', color: Colors.success },
+];
+
 const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ 
   visible, 
   task, 
@@ -131,16 +138,18 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [assignees, setAssignees] = useState<TaskUser[]>([]);
   const [assigneeId, setAssigneeId] = useState<number | undefined>(undefined);
   const [priority, setPriority] = useState<number | null>(null);
+  const [status, setStatus] = useState<string>('To Do');
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [dueDate, setDueDate] = useState<Date | null>(null);
 
   const [showAssigneeDD, setShowAssigneeDD] = useState(false);
   const [showPriorityDD, setShowPriorityDD] = useState(false);
+  const [showStatusDD, setShowStatusDD] = useState(false);
   const [showStartDP, setShowStartDP] = useState(false);
   const [showDueDP, setShowDueDP] = useState(false);
 
   // Snapshot to detect changes
-  const [base, setBase] = useState<{ name: string; description: string; assigneeId?: number; priority?: number | null; start?: string | null; due?: string | null } | null>(null);
+  const [base, setBase] = useState<{ name: string; description: string; assigneeId?: number; priority?: number | null; status?: string; start?: string | null; due?: string | null } | null>(null);
 
   useEffect(() => {
     if (!task) return;
@@ -157,6 +166,16 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       priorityVal = map[task.priority.toLowerCase()] ?? null;
     }
 
+    // Normalize status
+    let statusVal = 'To Do';
+    if (task.status) {
+      const s = String(task.status).toLowerCase();
+      if (s.includes('progress')) statusVal = 'In Progress';
+      else if (s.includes('review')) statusVal = 'Review';
+      else if (s.includes('done') || s.includes('complete')) statusVal = 'Done';
+      else if (s.includes('to do') || s.includes('todo')) statusVal = 'To Do';
+    }
+
     const start = task.startTime ? new Date(task.startTime as any) : null;
     const due = task.endTime ? new Date(task.endTime as any) : (task.dueDate ? new Date(task.dueDate as any) : null);
 
@@ -164,6 +183,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setDescription(descVal);
     setAssigneeId(assigned);
     setPriority(priorityVal);
+    setStatus(statusVal);
     setStartDate(start);
     setDueDate(due);
 
@@ -172,6 +192,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       description: descVal,
       assigneeId: assigned,
       priority: priorityVal,
+      status: statusVal,
       start: start ? start.toISOString() : null,
       due: due ? due.toISOString() : null,
     });
@@ -205,6 +226,10 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     return priorityOptions.find(p => p.value === priority)?.label || 'Select priority';
   }, [priority]);
 
+  const selectedStatusLabel = useMemo(() => {
+    return statusOptions.find(s => s.value === status)?.label || 'To Do';
+  }, [status]);
+
   const isDirty = useMemo(() => {
     if (!base) return false;
     const startIso = startDate ? startDate.toISOString() : null;
@@ -214,10 +239,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       base.description !== description.trim() ||
       (base.assigneeId ?? undefined) !== (assigneeId ?? undefined) ||
       (base.priority ?? null) !== (priority ?? null) ||
+      (base.status ?? 'To Do') !== status ||
       base.start !== startIso ||
       base.due !== dueIso
     );
-  }, [base, name, description, assigneeId, priority, startDate, dueDate]);
+  }, [base, name, description, assigneeId, priority, status, startDate, dueDate]);
 
   const handleSave = () => {
     if (!task || !isDirty) return;
@@ -228,6 +254,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       assignedTo: assigneeId,
       assignee: assigneeId ? (assignees.find(a => a.id === assigneeId) || undefined) : null,
       priority: priority || task.priority,
+      status: status,
       startTime: startDate ? startDate.toISOString() : null,
       endTime: dueDate ? dueDate.toISOString() : null,
     } as Task;
@@ -294,6 +321,61 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 theme={{ colors: { primary: Colors.primary, outline: Colors.neutral.light, onSurface: Colors.text } }}
                 left={<TextInput.Icon icon={() => <MaterialIcons name="notes" size={18} color={Colors.neutral.medium} />} />}
               />
+            </View>
+
+            {/* Status */}
+            <View style={[styles.fieldBlock, { zIndex: showStatusDD ? 200 : 1 }]}>
+              <Text style={styles.label}>Status</Text>
+              <View style={styles.dropdownWrap}>
+                <TouchableOpacity
+                  style={styles.dropdownBtn}
+                  onPress={() => { 
+                    setShowStatusDD(s => !s); 
+                    if (!showStatusDD) { 
+                      setShowAssigneeDD(false); 
+                      setShowPriorityDD(false); 
+                    } 
+                  }}
+                >
+                  <View style={styles.dropdownContent}>
+                    <MaterialIcons 
+                      name={statusOptions.find(s => s.value === status)?.icon || 'radio-button-unchecked'} 
+                      size={18} 
+                      color={statusOptions.find(s => s.value === status)?.color || Colors.neutral.medium} 
+                    />
+                    <Text style={styles.dropdownText}>{selectedStatusLabel}</Text>
+                  </View>
+                  <View style={styles.dropdownIconWrap}>
+                    <MaterialIcons 
+                      name={showStatusDD ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} 
+                      size={20} 
+                      color={Colors.neutral.medium} 
+                    />
+                  </View>
+                </TouchableOpacity>
+                {showStatusDD && (
+                  <View style={[styles.dropdownMenu, { maxHeight: DROPDOWN_MAX_HEIGHT }]}>
+                    <ScrollView style={{ maxHeight: 220 }}>
+                      {statusOptions.map(s => (
+                        <TouchableOpacity 
+                          key={s.value} 
+                          style={styles.dropdownOption} 
+                          onPress={() => { 
+                            setStatus(s.value); 
+                            setShowStatusDD(false); 
+                          }}
+                        >
+                          <View style={[styles.priorityIndicator, { backgroundColor: s.color + '20' }]}> 
+                            <MaterialIcons name={s.icon} size={18} color={s.color} />
+                          </View>
+                          <Text style={styles.optionTitle}>{s.label}</Text>
+                          {status === s.value && <MaterialIcons name="check" size={20} color={Colors.primary} />}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
             </View>
 
             {/* Assignee + Priority */}

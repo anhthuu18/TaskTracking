@@ -7,10 +7,10 @@ import {
   ScrollView,
   ActivityIndicator,
   Modal,
-  TextInput,
   RefreshControl,
   Alert,
 } from 'react-native';
+import { TextInput } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Colors } from '../constants/Colors';
@@ -58,6 +58,10 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
   const [activeTab, setActiveTab] = useState<'tasks' | 'members' | 'calendar' | 'settings'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTaskFilter, setActiveTaskFilter] = useState<'All' | 'Upcoming' | 'Overdue' | 'Completed'>('All');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
 
   const [workspaceInfo, setWorkspaceInfo] = useState<{ name: string; type?: WorkspaceType | string } | null>(null);
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
@@ -224,13 +228,56 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     );
   };
 
+  const convertStatusToString = (status?: string): 'todo'|'in_progress'|'completed' => {
+    const s = (status || '').toLowerCase();
+    if (s.includes('progress')) return 'in_progress';
+    if (s.includes('done') || s.includes('complete')) return 'completed';
+    return 'todo';
+  };
+
+  const confirmComplete = (task: Task) => {
+    const isCreator = currentUserId && task.createdBy === currentUserId;
+    const isAssignee = currentUserId && task.assignedTo === currentUserId;
+    const role = projectMembers.find(m => m.userId === currentUserId)?.role;
+    const isOwnerAdmin = role === ProjectMemberRole.OWNER || role === ProjectMemberRole.ADMIN;
+    const canUpdate = Boolean(isCreator || isAssignee || isOwnerAdmin);
+    
+    if (!canUpdate) {
+      showError('Bạn không có quyền cập nhật trạng thái task này');
+      return;
+    }
+
+    Alert.alert(
+      'Hoàn thành task',
+      'Bạn có muốn đánh dấu hoàn thành task này?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Đồng ý',
+          onPress: async () => {
+            const prev = task.status;
+            setProjectTasks(prevTasks => prevTasks.map(t => t.id === task.id ? { ...t, status: 'Done' } : t));
+              try {
+                await taskService.updateTask(Number(task.id), { status: 'Done' });
+                showSuccess('Đã hoàn thành task');
+              } catch (e: any) {
+                const msg = String(e?.message || '');
+                setProjectTasks(prevTasks => prevTasks.map(t => t.id === task.id ? { ...t, status: prev } : t));
+                showError(msg || 'Cập nhật trạng thái thất bại');
+              }
+          },
+        },
+      ]
+    );
+  };
+
   const renderTaskCard = (task: Task) => {
     const taskSummary = {
       id: String(task.id),
       title: task.taskName,
       description: task.description || '',
-      status: task.status || 'To Do',
-      priority: convertPriorityToString(task.priority || 3), // Convert numeric priority to string
+      status: convertStatusToString(task.status),
+      priority: convertPriorityToString(task.priority || 3),
       dueDate: task.endTime ? new Date(task.endTime) : undefined,
       projectName: project?.projectName || '',
       assigneeName: task.assignee?.username || 'Unassigned',
@@ -244,6 +291,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         showProjectName={false}
         canDelete={canDeleteTask(task)}
         onDelete={() => confirmAndDeleteTask(task)}
+        onToggleStatus={() => confirmComplete(task)}
         onPress={() => {
           setSelectedTask(task);
           setIsTaskDetailVisible(true);
@@ -273,17 +321,44 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         const now = new Date();
         now.setHours(0, 0, 0, 0);
 
+        // Base filter (All/Upcoming/Overdue/Completed)
+        let matchesBaseFilter = false;
         switch (activeTaskFilter) {
           case 'Upcoming':
-            return task.status !== 'Done' && task.endTime && new Date(task.endTime) >= now;
+            matchesBaseFilter = task.status !== 'Done' && task.endTime && new Date(task.endTime) >= now;
+            break;
           case 'Overdue':
-            return task.status !== 'Done' && task.endTime && new Date(task.endTime) < now;
+            matchesBaseFilter = task.status !== 'Done' && task.endTime && new Date(task.endTime) < now;
+            break;
           case 'Completed':
-            return task.status === 'Done';
+            matchesBaseFilter = task.status === 'Done';
+            break;
           case 'All':
           default:
-            return true;
+            matchesBaseFilter = true;
+            break;
         }
+
+        if (!matchesBaseFilter) return false;
+
+        // Status filter
+        if (statusFilter !== 'all') {
+          const s = String(task.status || '').toLowerCase();
+          let matchesStatus = false;
+          if (statusFilter === 'todo') matchesStatus = s.includes('to do') || s.includes('todo');
+          else if (statusFilter === 'in_progress') matchesStatus = s.includes('progress');
+          else if (statusFilter === 'review') matchesStatus = s.includes('review');
+          else if (statusFilter === 'done') matchesStatus = s.includes('done') || s.includes('complete');
+          if (!matchesStatus) return false;
+        }
+
+        // Assignee filter
+        if (assigneeFilter !== 'all') {
+          const matchesAssignee = String(task.assignedTo || '') === assigneeFilter || task.assignee?.username === assigneeFilter;
+          if (!matchesAssignee) return false;
+        }
+
+        return true;
       });
 
       return (
@@ -293,15 +368,126 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         >
           <View style={styles.taskHeader}>
             <View style={styles.taskSearchContainer}>
-              <MaterialIcons name="search" size={22} color={Colors.neutral.medium} style={styles.searchIcon} />
               <TextInput
-                style={styles.searchInput}
                 placeholder="Search tasks..."
-                placeholderTextColor={Colors.neutral.medium}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
+                mode="outlined"
+                style={styles.searchInput}
+                outlineStyle={styles.searchOutline}
+                left={<TextInput.Icon icon="magnify" color={Colors.neutral.medium} />}
+                theme={{
+                  colors: {
+                    primary: Colors.primary,
+                    outline: 'transparent',
+                    background: Colors.neutral.light + '50',
+                    text: Colors.neutral.dark,
+                    placeholder: Colors.neutral.medium,
+                  },
+                }}
               />
             </View>
+
+            {/* Status & Assignee Filters */}
+            <View style={styles.dropdownFiltersRow}>
+              {/* Status Filter */}
+              <View style={[styles.dropdownFilterWrap, { zIndex: showStatusDropdown ? 100 : 1 }]}>
+                <TouchableOpacity
+                  style={styles.dropdownFilterBtn}
+                  onPress={() => {
+                    setShowStatusDropdown(!showStatusDropdown);
+                    setShowAssigneeDropdown(false);
+                  }}
+                >
+                  <MaterialIcons name="filter-list" size={16} color={Colors.neutral.dark} />
+                  <Text style={styles.dropdownFilterText}>
+                    {statusFilter === 'all' ? 'Status' : statusFilter === 'todo' ? 'To Do' : statusFilter === 'in_progress' ? 'In Progress' : statusFilter === 'review' ? 'Review' : 'Done'}
+                  </Text>
+                  <MaterialIcons name={showStatusDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={18} color={Colors.neutral.medium} />
+                </TouchableOpacity>
+                {showStatusDropdown && (
+                  <View style={styles.dropdownFilterMenu}>
+                    {[
+                      { value: 'all', label: 'All Status' },
+                      { value: 'todo', label: 'To Do' },
+                      { value: 'in_progress', label: 'In Progress' },
+                      { value: 'review', label: 'Review' },
+                      { value: 'done', label: 'Done' },
+                    ].map(opt => (
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={styles.dropdownFilterOption}
+                        onPress={() => {
+                          setStatusFilter(opt.value);
+                          setShowStatusDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownFilterOptionText, statusFilter === opt.value && styles.dropdownFilterOptionTextActive]}>
+                          {opt.label}
+                        </Text>
+                        {statusFilter === opt.value && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {/* Assignee Filter */}
+              <View style={[styles.dropdownFilterWrap, { zIndex: showAssigneeDropdown ? 100 : 1 }]}>
+                <TouchableOpacity
+                  style={styles.dropdownFilterBtn}
+                  onPress={() => {
+                    setShowAssigneeDropdown(!showAssigneeDropdown);
+                    setShowStatusDropdown(false);
+                  }}
+                >
+                  <MaterialIcons name="person" size={16} color={Colors.neutral.dark} />
+                  <Text style={styles.dropdownFilterText}>
+                    {assigneeFilter === 'all' ? 'Assignee' : (projectTasks.find(t => String(t.assignedTo) === assigneeFilter || t.assignee?.username === assigneeFilter)?.assignee?.username || 'Assignee')}
+                  </Text>
+                  <MaterialIcons name={showAssigneeDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={18} color={Colors.neutral.medium} />
+                </TouchableOpacity>
+                {showAssigneeDropdown && (
+                  <View style={styles.dropdownFilterMenu}>
+                    <ScrollView style={{ maxHeight: 200 }}>
+                      <TouchableOpacity
+                        style={styles.dropdownFilterOption}
+                        onPress={() => {
+                          setAssigneeFilter('all');
+                          setShowAssigneeDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownFilterOptionText, assigneeFilter === 'all' && styles.dropdownFilterOptionTextActive]}>
+                          All Assignees
+                        </Text>
+                        {assigneeFilter === 'all' && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                      </TouchableOpacity>
+                      {Array.from(new Set(projectTasks.map(t => t.assignee?.username).filter(Boolean))).map(name => (
+                        <TouchableOpacity
+                          key={name}
+                          style={styles.dropdownFilterOption}
+                          onPress={() => {
+                            setAssigneeFilter(name || 'all');
+                            setShowAssigneeDropdown(false);
+                          }}
+                        >
+                          <View style={styles.assigneeOptionContent}>
+                            <View style={styles.assigneeAvatar}>
+                              <Text style={styles.assigneeAvatarText}>{(name || 'U').charAt(0).toUpperCase()}</Text>
+                            </View>
+                            <Text style={[styles.dropdownFilterOptionText, assigneeFilter === name && styles.dropdownFilterOptionTextActive]}>
+                              {name}
+                            </Text>
+                          </View>
+                          {assigneeFilter === name && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+            </View>
+
             <View style={styles.taskFilterContainer}>
               {(['All', 'Upcoming', 'Overdue', 'Completed'] as const).map((filter) => (
                 <TouchableOpacity
@@ -367,12 +553,17 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="keyboard-arrow-left" size={32} color={Colors.neutral.dark} />
+          <MaterialIcons name="arrow-back" size={24} color={Colors.neutral.dark} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{project?.projectName || 'Project'}</Text>
-        <View style={styles.headerActions}>
-          {/* Actions like notifications can go here */}
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project?.projectName || 'Project'}</Text>
+          {workspaceInfo?.name && (
+            <Text style={styles.headerSubtitle} numberOfLines={1}>{workspaceInfo.name}</Text>
+          )}
         </View>
+        <TouchableOpacity style={styles.headerActionButton}>
+          <MaterialIcons name="more-vert" size={24} color={Colors.neutral.dark} />
+        </TouchableOpacity>
       </View>
 
       {/* Main Content */}
@@ -456,24 +647,33 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingTop: 60,
-    backgroundColor: Colors.surface,
+    paddingTop: 50,
+    backgroundColor: Colors.neutral.white,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.light + '60',
+    borderBottomColor: Colors.neutral.light + '40',
   },
   backButton: {
-    padding: 4,
+    padding: 8,
     marginRight: 8,
   },
-  headerTitle: {
+  headerTitleContainer: {
     flex: 1,
-    fontSize: 20,
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
     fontWeight: '700',
     color: Colors.neutral.dark,
-    textAlign: 'center',
   },
-  headerActions: {
-    width: 40, // Placeholder for actions
+  headerSubtitle: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: Colors.neutral.medium,
+    marginTop: 2,
+  },
+  headerActionButton: {
+    padding: 8,
+    marginLeft: 8,
   },
   loadingContainer: {
     flex: 1,
@@ -512,24 +712,95 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   taskSearchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
-    borderRadius: 10,
-    paddingHorizontal: 10,
     marginBottom: 12,
   },
-  searchIcon: {
-    marginRight: 6,
-  },
   searchInput: {
+    fontSize: 15,
+    backgroundColor: Colors.neutral.light + '50',
+  },
+  searchOutline: {
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  dropdownFiltersRow: {
+    flexDirection: 'row',
+    marginTop: 12,
+    marginBottom: 12,
+    gap: 12,
+  },
+  dropdownFilterWrap: {
+    flex: 1,
+    position: 'relative',
+  },
+  dropdownFilterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.neutral.white,
+    borderWidth: 1.5,
+    borderColor: Colors.neutral.light,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  dropdownFilterText: {
     flex: 1,
     fontSize: 14,
+    fontWeight: '500',
     color: Colors.neutral.dark,
-    paddingVertical: 8,
-    backgroundColor: 'transparent',
+  },
+  dropdownFilterMenu: {
+    position: 'absolute',
+    top: 46,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    maxHeight: 220,
+    zIndex: 1000,
+  },
+  dropdownFilterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light + '30',
+  },
+  dropdownFilterOptionText: {
+    fontSize: 14,
+    color: Colors.neutral.dark,
+  },
+  dropdownFilterOptionTextActive: {
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  assigneeOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  assigneeAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  assigneeAvatarText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.primary,
   },
   taskFilterContainer: {
     flexDirection: 'row',

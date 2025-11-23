@@ -36,6 +36,10 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
   const [filteredTasks, setFilteredTasks] = useState<TaskSummary[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [selectedTask, setSelectedTask] = useState<TaskSummary | null>(null);
   const [isTaskDetailVisible, setIsTaskDetailVisible] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -45,6 +49,7 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
   const [membersByProject, setMembersByProject] = useState<Record<string, ProjectMemberCache>>({});
   const [allowedDeleteProjects, setAllowedDeleteProjects] = useState<Set<string>>(new Set());
   const [hiddenTaskIds, setHiddenTaskIds] = useState<Set<string>>(new Set());
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, 'todo'|'in_progress'|'completed'>>({});
   const showAllTasks = route?.params?.showAllTasks || false;
   const workspaceId = route?.params?.workspaceId || '1';
 
@@ -125,7 +130,7 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
   }, [workspaceData?.allTasks]);
 
   useEffect(() => {
-    const tasks = (workspaceData?.allTasks || []).filter(t => !hiddenTaskIds.has(t.id));
+    const tasks = (workspaceData?.allTasks || []).filter(t => !hiddenTaskIds.has(t.id)).map(t => statusOverrides[t.id] ? { ...t, status: statusOverrides[t.id] } : t);
     let filtered = tasks;
     const now = new Date();
     const sevenDaysLater = new Date(now);
@@ -149,13 +154,30 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
         break;
     }
 
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(t => {
+        const s = String(t.status || '').toLowerCase();
+        if (statusFilter === 'todo') return s.includes('to do') || s.includes('todo');
+        if (statusFilter === 'in_progress') return s.includes('progress');
+        if (statusFilter === 'review') return s.includes('review');
+        if (statusFilter === 'done') return s.includes('done') || s.includes('complete');
+        return true;
+      });
+    }
+
+    // Apply assignee filter
+    if (assigneeFilter !== 'all') {
+      filtered = filtered.filter(t => String(t.assigneeId || '') === assigneeFilter || t.assigneeName === assigneeFilter);
+    }
+
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(t => t.title.toLowerCase().includes(query) || t.description.toLowerCase().includes(query));
     }
 
     setFilteredTasks(filtered);
-  }, [workspaceData?.allTasks, searchQuery, selectedFilter, hiddenTaskIds]);
+  }, [workspaceData?.allTasks, searchQuery, selectedFilter, statusFilter, assigneeFilter, hiddenTaskIds, statusOverrides]);
 
   const canDeleteTask = (task: TaskSummary) => {
     const cache = membersByProject[task.projectId];
@@ -227,15 +249,64 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
     { value: 'completed', label: 'Completed' },
   ];
 
-  const renderTaskItem = ({ item }: { item: TaskSummary }) => (
-    <TaskCardModern
-      task={item}
-      showProjectName={false}
-      canDelete={canDeleteTask(item)}
-      onDelete={() => confirmAndDeleteTask(item)}
-      onPress={() => handleTaskPress(item)}
-    />
-  );
+  const confirmComplete = (task: TaskSummary) => {
+    if (task.status === 'completed') return;
+    const assigneeNum = task.assigneeId ? Number(task.assigneeId) : undefined;
+    const cache = membersByProject[task.projectId];
+    const role = cache?.rolesById?.[currentUserId ?? -999];
+    const roleNorm = role ? String(role).toLowerCase() : '';
+    const isCreator = task.createdById && currentUserId && task.createdById === currentUserId;
+    const isAssignee = assigneeNum && currentUserId && assigneeNum === currentUserId;
+    const isOwnerAdmin = roleNorm === 'owner' || roleNorm === 'admin';
+    const canUpdate = Boolean(isCreator || isAssignee || isOwnerAdmin);
+
+    if (!canUpdate) {
+      showError('Bạn không có quyền cập nhật trạng thái task này');
+      return;
+    }
+
+    Alert.alert(
+      'Hoàn thành task',
+      'Bạn có muốn đánh dấu hoàn thành task này?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Đồng ý',
+          onPress: async () => {
+            // Optimistic update
+            setStatusOverrides(prev => ({ ...prev, [task.id]: 'completed' }));
+            setFilteredTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'completed' } : t));
+            try {
+              await taskService.updateTask(Number(task.id), { status: 'Done' });
+              // Auto switch to Completed tab
+              setActiveFilter('Completed');
+              refresh();
+              showSuccess('Đã hoàn thành task');
+            } catch (e: any) {
+              const msg = String(e?.message || '');
+              setStatusOverrides(prev => { const n = { ...prev }; delete n[task.id]; return n; });
+              setFilteredTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: task.status } : t));
+              showError(msg || 'Cập nhật trạng thái thất bại');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const renderTaskItem = ({ item }: { item: TaskSummary }) => {
+    const effective = statusOverrides[item.id] ? { ...item, status: statusOverrides[item.id] } : item;
+    return (
+      <TaskCardModern
+        task={effective}
+        showProjectName={false}
+        canDelete={canDeleteTask(effective)}
+        onDelete={() => confirmAndDeleteTask(effective)}
+        onToggleStatus={() => confirmComplete(effective)}
+        onPress={() => handleTaskPress(effective)}
+      />
+    );
+  };
 
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
@@ -299,6 +370,106 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
             },
           }}
         />
+        
+        {/* Status & Assignee Filters */}
+        <View style={styles.dropdownFiltersRow}>
+          {/* Status Filter */}
+          <View style={[styles.dropdownFilterWrap, { zIndex: showStatusDropdown ? 100 : 1 }]}>
+            <TouchableOpacity
+              style={styles.dropdownFilterBtn}
+              onPress={() => {
+                setShowStatusDropdown(!showStatusDropdown);
+                setShowAssigneeDropdown(false);
+              }}
+            >
+              <MaterialIcons name="filter-list" size={16} color={Colors.neutral.dark} />
+              <Text style={styles.dropdownFilterText}>
+                {statusFilter === 'all' ? 'Status' : statusFilter === 'todo' ? 'To Do' : statusFilter === 'in_progress' ? 'In Progress' : statusFilter === 'review' ? 'Review' : 'Done'}
+              </Text>
+              <MaterialIcons name={showStatusDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={18} color={Colors.neutral.medium} />
+            </TouchableOpacity>
+            {showStatusDropdown && (
+              <View style={styles.dropdownFilterMenu}>
+                {[
+                  { value: 'all', label: 'All Status' },
+                  { value: 'todo', label: 'To Do' },
+                  { value: 'in_progress', label: 'In Progress' },
+                  { value: 'review', label: 'Review' },
+                  { value: 'done', label: 'Done' },
+                ].map(opt => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={styles.dropdownFilterOption}
+                    onPress={() => {
+                      setStatusFilter(opt.value);
+                      setShowStatusDropdown(false);
+                    }}
+                  >
+                    <Text style={[styles.dropdownFilterOptionText, statusFilter === opt.value && styles.dropdownFilterOptionTextActive]}>
+                      {opt.label}
+                    </Text>
+                    {statusFilter === opt.value && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Assignee Filter */}
+          <View style={[styles.dropdownFilterWrap, { zIndex: showAssigneeDropdown ? 100 : 1 }]}>
+            <TouchableOpacity
+              style={styles.dropdownFilterBtn}
+              onPress={() => {
+                setShowAssigneeDropdown(!showAssigneeDropdown);
+                setShowStatusDropdown(false);
+              }}
+            >
+              <MaterialIcons name="person" size={16} color={Colors.neutral.dark} />
+              <Text style={styles.dropdownFilterText}>
+                {assigneeFilter === 'all' ? 'Assignee' : (workspaceData?.allTasks.find(t => String(t.assigneeId) === assigneeFilter || t.assigneeName === assigneeFilter)?.assigneeName || 'Assignee')}
+              </Text>
+              <MaterialIcons name={showAssigneeDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={18} color={Colors.neutral.medium} />
+            </TouchableOpacity>
+            {showAssigneeDropdown && (
+              <View style={styles.dropdownFilterMenu}>
+                <ScrollView style={{ maxHeight: 200 }}>
+                  <TouchableOpacity
+                    style={styles.dropdownFilterOption}
+                    onPress={() => {
+                      setAssigneeFilter('all');
+                      setShowAssigneeDropdown(false);
+                    }}
+                  >
+                    <Text style={[styles.dropdownFilterOptionText, assigneeFilter === 'all' && styles.dropdownFilterOptionTextActive]}>
+                      All Assignees
+                    </Text>
+                    {assigneeFilter === 'all' && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                  </TouchableOpacity>
+                  {Array.from(new Set((workspaceData?.allTasks || []).map(t => t.assigneeName).filter(Boolean))).map(name => (
+                    <TouchableOpacity
+                      key={name}
+                      style={styles.dropdownFilterOption}
+                      onPress={() => {
+                        setAssigneeFilter(name || 'all');
+                        setShowAssigneeDropdown(false);
+                      }}
+                    >
+                      <View style={styles.assigneeOptionContent}>
+                        <View style={styles.assigneeAvatar}>
+                          <Text style={styles.assigneeAvatarText}>{(name || 'U').charAt(0).toUpperCase()}</Text>
+                        </View>
+                        <Text style={[styles.dropdownFilterOptionText, assigneeFilter === name && styles.dropdownFilterOptionTextActive]}>
+                          {name}
+                        </Text>
+                      </View>
+                      {assigneeFilter === name && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+        </View>
       </View>
 
       <View style={styles.filterContainer}>
@@ -357,6 +528,17 @@ const styles = StyleSheet.create({
   searchAndFilterContainer: { paddingHorizontal: 20, paddingVertical: 12, backgroundColor: Colors.neutral.white, borderBottomWidth: 1, borderBottomColor: Colors.neutral.light },
   searchInput: { fontSize: 15, backgroundColor: Colors.neutral.light + '50' },
   searchOutline: { borderRadius: 12, borderWidth: 1.5 },
+  dropdownFiltersRow: { flexDirection: 'row', marginTop: 12, gap: 12 },
+  dropdownFilterWrap: { flex: 1, position: 'relative' },
+  dropdownFilterBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.neutral.white, borderWidth: 1.5, borderColor: Colors.neutral.light, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
+  dropdownFilterText: { flex: 1, fontSize: 14, fontWeight: '500', color: Colors.neutral.dark },
+  dropdownFilterMenu: { position: 'absolute', top: 46, left: 0, right: 0, backgroundColor: Colors.neutral.white, borderRadius: 8, borderWidth: 1, borderColor: Colors.neutral.light, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5, maxHeight: 220, zIndex: 1000 },
+  dropdownFilterOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.neutral.light + '30' },
+  dropdownFilterOptionText: { fontSize: 14, color: Colors.neutral.dark },
+  dropdownFilterOptionTextActive: { fontWeight: '600', color: Colors.primary },
+  assigneeOptionContent: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  assigneeAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.primary + '20', justifyContent: 'center', alignItems: 'center' },
+  assigneeAvatarText: { fontSize: 12, fontWeight: '600', color: Colors.primary },
   filterContainer: { paddingVertical: 12, backgroundColor: Colors.neutral.white, paddingHorizontal: 0 },
   filterButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.neutral.light + '50', marginHorizontal: 4, height: 36, justifyContent: 'center' },
   activeFilterButton: { backgroundColor: Colors.primary },

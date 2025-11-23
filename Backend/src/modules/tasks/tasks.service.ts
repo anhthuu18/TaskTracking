@@ -73,23 +73,30 @@ export class TasksService {
       }
     }
 
-    // Validate status if provided
-    let finalStatus = status || 'todo';
+    // Validate and normalize status if provided
+    let finalStatus = 'To Do'; // Default status
     if (status) {
-      const validStatus = await this.prisma.projectTaskStatus.findFirst({
-        where: {
-          projectId,
-          statusName: status
+      const validStatuses = ['To Do', 'In Progress', 'Review', 'Done', 'todo', 'in progress', 'review', 'done'];
+      const statusLower = status.toLowerCase();
+      
+      if (validStatuses.map(s => s.toLowerCase()).includes(statusLower)) {
+        // Normalize to title case
+        if (statusLower === 'to do' || statusLower === 'todo') {
+          finalStatus = 'To Do';
+        } else if (statusLower === 'in progress') {
+          finalStatus = 'In Progress';
+        } else if (statusLower === 'review') {
+          finalStatus = 'Review';
+        } else if (statusLower === 'done') {
+          finalStatus = 'Done';
         }
-      });
-
-      if (!validStatus) {
-        // Use default 'todo' if custom status not found
-        finalStatus = 'todo';
+      } else {
+        // Invalid status provided, use default
+        finalStatus = 'To Do';
       }
     }
 
-    // Create task with default status 'todo' and priority 3
+    // Create task with default status 'To Do' and priority 3
     const task = await this.prisma.task.create({
       data: {
         ...taskData,
@@ -424,17 +431,24 @@ export class TasksService {
       }
     }
 
-    // Validate status if provided
+    // Validate status if provided - use fixed values: To Do, In Progress, Review, Done
     if (updateTaskDto.status) {
-      const validStatus = await this.prisma.projectTaskStatus.findFirst({
-        where: {
-          projectId: task.projectId,
-          statusName: updateTaskDto.status
-        }
-      });
-
-      if (!validStatus) {
-        throw new BadRequestException('Invalid status for this project');
+      const validStatuses = ['To Do', 'In Progress', 'Review', 'Done', 'todo', 'in progress', 'review', 'done'];
+      const statusLower = updateTaskDto.status.toLowerCase();
+      
+      if (!validStatuses.map(s => s.toLowerCase()).includes(statusLower)) {
+        throw new BadRequestException('Invalid status. Valid values: To Do, In Progress, Review, Done');
+      }
+      
+      // Normalize status to title case
+      if (statusLower === 'to do' || statusLower === 'todo') {
+        updateTaskDto.status = 'To Do';
+      } else if (statusLower === 'in progress') {
+        updateTaskDto.status = 'In Progress';
+      } else if (statusLower === 'review') {
+        updateTaskDto.status = 'Review';
+      } else if (statusLower === 'done') {
+        updateTaskDto.status = 'Done';
       }
     }
 

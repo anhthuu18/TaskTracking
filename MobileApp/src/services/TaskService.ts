@@ -3,21 +3,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, buildApiUrl, getCurrentApiConfig } from '../config/api';
 import { Task, CreateTaskDto, UpdateTaskDto, TaskUser } from '../types/Task';
 
-// Generic response structure for a single task
 export interface TaskResponse {
   success: boolean;
   message: string;
   data: Task;
 }
 
-// Generic response for a list of tasks
 export interface TaskListResponse {
   success: boolean;
   message: string;
   data: Task[];
 }
 
-// Generic response for a list of assignees (users)
 export interface AssigneeListResponse {
   success: boolean;
   message: string;
@@ -28,8 +25,7 @@ class TaskService {
   private async getAuthToken(): Promise<string | null> {
     try {
       return await AsyncStorage.getItem('authToken');
-    } catch (error) {
-      console.error('Error getting auth token:', error);
+    } catch {
       return null;
     }
   }
@@ -52,13 +48,10 @@ class TaskService {
         signal: controller.signal,
       });
 
-      let data;
+      let data: any = {};
       try {
         data = await response.json();
-      } catch (jsonError) {
-        console.error('Failed to parse JSON response:', jsonError);
-        data = {};
-      }
+      } catch {}
 
       if (!response.ok) {
         const errorMessage = data?.message || `HTTP ${response.status}: ${response.statusText}`;
@@ -77,11 +70,6 @@ class TaskService {
     }
   }
 
-  /**
-   * Create a new task.
-   * @param taskData - The data for the new task.
-   * @returns The created task.
-   */
   async createTask(taskData: CreateTaskDto): Promise<Task> {
     const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.TASK.CREATE);
     return this.request<Task>(url, {
@@ -90,24 +78,11 @@ class TaskService {
     });
   }
 
-  /**
-   * Get all tasks for a specific project.
-   * @param projectId - The ID of the project.
-   * @returns A list of tasks.
-   */
   async getTasksByProject(projectId: number): Promise<Task[]> {
     const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.GET_BY_PROJECT}/${projectId}`);
-    return this.request<Task[]>(url, {
-      method: 'GET',
-    });
+    return this.request<Task[]>(url, { method: 'GET' });
   }
 
-  /**
-   * Update an existing task.
-   * @param taskId - The ID of the task to update.
-   * @param updates - The fields to update.
-   * @returns The updated task.
-   */
   async updateTask(taskId: number, updates: UpdateTaskDto): Promise<Task> {
     const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.UPDATE}/${taskId}`);
     return this.request<Task>(url, {
@@ -116,40 +91,25 @@ class TaskService {
     });
   }
 
-  /**
-   * Delete a task.
-   * @param taskId - The ID of the task to delete.
-   * @returns A confirmation message.
-   */
   async deleteTask(taskId: number): Promise<{ message: string }> {
     const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.DELETE}/${taskId}`);
-    return this.request<{ message: string }>(url, {
-      method: 'DELETE',
-    });
+    return this.request<{ message: string }>(url, { method: 'DELETE' });
   }
 
-  /**
-   * Get available assignees for a project (i.e., workspace members).
-   * @param projectId - The ID of the project.
-   * @returns A list of users who can be assigned to tasks.
-   */
   async getAvailableAssignees(projectId: number): Promise<TaskUser[]> {
     const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.GET_ASSIGNEES}/${projectId}/assignees`);
-    return this.request<TaskUser[]>(url, {
-      method: 'GET',
-    });
+    return this.request<TaskUser[]>(url, { method: 'GET' });
   }
 
-  /**
-   * Get all tasks for a specific workspace.
-   * @param workspaceId - The ID of the workspace.
-   * @returns A list of tasks.
-   */
   async getTasksByWorkspace(workspaceId: number | string): Promise<Task[]> {
     const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.GET_BY_WORKSPACE}/${workspaceId}`);
-    return this.request<Task[]>(url, {
-      method: 'GET',
-    });
+    return this.request<Task[]>(url, { method: 'GET' });
+  }
+
+  async createDefaultStatuses(projectId: number): Promise<{ message: string }> {
+    const base = getCurrentApiConfig().ENDPOINTS.TASK.GET_BY_PROJECT; // '/tasks/project'
+    const url = buildApiUrl(`${base}/${projectId}/statuses/default`);
+    return this.request<{ message: string }>(url, { method: 'POST' });
   }
 }
 

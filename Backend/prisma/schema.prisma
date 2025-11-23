@@ -351,7 +351,7 @@ model Task {
   priority          Int       @default(3) @map("Priority")
   createdBy         Int       @map("CreatedBy")
   assignedTo        Int?      @map("AssignedTo")
-  status            String    @default("todo") @map("Status") @db.VarChar(50)
+  status            String    @default("To Do") @map("Status") @db.VarChar(50)
   estimatedMinutes  Int?      @map("EstimatedMinutes")
   isRecurring       Boolean   @default(false) @map("IsRecurring")
   recurringRule     String?   @map("RecurringRule") @db.VarChar(100)
