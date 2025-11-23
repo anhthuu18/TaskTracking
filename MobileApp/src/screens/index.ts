@@ -16,3 +16,15 @@ export { default as WorkspaceDashboardScreen } from './WorkspaceDashboardScreen'
 
 // Main App Screens
 export { default as TaskListScreen } from './TaskListScreen';
+export { default as ProjectListScreen } from './ProjectListScreen';
+export { default as ProjectDetailScreen } from './ProjectDetailScreen';
+
+// Create Screens
+export { default as CreateTaskScreen } from './CreateTaskScreen';
+export { default as CreateEventScreen } from './CreateEventScreen';
+
+// New Screens
+export { default as CalendarScreen } from './CalendarScreen';
+export { default as CreateScreen } from './CreateScreen';
+export { default as SettingsScreen } from './SettingsScreen';
+export { default as ProjectSettingsScreen } from './ProjectSettingsScreen';

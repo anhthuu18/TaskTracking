@@ -86,7 +86,7 @@ export const ScreenLayout = {
   headerTopSpacing: 60,
   
   // Footer spacing from bottom of screen  
-  footerBottomSpacing: 60,
+  footerBottomSpacing: 40,
   
   // Content horizontal padding (left/right margins)
   contentHorizontalPadding: 20,
@@ -108,7 +108,7 @@ export const ButtonStyles = {
   // Primary action button (like OnboardingScreen next button)
   primary: {
     paddingVertical: 18,
-    paddingHorizontal: Spacing.xxl, // 48px
+    paddingHorizontal: Spacing.xl, // 48px
     borderRadius: BorderRadius.xl,  // 24px
     minWidth: 200,
     minHeight: 54,

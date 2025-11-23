@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,17 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Animated,
-  PanResponder,
-  Dimensions,
+  Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
+import { CreateProjectModal, ProjectCardModern } from '../components';
+import { CreateProjectRequest, Project, ProjectStatus } from '../types/Project';
+import { WorkspaceMember } from '../types/Workspace';
+import { projectService, workspaceService } from '../services';
+import { useToastContext } from '../context/ToastContext';
 
 interface ProjectListScreenProps {
   navigation: any;
@@ -26,186 +31,192 @@ interface ProjectListScreenProps {
 }
 
 const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route }) => {
-  const [selectedTab, setSelectedTab] = React.useState<'projects' | 'completed'>('projects');
-  const [longPressedProject, setLongPressedProject] = React.useState<number | null>(null);
-  const [currentUser] = React.useState({ id: 1, role: 'admin' }); // Mock current user
+  const [selectedTab, setSelectedTab] = useState<'all' | 'active' | 'completed'>('all');
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const { showSuccess, showError } = useToastContext();
+  const [highlightProjectId, setHighlightProjectId] = useState<number | undefined>(undefined);
   
   // Get workspace from navigation params
   const selectedWorkspace = route?.params?.workspace;
 
-  // Mock projects data - in real app, this would be filtered by workspace ID
-  const mockProjects = [
-    {
-      id: 1,
-      title: 'Mane UiKit',
-      startDate: '01/01/2021',
-      endDate: '01/02/2021',
-      progress: 50,
-      completedTasks: 24,
-      totalTasks: 48,
-      workspaceId: selectedWorkspace?.id || 1,
-      createdBy: 1, // Current user created this project
-      teamMembers: [
-        { id: 1, name: 'A', color: Colors.primary },
-        { id: 2, name: 'B', color: Colors.accent },
-        { id: 3, name: 'C', color: Colors.warning },
-        { id: 4, name: 'D', color: Colors.success },
-      ],
-      additionalMembers: 4,
-    },
-    {
-      id: 2,
-      title: 'Mobile App Design',
-      startDate: '15/01/2021',
-      endDate: '28/02/2021',
-      progress: 75,
-      completedTasks: 36,
-      totalTasks: 48,
-      workspaceId: selectedWorkspace?.id || 1,
-      createdBy: 2, // Different user created this
-      teamMembers: [
-        { id: 1, name: 'E', color: Colors.error },
-        { id: 2, name: 'F', color: Colors.success },
-        { id: 3, name: 'G', color: Colors.primary },
-      ],
-      additionalMembers: 2,
-    },
-    {
-      id: 3,
-      title: 'Website Redesign',
-      startDate: '10/02/2021',
-      endDate: '15/03/2021',
-      progress: 30,
-      completedTasks: 12,
-      totalTasks: 40,
-      workspaceId: selectedWorkspace?.id || 1,
-      createdBy: 1, // Current user created this
-      teamMembers: [
-        { id: 1, name: 'H', color: Colors.accent },
-        { id: 2, name: 'I', color: Colors.warning },
-      ],
-      additionalMembers: 3,
-    },
-  ];
+  // Load data on component mount
+  useEffect(() => {
+    loadProjects();
+    loadWorkspaceMembers();
+  }, [selectedWorkspace]);
 
-  const completedProjects = [
-    {
-      id: 4,
-      title: 'E-commerce Platform',
-      startDate: '01/12/2020',
-      endDate: '31/12/2020',
-      progress: 100,
-      completedTasks: 60,
-      totalTasks: 60,
-      workspaceId: selectedWorkspace?.id || 1,
-      createdBy: 1,
-      teamMembers: [
-        { id: 1, name: 'J', color: Colors.primary },
-        { id: 2, name: 'K', color: Colors.success },
-      ],
-      additionalMembers: 5,
-    },
-  ];
+  const loadProjects = async () => {
+    if (!selectedWorkspace?.id) {
+      setProjects([]);
+      setLoading(false);
+      return;
+    }
+    const workspaceId = Number(selectedWorkspace.id);
 
-  const canDeleteProject = (project: any) => {
-    return currentUser.role === 'admin' || project.createdBy === currentUser.id;
+    try {
+      setLoading(true);
+      const response = await projectService.getProjectsByWorkspace(workspaceId);
+
+      if (response.success) {
+        setProjects(response.data);
+      } else {
+        Alert.alert('Error', response.message || 'Failed to load projects');
+        setProjects([]);
+      }
+    } catch (error: any) {
+      console.error('Error loading projects:', error);
+      Alert.alert('Error', error.message || 'Failed to load projects');
+      setProjects([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteProject = (projectId: number) => {
-    console.log('Delete project:', projectId);
-    setLongPressedProject(null);
-    // TODO: Implement actual delete functionality
+  const loadWorkspaceMembers = async () => {
+    if (!selectedWorkspace?.id) {
+      setWorkspaceMembers([]);
+      return;
+    }
+    const workspaceId = Number(selectedWorkspace.id);
+
+    try {
+      const response = await workspaceService.getWorkspaceMembers(workspaceId);
+
+      if (response.success) {
+        setWorkspaceMembers(response.data);
+      } else {
+        console.error('Failed to load workspace members:', response.message);
+        setWorkspaceMembers([]);
+      }
+    } catch (error: any) {
+      console.error('Error loading workspace members:', error);
+      setWorkspaceMembers([]);
+    }
   };
 
-  const renderProjectCard = (project: any) => (
-    <TouchableOpacity 
-      key={project.id} 
-      style={[
-        styles.projectCard,
-        longPressedProject === project.id && styles.projectCardPressed
-      ]}
-      onLongPress={() => {
-        if (canDeleteProject(project)) {
-          setLongPressedProject(project.id);
-        }
-      }}
-      onPress={() => {
-        if (longPressedProject === project.id) {
-          setLongPressedProject(null);
-        }
-      }}
-      delayLongPress={500}
-    >
-      {/* Delete Overlay */}
-      {longPressedProject === project.id && (
-        <View style={styles.deleteOverlay}>
-          <TouchableOpacity 
-            style={styles.closeButton}
-            onPress={() => setLongPressedProject(null)}
-          >
-            <MaterialIcons name="close" size={20} color={Colors.surface} />
-          </TouchableOpacity>
-          <View style={styles.deleteContent}>
-            <MaterialIcons name="delete" size={24} color={Colors.surface} />
-            <Text style={styles.deleteText}>Delete</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.deleteButton}
-            onPress={() => handleDeleteProject(project.id)}
-          >
-            <MaterialIcons name="delete" size={20} color={Colors.surface} />
-          </TouchableOpacity>
-        </View>
-      )}
+  const refreshProjects = async () => {
+    setRefreshing(true);
+    await loadProjects();
+    setRefreshing(false);
+  };
 
-      <View style={styles.projectCardHeader}>
-        <Text style={styles.projectTitle}>{project.title}</Text>
-        <View style={styles.teamSection}>
-          <View style={styles.teamAvatars}>
-            {project.teamMembers.slice(0, 3).map((member: any, index: number) => (
-              <View
-                key={member.id}
-                style={[
-                  styles.avatar,
-                  { backgroundColor: member.color, marginLeft: index > 0 ? -8 : 0 }
-                ]}
-              >
-                <Text style={styles.avatarText}>{member.name}</Text>
-              </View>
-            ))}
-            {project.additionalMembers > 0 && (
-              <View style={[styles.avatar, styles.additionalAvatar, { marginLeft: -8 }]}>
-                <Text style={styles.additionalText}>+{project.additionalMembers}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </View>
+  const handleCreateProject = async (projectData: CreateProjectRequest, memberUserIds: number[] = []) => {
+    try {
+      const response = await projectService.createProject(projectData);
+      
+      if (response.success) {
+        showSuccess('Project created successfully');
+        setShowCreateProjectModal(false);
+        // Add assigned members for visibility across accounts
+        try {
+          const createdProjectId = Number(response.data?.id);
+          if (createdProjectId && Array.isArray(memberUserIds) && memberUserIds.length > 0) {
+            let memberRoleId: number | undefined;
+            try {
+              const details = await projectService.getProjectDetails(createdProjectId);
+              const roles = (details.data as any)?.projectRoles as any[] | undefined;
+              memberRoleId = roles?.find(r => String(r.roleName).toLowerCase() === 'member')?.id
+                || roles?.find(r => r.roleName && r.roleName !== 'Admin')?.id;
+              if (!memberRoleId) {
+                const createdRole = await projectService.createProjectRole(createdProjectId, 'Member', 'Default member role');
+                memberRoleId = createdRole?.id;
+              }
+            } catch {}
+            // Invite members by email based on workspaceMembers mapping
+            const idToEmail: Record<number, string> = {};
+            for (const m of workspaceMembers) {
+              const uid = Number(m.user.id);
+              if (!isNaN(uid)) idToEmail[uid] = m.user.email;
+            }
+            for (const uid of memberUserIds) {
+              const email = idToEmail[Number(uid)];
+              if (email) {
+                // Directly add member to project (no accept needed)
+                if (memberRoleId) {
+                  await projectService.addMemberToProject(createdProjectId, Number(uid), memberRoleId);
+                }
+              }
+            }
+            // Trigger in-app notifications for added members
+            const emails = memberUserIds.map(uid => idToEmail[Number(uid)]).filter(Boolean) as string[];
+            if (emails.length > 0) {
+              try {
+                const { notificationService } = await import('../services/notificationService');
+                await notificationService.createProjectInviteNotification({ projectId: createdProjectId, emails });
+              } catch {}
+            }
+          }
+        } catch {}
+        setHighlightProjectId(response.data?.id);
+        await loadProjects(); // Refresh project list
+      } else {
+        showError(response.message || 'Failed to create project');
+      }
+    } catch (error: any) {
+      console.error('Error creating project:', error);
+      showError(error.message || 'Failed to create project. Please try again.');
+    }
+  };
 
-      <View style={styles.projectDates}>
-        <View style={styles.dateItem}>
-          <MaterialIcons name="schedule" size={16} color={Colors.neutral.medium} />
-          <Text style={styles.dateText}>{project.startDate}</Text>
-        </View>
-        <View style={styles.dateSeparator}>
-          <View style={styles.separatorLine} />
-          <MaterialIcons name="arrow-forward" size={16} color={Colors.neutral.medium} />
-        </View>
-        <View style={styles.dateItem}>
-          <MaterialIcons name="event" size={16} color={Colors.primary} />
-          <Text style={styles.dateText}>{project.endDate}</Text>
-        </View>
-      </View>
 
-      <View style={styles.progressSection}>
-        <Text style={styles.progressText}>{project.progress}%</Text>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${project.progress}%` }]} />
-        </View>
-        <Text style={styles.taskCount}>{project.completedTasks}/{project.totalTasks} tasks</Text>
-      </View>
-    </TouchableOpacity>
-  );
+
+  // Filter + sort projects based on search query and tab
+  const filteredProjects = [...projects]
+    .sort((a, b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime())
+    .filter(project => {
+    const matchesSearch = project.projectName.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Filter by tab selection
+    if (selectedTab === 'completed') {
+      return matchesSearch && project.status === ProjectStatus.COMPLETED;
+    }
+    if (selectedTab === 'active') {
+      return matchesSearch && project.status !== ProjectStatus.COMPLETED;
+    }
+    // 'all'
+    return matchesSearch;
+  });
+
+  const renderProjectCard = (project: Project) => {
+    // Map Project to ProjectSummary, providing default values for missing fields
+    const getStatus = (status: ProjectStatus | undefined): 'active' | 'completed' | 'paused' => {
+      if (status === ProjectStatus.COMPLETED) return 'completed';
+      if (status === ProjectStatus.PAUSED) return 'paused';
+      return 'active'; // Default to active for ACTIVE or other statuses
+    };
+
+    const projectSummary = {
+      id: project.id.toString(),
+      name: project.projectName,
+      description: project.description || 'No description available',
+      status: getStatus(project.status),
+      progress: project.progress || 0, // Use real progress if available, else 0
+      memberCount: project._count?.members || project.memberCount || 0,
+      taskCount: project.taskCount || 0, // Use real task count if available, else 0
+      priority: 'medium' as 'medium',
+      dueDate: project.endDate ? new Date(project.endDate) : undefined,
+      color: Colors.primary, // Default value
+    };
+
+    return (
+      <ProjectCardModern
+        key={project.id}
+        project={projectSummary}
+        onPress={() => {
+          navigation.navigate('ProjectDetail', { project: project });
+        }}
+        onMenuPress={() => {
+          // TODO: Implement menu options (edit, delete, etc.)
+          Alert.alert('Menu pressed for project ' + project.projectName);
+        }}
+      />
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -220,7 +231,10 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
         <Text style={styles.headerTitle}>
           {selectedWorkspace ? selectedWorkspace.name : 'Project'}
         </Text>
-        <TouchableOpacity style={styles.addButton}>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => setShowCreateProjectModal(true)}
+        >
           <MaterialIcons name="add" size={24} color={Colors.surface} />
         </TouchableOpacity>
       </View>
@@ -233,18 +247,31 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
             style={styles.searchInput}
             placeholder="Search"
             placeholderTextColor={Colors.neutral.medium}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
           />
         </View>
+        <TouchableOpacity style={styles.filterButton}>
+          <MaterialIcons name="tune" size={20} color={Colors.neutral.medium} />
+        </TouchableOpacity>
       </View>
 
       {/* Tabs */}
       <View style={styles.tabSection}>
         <TouchableOpacity
-          style={[styles.tabButton, selectedTab === 'projects' && styles.activeTabButton]}
-          onPress={() => setSelectedTab('projects')}
+          style={[styles.tabButton, selectedTab === 'all' && styles.activeTabButton]}
+          onPress={() => setSelectedTab('all')}
         >
-          <Text style={[styles.tabButtonText, selectedTab === 'projects' && styles.activeTabButtonText]}>
-            Projects
+          <Text style={[styles.tabButtonText, selectedTab === 'all' && styles.activeTabButtonText]}>
+            All Projects
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, selectedTab === 'active' && styles.activeTabButton]}
+          onPress={() => setSelectedTab('active')}
+        >
+          <Text style={[styles.tabButtonText, selectedTab === 'active' && styles.activeTabButtonText]}>
+            Active
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -259,14 +286,52 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
       </View>
 
       {/* Content */}
-      <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollContent} 
+        showsVerticalScrollIndicator={true}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refreshProjects}
+            colors={[Colors.primary]}
+          />
+        }
+      >
         <View style={styles.projectList}>
-          {selectedTab === 'projects' 
-            ? mockProjects.map(renderProjectCard)
-            : completedProjects.map(renderProjectCard)
-          }
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.loadingText}>Loading projects...</Text>
+            </View>
+          ) : filteredProjects.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="folder-open" size={48} color={Colors.neutral.medium} />
+              <Text style={styles.emptyTitle}>No projects found</Text>
+              <Text style={styles.emptySubtitle}>
+                {searchQuery ? 'Try adjusting your search' : 'Create your first project to get started'}
+              </Text>
+            </View>
+          ) : (
+            filteredProjects.map(renderProjectCard)
+          )}
         </View>
       </ScrollView>
+
+
+
+
+      {/* Create Project Modal */}
+      <CreateProjectModal
+        visible={showCreateProjectModal}
+        onClose={() => setShowCreateProjectModal(false)}
+        workspaceId={Number(selectedWorkspace?.id || 0)}
+        onProjectCreated={async (createdProject: any, hasMembers: boolean) => {
+          await loadProjects();
+          setShowCreateProjectModal(false);
+          // Optionally navigate to project detail if needed
+        }}
+      />
+
     </View>
   );
 };
@@ -274,7 +339,7 @@ const ProjectListScreen: React.FC<ProjectListScreenProps> = ({ navigation, route
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -304,41 +369,54 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   searchSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: Colors.surface,
   },
   searchContainer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.neutral.light,
+    backgroundColor: Colors.background,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 4,
+    marginRight: 12,
   },
   searchIcon: {
-    marginRight: 12,
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     color: Colors.neutral.dark,
   },
+  filterButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   tabSection: {
     flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: Colors.surface,
-    gap: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light,
   },
   tabButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-    backgroundColor: Colors.neutral.light,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 12,
   },
   activeTabButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primary + '20',
   },
   tabButtonText: {
     fontSize: 14,
@@ -346,166 +424,50 @@ const styles = StyleSheet.create({
     color: Colors.neutral.medium,
   },
   activeTabButtonText: {
-    color: Colors.surface,
+    color: Colors.primary,
+    fontWeight: '600',
   },
   scrollContent: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
   projectList: {
     padding: 20,
-    gap: 20,
+    gap: 6,
   },
-  projectCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: Colors.neutral.dark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  projectCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    paddingVertical: 60,
   },
-  projectTitle: {
+  loadingText: {
+    fontSize: 16,
+    color: Colors.neutral.medium,
+    marginTop: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: Colors.neutral.dark,
-    flex: 1,
+    marginTop: 16,
+    marginBottom: 8,
   },
-  teamSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  emptySubtitle: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+    textAlign: 'center',
   },
-  teamAvatars: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: Colors.surface,
-  },
-  avatarText: {
-    color: Colors.surface,
+  projectDescription: {
     fontSize: 12,
-    fontWeight: '600',
-  },
-  additionalAvatar: {
-    backgroundColor: Colors.warning,
-  },
-  additionalText: {
-    color: Colors.surface,
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  projectDates: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 12,
-  },
-  dateItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  dateText: {
-    fontSize: 14,
     color: Colors.neutral.medium,
-  },
-  dateSeparator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 8,
-  },
-  separatorLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.neutral.light,
-  },
-  progressSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  progressText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.primary,
-    minWidth: 40,
-  },
-  progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: Colors.neutral.light,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: 4,
-  },
-  taskCount: {
-    fontSize: 14,
-    color: Colors.neutral.medium,
-    minWidth: 80,
-    textAlign: 'right',
-  },
-  projectCardPressed: {
-    opacity: 0.8,
-  },
-  deleteOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(108, 99, 255, 0.9)',
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    zIndex: 10,
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteContent: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  deleteText: {
-    color: Colors.surface,
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  deleteButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    fontStyle: 'italic',
   },
 });
 

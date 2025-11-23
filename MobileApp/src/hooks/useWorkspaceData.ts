@@ -1,0 +1,351 @@
+import { useState, useEffect, useCallback } from 'react';
+import { projectService, taskService, workspaceService } from '../services';
+
+export interface WorkspaceStats {
+  totalProjects: number;
+  activeProjects: number;
+  completedProjects: number;
+  totalTasks: number;
+  completedTasks: number;
+  overdueTasks: number;
+  dueTodayTasks: number;
+  teamMembers: number;
+  productivity: number;
+}
+
+export interface ProjectSummary { 
+  createdAt?: Date;
+  numericId?: number;
+  id: string;
+  name: string;
+  description: string;
+  status: 'active' | 'completed' | 'paused';
+  progress: number;
+  dueDate?: Date;
+  memberCount: number;
+  taskCount: number;
+  completedTaskCount: number;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  color: string;
+  lastOpened?: Date;
+  isStarred?: boolean;
+}
+
+export interface TaskSummary {
+  id: string;
+  title: string;
+  description: string;
+  status: 'todo' | 'in_progress' | 'completed';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  dueDate?: Date;
+  projectId: string;
+  projectName: string;
+  assigneeId?: string;
+  assigneeName?: string;
+  createdById?: number;
+  tags: string[];
+  estimatedHours?: number;
+  actualHours?: number;
+}
+
+export interface WorkspaceData {
+  workspace: {
+    id: string;
+    name: string;
+    description: string;
+    type: 'personal' | 'group';
+    memberCount: number;
+    createdAt: Date;
+    lastActiveAt: Date;
+  };
+  stats: WorkspaceStats;
+  projects: ProjectSummary[];
+  recentTasks: TaskSummary[];
+  upcomingDeadlines: TaskSummary[];
+  teamActivity: any[];
+  allTasks: TaskSummary[];
+}
+
+export const useWorkspaceData = (workspaceId: string) => {
+  const [data, setData] = useState<WorkspaceData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadWorkspaceData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Load workspace details
+      let workspaceResponse;
+      try {
+        workspaceResponse = await workspaceService.getWorkspaceDetails(parseInt(workspaceId));
+        if (!workspaceResponse.success) {
+          throw new Error(workspaceResponse.message || 'Failed to load workspace');
+        }
+      } catch (err: any) {
+        // If unauthorized, show user-friendly message but don't crash
+        if (err?.message?.includes('Unauthorized') || err?.message?.includes('401')) {
+          console.warn('Unauthorized access - user may need to login again');
+          setError('Please login again to access workspace data');
+          setLoading(false);
+          return;
+        }
+        throw err;
+      }
+
+      // Load projects
+      let projectsResponse;
+      try {
+        projectsResponse = await projectService.getProjectsByWorkspace(parseInt(workspaceId));
+        if (!projectsResponse.success) {
+          throw new Error('Failed to load projects');
+        }
+      } catch (err: any) {
+        if (err?.message?.includes('Unauthorized') || err?.message?.includes('401')) {
+          console.warn('Unauthorized access when loading projects');
+          setError('Please login again to access workspace data');
+          setLoading(false);
+          return;
+        }
+        throw err;
+      }
+
+      // Load tasks (real API). The service returns Task[] directly in real API
+      let rawTasks: any[] = [];
+      try {
+        const resp = await taskService.getTasksByWorkspace(workspaceId);
+        console.log('[useWorkspaceData] Raw tasks response:', resp);
+        rawTasks = Array.isArray(resp) ? resp : (resp?.data || []);
+        console.log('[useWorkspaceData] Processed rawTasks:', rawTasks);
+      } catch (err: any) {
+        console.error('[useWorkspaceData] Error loading tasks:', err);
+        if (err?.message?.includes('Unauthorized') || err?.message?.includes('401')) {
+          console.warn('Unauthorized access when loading tasks');
+        } else {
+          throw err;
+        }
+      }
+
+      const projects = projectsResponse.data || [];
+
+      // Helpers to normalize real API payloads
+      const normalizeStatus = (s: any): 'todo' | 'in_progress' | 'completed' => {
+        if (!s) return 'todo';
+        const val = String(s).toLowerCase();
+        if (val.includes('progress')) return 'in_progress';
+        if (val.includes('done') || val.includes('completed')) return 'completed';
+        return 'todo';
+      };
+      const normalizePriority = (p: any): 'low' | 'medium' | 'high' | 'urgent' => {
+        const n = Number(p);
+        if (!isNaN(n)) {
+          if (n === 5) return 'urgent';
+          if (n >= 4) return 'high';
+          if (n <= 2) return 'low';
+          return 'medium';
+        }
+        const s = String(p || '').toLowerCase();
+        if (s === 'urgent') return 'urgent';
+        if (s === 'high' || s === 'highest') return 'high';
+        if (s === 'low' || s === 'lowest') return 'low';
+        return 'medium';
+      };
+
+      // Map tasks to TaskSummary using robust field detection
+      const taskSummaries: TaskSummary[] = rawTasks.map((t: any) => {
+        const projectId = t.projectId ?? t.project?.id ?? t.project_id ?? '';
+        const proj = projects.find((p: any) => String(p.id) === String(projectId));
+        const projectName = proj?.projectName || t.project?.projectName || t.projectName || '';
+        const due = t.endTime || t.dueDate || t.due_time || undefined;
+        const assignee = t.assignee || t.user || undefined;
+        const assigneeId = assignee?.id ?? t.assignedTo ?? undefined;
+        const assigneeName = assignee?.username || assignee?.name || undefined;
+
+        return {
+          id: String(t.id),
+          title: t.taskName || t.title || '',
+          description: t.description || '',
+          status: normalizeStatus(t.status),
+          priority: normalizePriority(t.priority),
+          dueDate: due ? new Date(due) : undefined,
+          projectId: String(projectId || ''),
+          projectName: projectName || 'No Project',
+          assigneeId: assigneeId ? String(assigneeId) : undefined,
+          assigneeName,
+          createdById: typeof t.createdBy === 'number' ? t.createdBy : (t.creator?.id ?? undefined),
+          tags: [],
+          estimatedHours: t.estimatedMinutes ? t.estimatedMinutes / 60 : undefined,
+          actualHours: undefined,
+        };
+      });
+      console.log('[useWorkspaceData] Task summaries:', taskSummaries);
+
+      // Calculate stats based on mapped tasks
+      const totalTasks = taskSummaries.length;
+      const completedTasks = taskSummaries.filter(t => t.status === 'completed').length;
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+      const overdueTasks = taskSummaries.filter(t => t.dueDate && t.dueDate < today && t.status !== 'completed').length;
+      const dueTodayTasks = taskSummaries.filter(t => t.dueDate && t.dueDate >= today && t.dueDate < tomorrow && t.status !== 'completed').length;
+      const productivity = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+      const stats: WorkspaceStats = {
+        totalProjects: projects.length,
+        activeProjects: projects.filter((p: any) => p.status === 'active').length,
+        completedProjects: projects.filter((p: any) => p.status === 'completed').length,
+        totalTasks,
+        completedTasks,
+        overdueTasks,
+        dueTodayTasks,
+        teamMembers: workspaceResponse.data.memberCount || 1,
+        productivity,
+      };
+
+      // Transform projects to summaries using projectId matching
+      const projectSummaries: ProjectSummary[] = projects.map((project: any) => {
+        const projectTasks = taskSummaries.filter(ts => String(ts.projectId) === String(project.id));
+        const completedProjectTasks = projectTasks.filter(ts => ts.status === 'completed').length;
+        const progress = projectTasks.length > 0 ? Math.round((completedProjectTasks / projectTasks.length) * 100) : 0;
+        let status: 'active' | 'completed' | 'paused' = 'active';
+        if (project.status && (project.status === 'completed' || project.status === 'paused')) status = project.status;
+        const createdAt: Date | undefined = project.dateCreated ? new Date(project.dateCreated) : undefined;
+        return {
+          id: String(project.id),
+          numericId: Number(project.id),
+          name: project.projectName,
+          description: project.description || '',
+          status,
+          progress,
+          dueDate: undefined,
+          memberCount: (project as any)?._count?.members ?? project.memberCount ?? 0,
+          taskCount: projectTasks.length,
+          completedTaskCount: completedProjectTasks,
+          priority: 'medium',
+          color: getProjectColor(project.id),
+          createdAt,
+          lastOpened: project.lastOpened ? new Date(project.lastOpened) : (project.dateModified ? new Date(project.dateModified) : undefined),
+          isStarred: project.isStarred || false,
+        };
+      });
+
+      // Get recent tasks (last 10)
+      const recentTasks = taskSummaries.slice(0, 10);
+
+      // Get upcoming deadlines (next 7 days)
+      const upcomingDeadlines = taskSummaries
+        .filter(task => {
+          if (!task.dueDate) return false;
+          const daysDiff = Math.ceil((task.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          return daysDiff >= 0 && daysDiff <= 7 && task.status !== 'completed';
+        })
+        .sort((a, b) => (a.dueDate?.getTime() || 0) - (b.dueDate?.getTime() || 0));
+
+      const workspaceData: WorkspaceData = {
+        workspace: {
+          id: workspaceResponse.data.id.toString(),
+          name: workspaceResponse.data.workspaceName,
+          description: workspaceResponse.data.description || '',
+          type: workspaceResponse.data.workspaceType === 'GROUP' ? 'group' : 'personal',
+          memberCount: workspaceResponse.data.memberCount || 1,
+          createdAt: workspaceResponse.data.dateCreated ? new Date(workspaceResponse.data.dateCreated) : new Date(),
+          lastActiveAt: new Date(),
+        },
+        stats,
+        projects: projectSummaries,
+        recentTasks,
+        upcomingDeadlines,
+        teamActivity: [], // TODO: Implement team activity
+        allTasks: taskSummaries,
+      };
+
+      console.log('[useWorkspaceData] Final workspace data:', workspaceData);
+      setData(workspaceData);
+    } catch (err: any) {
+      console.error('Error loading workspace data:', err);
+      // Check if it's an unauthorized error
+      const errorMessage = err?.message || 'Failed to load workspace data';
+      if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
+        setError('Please login again to access workspace data');
+      } else {
+        setError(errorMessage);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [workspaceId]);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadWorkspaceData();
+    setRefreshing(false);
+  }, [loadWorkspaceData]);
+
+  useEffect(() => {
+    if (workspaceId) {
+      loadWorkspaceData();
+    }
+  }, [workspaceId, loadWorkspaceData]);
+
+  const toggleStar = useCallback(async (projectId: number) => {
+    if (!data) return;
+
+    // Optimistically update UI
+    const updatedProjects = data.projects.map(p => 
+      p.numericId === projectId ? { ...p, isStarred: !p.isStarred } : p
+    );
+    setData({ ...data, projects: updatedProjects });
+
+    try {
+      await projectService.toggleStarProject(projectId);
+      // No need to refresh, UI is already updated
+    } catch (error) {
+      console.error('Failed to toggle star status:', error);
+      // Revert UI on error
+      setError('Failed to update star status. Please try again.');
+      const revertedProjects = data.projects.map(p =>
+        p.numericId === projectId ? { ...p, isStarred: !p.isStarred } : p
+      );
+      setData({ ...data, projects: revertedProjects });
+    }
+  }, [data]);
+
+  const updateLastOpened = useCallback(async (projectId: number) => {
+    if (!data) return;
+
+    const now = new Date();
+    // Optimistically update UI
+    const updatedProjects = data.projects.map(p =>
+      p.numericId === projectId ? { ...p, lastOpened: now } : p
+    );
+    setData({ ...data, projects: updatedProjects });
+
+    try {
+      await projectService.updateProjectLastOpened(projectId);
+    } catch (error) {
+      console.error('Failed to update last opened timestamp:', error);
+      // Don't revert, as it's a background task and not critical for UI state
+    }
+  }, [data]);
+
+  return {
+    data,
+    loading,
+    error,
+    refreshing,
+    refresh,
+    toggleStar,
+    updateLastOpened,
+  };
+};
+
+// Helper function to generate consistent colors for projects
+const getProjectColor = (projectId: number): string => {
+  const colors = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+    '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
+  ];
+  return colors[projectId % colors.length];
+};

@@ -8,6 +8,7 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TextInput } from 'react-native-paper';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -23,9 +24,10 @@ import { useToast } from '../hooks';
 
 interface SignUpScreenProps {
   navigation: any;
+  onLoginSuccess?: () => void;
 }
 
-const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
+const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, onLoginSuccess }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -85,14 +87,13 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
       
       if (response.success && response.data) {
         // Success - show success message and navigate to signin
-
         
           // Show success toast with short duration
           showSuccess(`Tài khoản ${response.data.user.username} đã được tạo thành công!`);
           
-          // Navigate to main screen (TaskList) after very short delay
+          // Navigate to SignIn screen after short delay
           setTimeout(() => {
-            navigation.navigate('TaskList');
+            navigation.navigate('SignIn');
           }, 800);
       } else {
         // API returned error
@@ -190,9 +191,14 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         
         if (response.success && response.data) {
           // Success - save user data and navigate
-          // TODO: Save token to AsyncStorage for persistence
-          // await AsyncStorage.setItem('authToken', response.data.token);
-          // await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+          // Save token to AsyncStorage for persistence
+          await AsyncStorage.setItem('authToken', response.data.token);
+          await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+          
+          // Call onLoginSuccess to update app state
+          if (onLoginSuccess) {
+            onLoginSuccess();
+          }
           
           // Navigate directly to main screen (TaskList)
           navigation.navigate('TaskList');

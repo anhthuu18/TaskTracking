@@ -5,30 +5,53 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id           Int      @id @default(autoincrement()) @map("UserID")
-  username     String   @db.VarChar(20) @map("Username")
-  email        String   @unique @db.VarChar(255) @map("Email")
-  password     String   @db.VarChar(255) @map("Password")
-  phone        String?  @db.VarChar(15) @map("Phone")
+  id           Int       @id @default(autoincrement()) @map("UserID")
+  username     String    @map("Username") @db.VarChar(20)
+  email        String    @unique @map("Email") @db.VarChar(255)
+  password     String    @map("Password") @db.VarChar(255)
+  phone        String?   @map("Phone") @db.VarChar(15)
   dateDeleted  DateTime? @map("DateDeleted")
-  dateModified DateTime @updatedAt @map("DateModified")
-  dateCreated  DateTime @default(now()) @map("DateCreated")
+  dateModified DateTime  @updatedAt @map("DateModified")
+  dateCreated  DateTime  @default(now()) @map("DateCreated")
 
   // Relations
-  createdWorkspaces   Workspace[]       @relation("UserWorkspaces")
-  workspaceMemberships WorkspaceMember[] @relation("WorkspaceMembers")
-  createdProjects     Project[]         @relation("CreatedProjects")
-  projectMemberships  ProjectMember[]   @relation("ProjectMembers")
+  createdWorkspaces      Workspace[]           @relation("UserWorkspaces")
+  workspaceMemberships   WorkspaceMember[]     @relation("WorkspaceMembers")
+  createdProjects        Project[]             @relation("CreatedProjects")
+  projectMemberships     ProjectMember[]       @relation("ProjectMembers")
+  sentInvitations        WorkspaceInvitation[] @relation("SentInvitations")
+  sentProjectInvitations ProjectInvitation[]   @relation("SentProjectInvitations")
+  createdTasks           Task[]                @relation("CreatedTasks")
+  assignedTasks          Task[]                @relation("AssignedTasks")
+  userTrackings          TaskTracking[]        @relation("UserTrackings")
+  notifications          Notification[]        @relation("UserNotifications")
+  userSettings           UserSettings?
+  starredProjects        StarredProject[]
+  accessLogs             ProjectAccessLog[]
 
   @@map("Users")
 }
 
+model UserSettings {
+  id               Int      @id @default(autoincrement()) @map("UserSettingID")
+  userId           Int      @unique @map("UserID")
+  dailyWorkMinutes Int      @default(480) @map("DailyWorkMinutes")
+  notifyByEmail    Boolean  @default(true) @map("NotifyByEmail")
+  dateModified     DateTime @updatedAt @map("DateModified")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("UserSettings")
+}
+
 model Role {
   id           Int      @id @default(autoincrement()) @map("RoleID")
-  roleName     String   @db.VarChar(20) @map("RoleName")
+  roleName     String   @map("RoleName") @db.VarChar(20)
   description  String?  @map("Description")
   permissionId Json?    @map("PermissionID")
   dateCreated  DateTime @default(now()) @map("DateCreated")
@@ -39,17 +62,16 @@ model Role {
 
 model OtpCode {
   id          Int      @id @default(autoincrement()) @map("OtpID")
-  phone       String   @db.VarChar(15) @map("Phone")
-  otpCode     String   @db.VarChar(6) @map("OtpCode")
-  isUsed      Boolean  @default(false) @map("IsUsed")    // Đánh dấu OTP đã được sử dụng thành công
-  attempts    Int      @default(0) @map("Attempts")      // Số lần nhập sai (bảo mật chống brute force)
-  expiresAt   DateTime @map("ExpiresAt")                 // Thời gian hết hạn OTP
+  phone       String   @map("Phone") @db.VarChar(15)
+  otpCode     String   @map("OtpCode") @db.VarChar(6)
+  isUsed      Boolean  @default(false) @map("IsUsed") // Đánh dấu OTP đã được sử dụng thành công
+  attempts    Int      @default(0) @map("Attempts") // Số lần nhập sai (bảo mật chống brute force)
+  expiresAt   DateTime @map("ExpiresAt") // Thời gian hết hạn OTP
   dateCreated DateTime @default(now()) @map("DateCreated")
 
-  @@map("OtpCodes")
   @@index([phone])
+  @@map("OtpCodes")
 }
-
 
 enum WorkspaceType {
   PERSONAL
@@ -64,8 +86,8 @@ enum MemberRole {
 
 model Workspace {
   id            Int           @id @default(autoincrement()) @map("WorkspaceID")
-  workspaceName String        @db.VarChar(100) @map("WorkspaceName")
-  description   String?       @db.Text @map("Description")
+  workspaceName String        @map("WorkspaceName") @db.VarChar(100)
+  description   String?       @map("Description") @db.Text
   userId        Int           @map("UserID")
   workspaceType WorkspaceType @map("WorkspaceType")
   dateDeleted   DateTime?     @map("DateDeleted")
@@ -73,9 +95,11 @@ model Workspace {
   dateCreated   DateTime      @default(now()) @map("DateCreated")
 
   // Relations
-  user             User               @relation("UserWorkspaces", fields: [userId], references: [id])
+  user             User                  @relation("UserWorkspaces", fields: [userId], references: [id])
   workspaceMembers WorkspaceMember[]
-  projects        Project[]
+  projects         Project[]
+  invitations      WorkspaceInvitation[]
+  tasks            Task[]
 
   // PostgreSQL optimizations
   @@index([userId])
@@ -86,40 +110,48 @@ model Workspace {
 }
 
 model WorkspaceMember {
-  id          Int         @id @default(autoincrement()) @map("WorkspaceMemberID")
-  workspaceId Int         @map("WorkspaceID")
-  userId      Int         @map("UserID")
-  role        MemberRole  @default(MEMBER) @map("Role")
-  joinedAt    DateTime    @default(now()) @map("JoinedAt")
-  dateDeleted DateTime?   @map("DateDeleted")
+  id          Int        @id @default(autoincrement()) @map("WorkspaceMemberID")
+  workspaceId Int        @map("WorkspaceID")
+  userId      Int        @map("UserID")
+  role        MemberRole @default(MEMBER) @map("Role")
+  joinedAt    DateTime   @default(now()) @map("JoinedAt")
+  dateDeleted DateTime?  @map("DateDeleted")
 
   // Relations
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user      User      @relation("WorkspaceMembers", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, userId])
-  @@map("WorkspaceMembers")
   @@index([workspaceId])
   @@index([userId])
   @@index([role])
   @@index([dateDeleted])
+  @@map("WorkspaceMembers")
 }
 
 model Project {
-  id           Int      @id @default(autoincrement()) @map("ProjectID")
-  projectName  String   @db.VarChar(100) @map("ProjectName")
-  workspaceId  Int      @map("WorkspaceID")
-  description  String?  @db.Text @map("Description")
-  createdBy    Int      @map("CreatedBy")
+  id           Int       @id @default(autoincrement()) @map("ProjectID")
+  projectName  String    @map("ProjectName") @db.VarChar(100)
+  workspaceId  Int       @map("WorkspaceID")
+  description  String?   @map("Description") @db.Text
+  createdBy    Int       @map("CreatedBy")
   dateDeleted  DateTime? @map("DateDeleted")
-  dateModified DateTime @updatedAt @map("DateModified")
-  dateCreated  DateTime @default(now()) @map("DateCreated")
+  dateModified DateTime  @updatedAt @map("DateModified")
+  dateCreated  DateTime  @default(now()) @map("DateCreated")
 
   // Relations
-  workspace    Workspace     @relation(fields: [workspaceId], references: [id])
-  creator      User          @relation("CreatedProjects", fields: [createdBy], references: [id])
-  members      ProjectMember[]
-  projectRoles ProjectRole[]
+  workspace           Workspace             @relation(fields: [workspaceId], references: [id])
+  creator             User                  @relation("CreatedProjects", fields: [createdBy], references: [id])
+  members             ProjectMember[]
+  projectRoles        ProjectRole[]
+  invitations         ProjectInvitation[]
+  ProjectNotification ProjectNotification[]
+  tasks               Task[]
+  taskTypes           ProjectTaskType[]
+  taskStatuses        ProjectTaskStatus[]
+  taskPriorities      ProjectTaskPriority[]
+  starredBy           StarredProject[]
+  accessLogs          ProjectAccessLog[]
 
   @@map("Projects")
 }
@@ -142,23 +174,23 @@ model ProjectMember {
 model ProjectRole {
   id           Int      @id @default(autoincrement()) @map("ProjectRoleID")
   projectId    Int      @map("ProjectID")
-  roleName     String   @db.VarChar(100) @map("RoleName")
-  description  String?  @db.VarChar(200) @map("Description")
+  roleName     String   @map("RoleName") @db.VarChar(100)
+  description  String?  @map("Description") @db.VarChar(200)
   dateCreated  DateTime @default(now()) @map("DateCreated")
   dateModified DateTime @updatedAt @map("DateModified")
 
   // Relations
-  project           Project                  @relation(fields: [projectId], references: [id])
-  permissions       ProjectRolePermission[]
-  projectMembers    ProjectMember[]
+  project        Project                 @relation(fields: [projectId], references: [id])
+  permissions    ProjectRolePermission[]
+  projectMembers ProjectMember[]
 
   @@map("ProjectRoles")
 }
 
 model Permission {
-  id             Int                   @id @default(autoincrement()) @map("PermissionID")
-  permissionName String                @unique @db.VarChar(100) @map("PermissionName")
-  description    String?               @db.VarChar(200) @map("Description")
+  id             Int                     @id @default(autoincrement()) @map("PermissionID")
+  permissionName String                  @unique @map("PermissionName") @db.VarChar(100)
+  description    String?                 @map("Description") @db.VarChar(200)
   projectRoles   ProjectRolePermission[]
 
   @@map("Permissions")
@@ -174,4 +206,244 @@ model ProjectRolePermission {
 
   @@id([projectRoleId, permissionId])
   @@map("ProjectRolePermissions")
+}
+
+enum InviteType {
+  EMAIL
+  IN_APP
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+model WorkspaceInvitation {
+  id          Int              @id @default(autoincrement()) @map("InvitationID")
+  workspaceId Int              @map("WorkspaceID")
+  email       String           @map("Email") @db.VarChar(255)
+  invitedBy   Int              @map("InvitedBy")
+  inviteType  InviteType       @map("InviteType")
+  status      InvitationStatus @default(PENDING) @map("Status")
+  token       String           @unique @map("Token") @db.VarChar(255)
+  message     String?          @map("Message") @db.Text
+  expiresAt   DateTime         @map("ExpiresAt")
+  acceptedAt  DateTime?        @map("AcceptedAt")
+  createdAt   DateTime         @default(now()) @map("CreatedAt")
+  updatedAt   DateTime         @updatedAt @map("UpdatedAt")
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inviter   User      @relation("SentInvitations", fields: [invitedBy], references: [id])
+
+  @@index([workspaceId])
+  @@index([email])
+  @@index([token])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("WorkspaceInvitations")
+}
+
+model ProjectInvitation {
+  id         Int              @id @default(autoincrement()) @map("ProjectInvitationID")
+  projectId  Int              @map("ProjectID")
+  email      String           @map("Email") @db.VarChar(255)
+  invitedBy  Int              @map("InvitedBy")
+  inviteType InviteType       @map("InviteType")
+  status     InvitationStatus @default(PENDING) @map("Status")
+  token      String           @unique @map("Token") @db.VarChar(255)
+  message    String?          @map("Message") @db.Text
+  roleId     Int?             @map("RoleID") // Project role to assign when accepted
+  expiresAt  DateTime         @map("ExpiresAt")
+  acceptedAt DateTime?        @map("AcceptedAt")
+  createdAt  DateTime         @default(now()) @map("CreatedAt")
+  updatedAt  DateTime         @updatedAt @map("UpdatedAt")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  inviter User    @relation("SentProjectInvitations", fields: [invitedBy], references: [id])
+
+  @@index([projectId])
+  @@index([email])
+  @@index([token])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("ProjectInvitations")
+}
+
+// In-app notifications for project events (added to project, etc.)
+model ProjectNotification {
+  id             Int      @id @default(autoincrement()) @map("ProjectNotificationID")
+  projectId      Int      @map("ProjectID")
+  receiverUserId Int      @map("ReceiverUserID")
+  title          String   @map("Title") @db.VarChar(200)
+  message        String?  @map("Message") @db.Text
+  isRead         Boolean  @default(false) @map("IsRead")
+  createdAt      DateTime @default(now()) @map("CreatedAt")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([receiverUserId])
+  @@map("ProjectNotifications")
+}
+
+// Project-specific task types
+model ProjectTaskType {
+  id           Int      @id @default(autoincrement()) @map("TaskTypeID")
+  projectId    Int      @map("ProjectID")
+  typeName     String   @map("TypeName") @db.VarChar(50)
+  description  String?  @map("Description") @db.VarChar(200)
+  dateCreated  DateTime @default(now()) @map("DateCreated")
+  dateModified DateTime @updatedAt @map("DateModified")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("ProjectTaskTypes")
+}
+
+// Project-specific task statuses
+model ProjectTaskStatus {
+  id           Int      @id @default(autoincrement()) @map("TaskStatusID")
+  projectId    Int      @map("ProjectID")
+  statusName   String   @map("StatusName") @db.VarChar(50)
+  description  String?  @map("Description") @db.VarChar(200)
+  sortOrder    Int      @map("SortOrder")
+  dateCreated  DateTime @default(now()) @map("DateCreated")
+  dateModified DateTime @updatedAt @map("DateModified")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("ProjectTaskStatuses")
+}
+
+// Project-specific task priorities
+model ProjectTaskPriority {
+  id            Int      @id @default(autoincrement()) @map("TaskPriorityID")
+  projectId     Int      @map("ProjectID")
+  priorityName  String   @map("PriorityName") @db.VarChar(50)
+  priorityLevel Int      @map("PriorityLevel")
+  dateCreated   DateTime @default(now()) @map("DateCreated")
+  dateModified  DateTime @updatedAt @map("DateModified")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("ProjectTaskPriorities")
+}
+
+// Main Tasks table
+model Task {
+  id                Int       @id @default(autoincrement()) @map("TaskID")
+  projectId         Int?      @map("ProjectID")
+  workspaceId       Int       @map("WorkspaceID")
+  taskName          String    @map("TaskName") @db.VarChar(200)
+  description       String?   @map("Description") @db.Text
+  type              String    @default("basic") @map("Type") @db.VarChar(20)
+  startTime         DateTime? @map("StartTime")
+  endTime           DateTime? @map("EndTime")
+  priority          Int       @default(3) @map("Priority")
+  createdBy         Int       @map("CreatedBy")
+  assignedTo        Int?      @map("AssignedTo")
+  status            String    @default("To Do") @map("Status") @db.VarChar(50)
+  estimatedMinutes  Int?      @map("EstimatedMinutes")
+  isRecurring       Boolean   @default(false) @map("IsRecurring")
+  recurringRule     String?   @map("RecurringRule") @db.VarChar(100)
+  dateCreated       DateTime  @default(now()) @map("DateCreated")
+  dateModified      DateTime  @updatedAt @map("DateModified")
+
+  // Relations
+  project     Project?     @relation(fields: [projectId], references: [id])
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id])
+  creator     User        @relation("CreatedTasks", fields: [createdBy], references: [id])
+  assignee    User?       @relation("AssignedTasks", fields: [assignedTo], references: [id])
+  tracking    TaskTracking[]
+  notifications Notification[]
+
+  // Indexes for performance
+  @@index([projectId])
+  @@index([workspaceId])
+  @@index([createdBy])
+  @@index([assignedTo])
+  @@index([status])
+  @@index([priority])
+  @@index([dateCreated])
+  @@map("Tasks")
+}
+
+// Task tracking for time tracking
+model TaskTracking {
+  id            Int       @id @default(autoincrement()) @map("TrackingID")
+  taskId        Int       @map("TaskID")
+  userId        Int       @map("UserID")
+  startTime     DateTime  @map("StartTime")
+  endTime       DateTime? @map("EndTime")
+  actualMinutes Int?      @map("ActualMinutes")
+  status        String    @map("Status") @db.VarChar(20) // Running/Paused/Completed/Stopped
+  dateCreated   DateTime  @default(now()) @map("DateCreated")
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation("UserTrackings", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([status])
+  @@index([startTime])
+  @@map("TaskTracking")
+}
+
+// Notifications for users
+model Notification {
+  id           Int       @id @default(autoincrement()) @map("NotificationID")
+  userId       Int       @map("UserID")
+  taskId       Int?      @map("TaskID")
+  content      String    @map("Content") @db.Text
+  triggerTime  DateTime  @map("TriggerTime")
+  type         String    @map("Type") @db.VarChar(20) // Alarm/Info/Warning
+  isRead       Boolean   @default(false) @map("IsRead")
+  dateCreated  DateTime  @default(now()) @map("DateCreated")
+
+  // Relations
+  user User  @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  task Task? @relation(fields: [taskId], references: [id])
+
+  @@index([userId])
+  @@index([taskId])
+  @@index([isRead])
+  @@index([triggerTime])
+  @@map("Notifications")
+}
+
+model StarredProject {
+  userId    Int      @map("UserID")
+  projectId Int      @map("ProjectID")
+  starredAt DateTime @default(now()) @map("StarredAt")
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([userId, projectId])
+  @@map("StarredProjects")
+}
+
+model ProjectAccessLog {
+  id         Int      @id @default(autoincrement()) @map("LogID")
+  userId     Int      @map("UserID")
+  projectId  Int      @map("ProjectID")
+  accessedAt DateTime @default(now()) @map("AccessedAt")
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, projectId, accessedAt(sort: Desc)])
+  @@map("ProjectAccessLogs")
 }

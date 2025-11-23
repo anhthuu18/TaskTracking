@@ -12,6 +12,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-gesture-handler';
 
 import AppNavigator from './src/navigation/AppNavigator';
+import { ToastProvider } from './src/context/ToastContext';
 
 // Custom theme colors
 const lightTheme = {
@@ -42,11 +43,13 @@ function App(): JSX.Element {
   return (
     <SafeAreaProvider>
       <PaperProvider theme={isDarkMode ? darkTheme : lightTheme}>
-        <StatusBar 
-          barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-          backgroundColor={isDarkMode ? darkTheme.colors.surface : lightTheme.colors.surface}
-        />
-        <AppNavigator />
+        <ToastProvider>
+          <StatusBar 
+            barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+            backgroundColor={isDarkMode ? darkTheme.colors.surface : lightTheme.colors.surface}
+          />
+          <AppNavigator />
+        </ToastProvider>
       </PaperProvider>
     </SafeAreaProvider>
   );

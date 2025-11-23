@@ -17,7 +17,7 @@ const { width: screenWidth } = Dimensions.get('window');
 export interface ToastProps {
   visible: boolean;
   message: string;
-  type: 'success' | 'error' | 'info';
+  type: 'success' | 'error' | 'info' | 'warning';
   duration?: number;
   onHide: () => void;
 }
@@ -86,6 +86,11 @@ const Toast: React.FC<ToastProps> = ({
           backgroundColor: Colors.semantic.error,
           iconName: 'error',
         };
+      case 'warning':
+        return {
+          backgroundColor: Colors.semantic.warning,
+          iconName: 'warning',
+        };
       case 'info':
       default:
         return {
@@ -131,7 +136,7 @@ const styles = StyleSheet.create({
     top: Platform.OS === 'ios' ? 50 : StatusBar.currentHeight! + 10,
     left: 0,
     right: 0,
-    zIndex: 9999,
+    zIndex: 99999,
     alignItems: 'center',
     paddingHorizontal: 20,
   },

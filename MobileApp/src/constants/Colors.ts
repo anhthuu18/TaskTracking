@@ -45,10 +45,11 @@ export const LightTheme = {
   
   // Priority colors
   priority: {
-    low: '#47C272',
-    medium: '#FF8A00',
-    high: '#FF6A5D',
     urgent: '#E15A93',
+    high: '#FF6A5D',
+    medium: '#FF8A00',
+    low: '#47C272',
+    lowest: '#A29FB6',
   },
   
   // Common colors
@@ -60,6 +61,10 @@ export const LightTheme = {
   textTertiary: '#1C1243CC', // 80% opacity
   border: '#EFF1F3',
   divider: '#A29FB6',
+  
+  // Additional colors for better compatibility
+  white: '#FFFFFF',
+  black: '#1C1243',
   
   // Aliases for backward compatibility
   error: '#FF6A5D',

@@ -1,171 +1,116 @@
-import { Task, TaskStatus, TaskPriority } from '../types/Task';
-import { generateId } from '../utils/helpers';
+// Task Service - Connects to the Backend Task APIs
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_CONFIG, buildApiUrl, getCurrentApiConfig } from '../config/api';
+import { Task, CreateTaskDto, UpdateTaskDto, TaskUser } from '../types/Task';
 
-/**
- * Service for managing tasks
- */
+export interface TaskResponse {
+  success: boolean;
+  message: string;
+  data: Task;
+}
+
+export interface TaskListResponse {
+  success: boolean;
+  message: string;
+  data: Task[];
+}
+
+export interface AssigneeListResponse {
+  success: boolean;
+  message: string;
+  data: TaskUser[];
+}
+
 class TaskService {
-  private static instance: TaskService;
-  private tasks: Task[] = [];
-
-  private constructor() {
-    // Initialize with mock data
-    this.initializeMockData();
-  }
-
-  public static getInstance(): TaskService {
-    if (!TaskService.instance) {
-      TaskService.instance = new TaskService();
+  private async getAuthToken(): Promise<string | null> {
+    try {
+      return await AsyncStorage.getItem('authToken');
+    } catch {
+      return null;
     }
-    return TaskService.instance;
   }
 
-  private initializeMockData() {
-    this.tasks = [
-      {
-        id: '1',
-        title: 'Phát triển giao diện đăng nhập',
-        description: 'Tạo màn hình đăng nhập với xác thực JWT và validation form',
-        status: TaskStatus.IN_PROGRESS,
-        priority: TaskPriority.HIGH,
-        assignee: 'Nguyễn Văn A',
-        dueDate: new Date('2024-01-15'),
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date('2024-01-10'),
-        tags: ['Frontend', 'Authentication', 'UI/UX'],
-      },
-      {
-        id: '2',
-        title: 'Thiết kế database schema',
-        description: 'Thiết kế cấu trúc cơ sở dữ liệu cho hệ thống quản lý task',
-        status: TaskStatus.TODO,
-        priority: TaskPriority.URGENT,
-        assignee: 'Trần Thị B',
-        dueDate: new Date('2024-01-12'),
-        createdAt: new Date('2024-01-02'),
-        updatedAt: new Date('2024-01-02'),
-        tags: ['Database', 'Backend'],
-      },
-      {
-        id: '3',
-        title: 'Viết API endpoints',
-        description: 'Phát triển các API REST cho CRUD operations của tasks',
-        status: TaskStatus.DONE,
-        priority: TaskPriority.MEDIUM,
-        assignee: 'Lê Văn C',
-        dueDate: new Date('2024-01-08'),
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date('2024-01-08'),
-        tags: ['Backend', 'API'],
-      },
-      {
-        id: '4',
-        title: 'Thiết lập CI/CD pipeline',
-        description: 'Cấu hình GitHub Actions cho auto deployment',
-        status: TaskStatus.TODO,
-        priority: TaskPriority.LOW,
-        assignee: 'Phạm Văn D',
-        createdAt: new Date('2024-01-03'),
-        updatedAt: new Date('2024-01-03'),
-        tags: ['DevOps', 'Automation'],
-      },
-    ];
+  private async request<T>(url: string, options: RequestInit): Promise<T> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
+
+    try {
+      const token = await this.getAuthToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...(options.headers as Record<string, string> || {}),
+      };
+
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
+
+      let data: any = {};
+      try {
+        data = await response.json();
+      } catch {}
+
+      if (!response.ok) {
+        const errorMessage = data?.message || `HTTP ${response.status}: ${response.statusText}`;
+        console.warn('API Error:', errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      return data as T;
+    } catch (error: any) {
+      console.warn('Request failed:', error);
+      const isAbort = error?.name === 'AbortError';
+      const errorMessage = isAbort ? 'Request timeout' : (error?.message || 'Network error');
+      throw new Error(errorMessage);
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
-  /**
-   * Get all tasks
-   */
-  public async getAllTasks(): Promise<Task[]> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-    return [...this.tasks];
+  async createTask(taskData: CreateTaskDto): Promise<Task> {
+    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.TASK.CREATE);
+    return this.request<Task>(url, {
+      method: 'POST',
+      body: JSON.stringify(taskData),
+    });
   }
 
-  /**
-   * Get task by ID
-   */
-  public async getTaskById(id: string): Promise<Task | null> {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    return this.tasks.find(task => task.id === id) || null;
+  async getTasksByProject(projectId: number): Promise<Task[]> {
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.GET_BY_PROJECT}/${projectId}`);
+    return this.request<Task[]>(url, { method: 'GET' });
   }
 
-  /**
-   * Create new task
-   */
-  public async createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const newTask: Task = {
-      ...taskData,
-      id: generateId(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    this.tasks.push(newTask);
-    return newTask;
+  async updateTask(taskId: number, updates: UpdateTaskDto): Promise<Task> {
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.UPDATE}/${taskId}`);
+    return this.request<Task>(url, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
   }
 
-  /**
-   * Update task
-   */
-  public async updateTask(id: string, updates: Partial<Task>): Promise<Task | null> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const taskIndex = this.tasks.findIndex(task => task.id === id);
-    if (taskIndex === -1) return null;
-
-    this.tasks[taskIndex] = {
-      ...this.tasks[taskIndex],
-      ...updates,
-      updatedAt: new Date(),
-    };
-
-    return this.tasks[taskIndex];
+  async deleteTask(taskId: number): Promise<{ message: string }> {
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.DELETE}/${taskId}`);
+    return this.request<{ message: string }>(url, { method: 'DELETE' });
   }
 
-  /**
-   * Delete task
-   */
-  public async deleteTask(id: string): Promise<boolean> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const taskIndex = this.tasks.findIndex(task => task.id === id);
-    if (taskIndex === -1) return false;
-
-    this.tasks.splice(taskIndex, 1);
-    return true;
+  async getAvailableAssignees(projectId: number): Promise<TaskUser[]> {
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.GET_ASSIGNEES}/${projectId}/assignees`);
+    return this.request<TaskUser[]>(url, { method: 'GET' });
   }
 
-  /**
-   * Update task status
-   */
-  public async updateTaskStatus(id: string, status: TaskStatus): Promise<Task | null> {
-    return this.updateTask(id, { status });
+  async getTasksByWorkspace(workspaceId: number | string): Promise<Task[]> {
+    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.GET_BY_WORKSPACE}/${workspaceId}`);
+    return this.request<Task[]>(url, { method: 'GET' });
   }
 
-  /**
-   * Search tasks
-   */
-  public async searchTasks(query: string): Promise<Task[]> {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    const lowercaseQuery = query.toLowerCase();
-    return this.tasks.filter(task =>
-      task.title.toLowerCase().includes(lowercaseQuery) ||
-      task.description.toLowerCase().includes(lowercaseQuery) ||
-      task.assignee?.toLowerCase().includes(lowercaseQuery) ||
-      task.tags?.some(tag => tag.toLowerCase().includes(lowercaseQuery))
-    );
-  }
-
-  /**
-   * Filter tasks by status
-   */
-  public async filterTasksByStatus(status: TaskStatus): Promise<Task[]> {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    return this.tasks.filter(task => task.status === status);
+  async createDefaultStatuses(projectId: number): Promise<{ message: string }> {
+    const base = getCurrentApiConfig().ENDPOINTS.TASK.GET_BY_PROJECT; // '/tasks/project'
+    const url = buildApiUrl(`${base}/${projectId}/statuses/default`);
+    return this.request<{ message: string }>(url, { method: 'POST' });
   }
 }
 
-export default TaskService;
+export const taskService = new TaskService();
