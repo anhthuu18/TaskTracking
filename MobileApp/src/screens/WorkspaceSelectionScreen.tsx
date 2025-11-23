@@ -18,15 +18,13 @@ import {
   Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TextInput } from 'react-native-paper';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import { ScreenLayout, ButtonStyles, Typography } from '../constants/Dimensions';
 import { workspaceService, projectService } from '../services';
 import { Workspace, WorkspaceType } from '../types';
-import NotificationModal from '../components/NotificationModal';
-import { notificationService } from '../services/notificationService';
+import DashboardHeader from '../components/DashboardHeader';
 
 interface WorkspaceSelectionScreenProps {
   navigation: any;
@@ -52,8 +50,6 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   const [workspaces, setWorkspaces] = useState<WorkspaceUI[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showNotificationModal, setShowNotificationModal] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(0);
   const [username, setUsername] = useState('User');
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = useState<string | null>(null);
   const [showSearchOptionsModal, setShowSearchOptionsModal] = useState(false);
@@ -90,7 +86,6 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     loadUsername();
     loadLastUsedWorkspace();
     loadWorkspaces();
-    loadNotificationCount();
   }, []);
 
   // Refresh workspaces when returning from CreateWorkspaceScreen
@@ -265,39 +260,11 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     try {
       setRefreshing(true);
       await loadWorkspaces();
-      await loadNotificationCount();
     } finally {
       setRefreshing(false);
     }
   };
 
-  const loadNotificationCount = async () => {
-    try {
-      // Check if user is authenticated before making the request
-      const authToken = await AsyncStorage.getItem('authToken');
-      if (!authToken) {
-        // User is not authenticated, skip loading notifications
-        setNotificationCount(0);
-        return;
-      }
-
-      const response = await notificationService.getUserNotifications();
-      if (response.success) {
-        setNotificationCount(response.data.length);
-      }
-    } catch (error: any) {
-      // Only log error if it's not an authentication issue
-      // "Unauthorized" errors are expected when user is not logged in
-      const errorMessage = error?.message || '';
-      if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
-        // User is not authenticated or token expired, silently handle
-        setNotificationCount(0);
-      } else {
-        // Other errors should be logged
-        console.error('Error loading notification count:', error);
-      }
-    }
-  };
 
   const loadProjectCount = async (workspaceId: number): Promise<number> => {
     try {
@@ -479,17 +446,6 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   };
 
   // Removed handleViewMore and handleViewLess - no longer needed
-
-  const handleAcceptInvitation = (notificationId: number) => {
-    // Refresh workspace list and notification count
-    loadWorkspaces();
-    loadNotificationCount();
-  };
-
-  const handleDeclineInvitation = (notificationId: number) => {
-    // Refresh notification count
-    loadNotificationCount();
-  };
 
   const handleSearchOptionChange = (option: keyof typeof searchOptions) => {
     setSearchOptions(prev => ({
@@ -770,107 +726,27 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
       
       {/* Content */}
       <View style={styles.content}>
-        {/* Welcome Section */}
-        <View style={styles.welcomeSection}>
-          <View style={styles.welcomeHeader}>
-            <View style={styles.welcomeTextContainer}>
-              <Text style={styles.welcomeText}>Hi, {username}!</Text>
-              <Text style={styles.subtitleText}>Choose your workspace</Text>
-            </View>
-            <TouchableOpacity 
-              style={styles.notificationButton}
-              onPress={() => setShowNotificationModal(true)}
-            >
-              <MaterialIcons name="notifications" size={24} color={Colors.neutral.dark} />
-              {/* Notification badge */}
-              {notificationCount > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationBadgeText}>{notificationCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+        <DashboardHeader
+          username={username}
+          subtitle="Choose your workspace"
+          actions={[]}
+          searchPlaceholder="Search workspaces..."
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          showSearchBar={showSearchBar}
+          onToggleSearchBar={setShowSearchBar}
+          onClearSearch={() => setSearchQuery('')}
+          showSearchOptionsButton
+          onSearchOptionsPress={() => setShowSearchOptionsModal(true)}
+          searchOptionsActive={searchOptions.searchInProjects || searchOptions.searchInTasks}
+        />
 
-        {/* Search Button */}
-        {!showSearchBar && (
-          <View style={styles.searchButtonContainer}>
-            <TouchableOpacity 
-              style={styles.searchButton}
-              onPress={() => setShowSearchBar(true)}
-            >
-              <MaterialIcons name="search" size={20} color={Colors.neutral.medium} />
-              <Text style={styles.searchButtonText}>Search workspaces...</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.searchOptionsToggleButton}
-              onPress={() => setShowSearchOptionsModal(true)}
-            >
-              <MaterialIcons name="tune" size={20} color={Colors.neutral.medium} />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Search Bar */}
-        {showSearchBar && (
-          <View style={styles.searchContainer}>
-            <View style={styles.searchBarRow}>
-              <TextInput
-                mode="outlined"
-                placeholder="Search workspace..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                style={styles.searchInput}
-                outlineStyle={styles.searchOutline}
-                theme={{
-                  colors: {
-                    primary: Colors.primary,
-                    outline: Colors.neutral.light,
-                    onSurface: Colors.text,
-                  },
-                }}
-                left={
-                  <TextInput.Icon 
-                    icon={() => <MaterialIcons name="search" size={20} color={Colors.neutral.medium} />}
-                  />
-                }
-                right={
-                  <TouchableOpacity 
-                    style={styles.searchCloseButton}
-                    onPress={() => {
-                      setShowSearchBar(false);
-                      setSearchQuery('');
-                    }}
-                  >
-                    <MaterialIcons name="close" size={20} color={Colors.neutral.medium} />
-                  </TouchableOpacity>
-                }
-              />
-              <TouchableOpacity 
-                style={[
-                  styles.searchOptionsToggleButton,
-                  (searchOptions.searchInProjects || searchOptions.searchInTasks) && styles.searchOptionsToggleButtonActive
-                ]}
-                onPress={() => setShowSearchOptionsModal(true)}
-              >
-                <MaterialIcons 
-                  name="tune" 
-                  size={20} 
-                  color={(searchOptions.searchInProjects || searchOptions.searchInTasks) ? Colors.primary : Colors.neutral.medium} 
-                />
-                {(searchOptions.searchInProjects || searchOptions.searchInTasks) && (
-                  <View style={styles.searchOptionsIndicator}>
-                    <MaterialIcons name="filter-list" size={8} color={Colors.primary} />
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
-            {(searchOptions.searchInProjects || searchOptions.searchInTasks) && (
-              <Text style={styles.searchOptionsHint}>
-                Search includes: Name (default), {searchOptions.searchInProjects && 'Projects'} {searchOptions.searchInProjects && searchOptions.searchInTasks && ', '} {searchOptions.searchInTasks && 'Tasks'}
-              </Text>
-            )}
-          </View>
+        {showSearchBar && (searchOptions.searchInProjects || searchOptions.searchInTasks) && (
+          <Text style={styles.searchOptionsHint}>
+            Search includes: Name (default)
+            {searchOptions.searchInProjects ? ', Projects' : ''}
+            {searchOptions.searchInTasks ? ', Tasks' : ''}
+          </Text>
         )}
 
         {/* Tab Navigation */}
@@ -983,14 +859,6 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
           </TouchableOpacity>
         </View>
       )}
-
-      {/* Notification Modal */}
-      <NotificationModal
-        visible={showNotificationModal}
-        onClose={() => setShowNotificationModal(false)}
-        onAcceptInvitation={handleAcceptInvitation}
-        onDeclineInvitation={handleDeclineInvitation}
-      />
 
       {/* Search Options Modal */}
       {renderSearchOptionsModal()}

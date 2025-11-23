@@ -22,7 +22,9 @@ import {
   CreateTaskScreen,
   CreateEventScreen,
   ProjectSettingsScreen,
-  TaskTrackingScreen
+  TaskTrackingScreen,
+  PersonalDashboardScreen,
+  SettingsScreen
 } from '../screens';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
 import MainNavigator from './MainNavigator';
@@ -35,6 +37,7 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   EnterOTP: { phoneNumber: string };
   ResetPassword: { phoneNumber: string; otp: string };
+  PersonalDashboard: undefined;
   WorkspaceSelection: undefined;
   CreateWorkspace: undefined;
   Main: { workspace?: any };
@@ -47,6 +50,7 @@ export type RootStackParamList = {
   ProjectSettings: { project: any };
   AcceptInvitation: { token: string };
   TaskTracking: { task: any };
+  Settings: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -103,35 +107,8 @@ const AppNavigator: React.FC = () => {
           const isValid = API_CONFIG.USE_MOCK_API ? true : await validateToken(authToken);
           setIsAuthenticated(isValid);
           
-          // Load last used workspace if authenticated and valid
-          if (isValid) {
-            const lastUsedWorkspaceId = await AsyncStorage.getItem('lastUsedWorkspaceId');
-            if (lastUsedWorkspaceId) {
-              try {
-                // Fetch workspace details from API
-                const response = await workspaceService.getAllWorkspaces();
-                if (response.success) {
-                  const workspace = response.data.find(w => w.id.toString() === lastUsedWorkspaceId);
-                  if (workspace) {
-                    setLastUsedWorkspace({
-                      id: workspace.id,
-                      name: workspace.workspaceName,
-                      memberCount: workspace.memberCount || 1,
-                      type: workspace.workspaceType === 'GROUP' ? 'group' : 'personal'
-                    });
-                    setShouldNavigateToWorkspace(true);
-                  }
-                }
-              } catch (error: any) {
-                // Only log error if it's not an authentication issue
-                // "Unauthorized" errors are expected when user is not logged in or token expired
-                const errorMessage = error?.message || '';
-                if (!errorMessage.includes('Unauthorized') && !errorMessage.includes('401')) {
-                  console.error('Error loading last used workspace:', error);
-                }
-              }
-            }
-          }
+          // Note: We now always navigate to PersonalDashboard first
+          // Users can navigate to specific workspaces from there
         }
       } catch (error) {
         console.error('Error loading app state:', error);
@@ -213,7 +190,7 @@ const AppNavigator: React.FC = () => {
           headerShown: false,
           gestureEnabled: false,
         }}
-        initialRouteName={isLoading ? "Splash" : showOnboarding ? "Onboarding" : isAuthenticated ? (shouldNavigateToWorkspace && lastUsedWorkspace ? "Main" : "WorkspaceSelection") : "SignIn"}
+        initialRouteName={isLoading ? "Splash" : showOnboarding ? "Onboarding" : isAuthenticated ? "PersonalDashboard" : "SignIn"}
       >
         {isLoading ? (
           <Stack.Screen name="Splash">
@@ -343,9 +320,23 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             />
+            <Stack.Screen
+              name="Settings"
+              component={SettingsScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
           </>
-        ) : shouldNavigateToWorkspace && lastUsedWorkspace ? (
+        ) : (
           <>
+            <Stack.Screen
+              name="PersonalDashboard"
+              component={PersonalDashboardScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
             <Stack.Screen
               name="Main"
               options={{
@@ -424,90 +415,9 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             />
-          </>
-        ) : (
-          <>
             <Stack.Screen
-              name="WorkspaceSelection"
-              component={WorkspaceSelectionScreen}
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="CreateWorkspace"
-              component={CreateWorkspaceScreen}
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="Main"
-              options={{
-                headerShown: false,
-              }}
-            >
-              {(props) => <MainNavigator {...props} workspace={props.route?.params?.workspace} onSwitchWorkspace={handleSwitchWorkspace} onLogout={handleLogout} />}
-            </Stack.Screen>
-            <Stack.Screen
-              name="WorkspaceDashboard"
-              component={WorkspaceDashboardScreen}
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="TaskList"
-              component={TaskListScreen}
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="ProjectList"
-              component={ProjectListScreen}
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="ProjectDetail"
-              component={ProjectDetailScreen}
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="CreateTask"
-              component={CreateTaskScreen}
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="CreateEvent"
-              component={CreateEventScreen}
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="ProjectSettings"
-              component={ProjectSettingsScreen}
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="AcceptInvitation"
-              component={AcceptInvitationScreen}
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="TaskTracking"
-              component={TaskTrackingScreen}
+              name="Settings"
+              component={SettingsScreen}
               options={{
                 headerShown: false,
               }}

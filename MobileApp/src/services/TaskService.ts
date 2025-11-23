@@ -78,6 +78,27 @@ class TaskService {
     });
   }
 
+  async getTasksByWorkspace(workspaceId: number): Promise<Task[]> {
+    try {
+      const url = buildApiUrl(`/tasks/workspace/${workspaceId}`);
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: await this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch workspace tasks: ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error: any) {
+      console.error('Error fetching workspace tasks:', error);
+      throw error;
+    }
+  }
+
   async getTasksByProject(projectId: number): Promise<Task[]> {
     const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.TASK.GET_BY_PROJECT}/${projectId}`);
     return this.request<Task[]>(url, { method: 'GET' });
