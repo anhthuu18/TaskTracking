@@ -25,6 +25,8 @@ import { ScreenLayout, ButtonStyles, Typography } from '../constants/Dimensions'
 import { workspaceService, projectService } from '../services';
 import { Workspace, WorkspaceType } from '../types';
 import DashboardHeader from '../components/DashboardHeader';
+import NotificationModal from '../components/NotificationModal';
+import { notificationService } from '../services/notificationService';
 
 interface WorkspaceSelectionScreenProps {
   navigation: any;
@@ -60,6 +62,8 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   const [workspaceProjects, setWorkspaceProjects] = useState<{[workspaceId: string]: any[]}>({});
   const [workspaceTasks, setWorkspaceTasks] = useState<{[workspaceId: string]: any[]}>({});
   const [showSearchBar, setShowSearchBar] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
 
   // Color palette for workspace types
   const getWorkspaceColor = (type: 'group' | 'personal') => {
@@ -86,6 +90,7 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     loadUsername();
     loadLastUsedWorkspace();
     loadWorkspaces();
+    loadNotificationCount();
   }, []);
 
   // Refresh workspaces when returning from CreateWorkspaceScreen
@@ -158,34 +163,25 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     try {
       setLoading(true);
       
-      // Check if user is authenticated before making the request
       const authToken = await AsyncStorage.getItem('authToken');
       if (!authToken) {
-        // User is not authenticated, set empty workspaces
-        console.log('No auth token found, skipping workspace load');
         setWorkspaces([]);
         return;
       }
 
-      console.log('Loading workspaces...');
       const response = await workspaceService.getAllWorkspaces();
-      console.log('Workspace API response:', { success: response.success, dataLength: response.data?.length, message: response.message });
       
       if (response.success) {
-        // Check if data exists and is an array
         if (!response.data || !Array.isArray(response.data)) {
-          console.warn('Workspace API returned success but data is not an array:', response);
           setWorkspaces([]);
           return;
         }
 
         if (response.data.length === 0) {
-          console.log('No workspaces found in response');
           setWorkspaces([]);
           return;
         }
 
-        // Convert backend workspace data to UI format and load project counts
         const uiWorkspaces: WorkspaceUI[] = await Promise.all(
           response.data.map(async (workspace, index) => {
             const projectCount = await loadProjectCount(workspace.id);
@@ -206,23 +202,15 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
           })
         );
         
-        console.log('Successfully loaded workspaces:', uiWorkspaces.length);
         setWorkspaces(uiWorkspaces);
       } else {
-        console.error('Workspace API returned error:', response.message);
         Alert.alert('Error', response.message || 'Failed to load workspaces');
         setWorkspaces([]);
       }
     } catch (error: any) {
-      // Handle authentication errors with logging
       const errorMessage = error?.message || '';
-      console.error('Error loading workspaces - Full error:', error);
       
       if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
-        // User is not authenticated or token expired
-        console.warn('Unauthorized error - token may be expired or invalid');
-        
-        // Clear invalid token
         try {
           await AsyncStorage.removeItem('authToken');
           await AsyncStorage.removeItem('user');
@@ -232,7 +220,6 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
         
         setWorkspaces([]);
         
-        // Show user-friendly message and navigate to login
         Alert.alert(
           'Session Expired',
           'Your session has expired. Please log in again.',
@@ -246,8 +233,6 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
           ]
         );
       } else {
-        // Other errors should be logged and shown to user
-        console.error('Error loading workspaces:', error);
         Alert.alert('Error', error.message || 'Failed to load workspaces');
         setWorkspaces([]);
       }
@@ -256,10 +241,33 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     }
   };
 
+  const loadNotificationCount = async () => {
+    try {
+      const authToken = await AsyncStorage.getItem('authToken');
+      if (!authToken) {
+        setNotificationCount(0);
+        return;
+      }
+
+      const response = await notificationService.getUserNotifications();
+      if (response.success) {
+        setNotificationCount(response.data.length);
+      }
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (msg.includes('Unauthorized') || msg.includes('401')) {
+        setNotificationCount(0);
+      } else {
+        console.error('Error loading notifications:', error);
+      }
+    }
+  };
+
   const refreshWorkspaces = async () => {
     try {
       setRefreshing(true);
       await loadWorkspaces();
+      await loadNotificationCount();
     } finally {
       setRefreshing(false);
     }
@@ -724,12 +732,20 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
       
-      {/* Content */}
-      <View style={styles.content}>
+      {/* Content Wrapper */}
+      <View style={styles.contentWrapper}>
+        {/* Content */}
+        <View style={styles.content}>
         <DashboardHeader
           username={username}
           subtitle="Choose your workspace"
-          actions={[]}
+          actions={[
+            {
+              icon: 'notifications',
+              onPress: () => setShowNotificationModal(true),
+              badgeCount: notificationCount,
+            },
+          ]}
           searchPlaceholder="Search workspaces..."
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -739,14 +755,14 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
           showSearchOptionsButton
           onSearchOptionsPress={() => setShowSearchOptionsModal(true)}
           searchOptionsActive={searchOptions.searchInProjects || searchOptions.searchInTasks}
-        />
+                />
 
         {showSearchBar && (searchOptions.searchInProjects || searchOptions.searchInTasks) && (
-          <Text style={styles.searchOptionsHint}>
+              <Text style={styles.searchOptionsHint}>
             Search includes: Name (default)
             {searchOptions.searchInProjects ? ', Projects' : ''}
             {searchOptions.searchInTasks ? ', Tasks' : ''}
-          </Text>
+              </Text>
         )}
 
         {/* Tab Navigation */}
@@ -848,20 +864,48 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
         </View>
       </View>
 
-      {/* Create Workspace Button - Hidden when searching */}
-      {!searchQuery && (
-        <View style={styles.footer}>
-          <TouchableOpacity 
-            style={styles.createButton}
-            onPress={handleCreateWorkspace}
-          >
-            <Text style={styles.createButtonText}>Create workspace</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        {/* Create Workspace Button - Hidden when searching */}
+        {!searchQuery && (
+          <View style={styles.footer}>
+            <TouchableOpacity 
+              style={styles.createButton}
+              onPress={handleCreateWorkspace}
+            >
+              <Text style={styles.createButtonText}>Create workspace</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-      {/* Search Options Modal */}
-      {renderSearchOptionsModal()}
+        {/* Search Options Modal */}
+        {renderSearchOptionsModal()}
+      </View>
+
+      <NotificationModal
+        visible={showNotificationModal}
+        onClose={() => setShowNotificationModal(false)}
+        onAcceptInvitation={async (notificationId) => {
+          try {
+            await notificationService.acceptInvitation(notificationId);
+            await loadNotificationCount();
+            await loadWorkspaces();
+          } catch (error) {
+            console.error('Error accepting invitation:', error);
+          } finally {
+            setShowNotificationModal(false);
+          }
+        }}
+        onDeclineInvitation={async (notificationId) => {
+          try {
+            await notificationService.declineInvitation(notificationId);
+            await loadNotificationCount();
+            await loadWorkspaces();
+          } catch (error) {
+            console.error('Error declining invitation:', error);
+          } finally {
+            setShowNotificationModal(false);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -870,6 +914,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  contentWrapper: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -1231,7 +1278,7 @@ const styles = StyleSheet.create({
   // Removed viewMore and viewLess styles - no longer needed
   footer: {
     paddingHorizontal: ScreenLayout.contentHorizontalPadding,
-    paddingBottom: ScreenLayout.footerBottomSpacing,
+    paddingBottom: 100, // Space for bottom tab navigator
     paddingTop: 10,
   },
   createButton: {
@@ -1258,7 +1305,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContentContainer: {
-    paddingBottom: 20,
+    paddingBottom: 100, // Increased padding for bottom tab navigator
   },
   loadingContainer: {
     flex: 1,

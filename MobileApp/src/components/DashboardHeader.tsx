@@ -24,6 +24,7 @@ interface DashboardHeaderProps {
   showSearchOptionsButton?: boolean;
   onSearchOptionsPress?: () => void;
   searchOptionsActive?: boolean;
+  enableSearch?: boolean;
 }
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({
@@ -39,6 +40,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   showSearchOptionsButton = false,
   onSearchOptionsPress,
   searchOptionsActive = false,
+  enableSearch = true,
 }) => {
   return (
     <View style={styles.wrapper}>
@@ -69,8 +71,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         </View>
       </View>
 
-      {/* Search */}
-      {!showSearchBar ? (
+      {enableSearch && !showSearchBar ? (
         <View style={styles.searchTriggerRow}>
           <TouchableOpacity
             style={styles.searchButton}
@@ -102,7 +103,8 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </TouchableOpacity>
           ) : null}
         </View>
-      ) : (
+      ) : null}
+      {enableSearch && showSearchBar ? (
         <View style={styles.searchContainer}>
           <View style={styles.searchBarRow}>
             <TextInput
@@ -165,7 +167,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             ) : null}
           </View>
         </View>
-      )}
+      ) : null}
     </View>
   );
 };

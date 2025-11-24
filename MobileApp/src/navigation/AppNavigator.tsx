@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { workspaceService } from '../services/workspaceService';
 import { API_CONFIG, buildApiUrl, getCurrentApiConfig } from '../config/api';
 
 import {
@@ -23,11 +22,11 @@ import {
   CreateEventScreen,
   ProjectSettingsScreen,
   TaskTrackingScreen,
-  PersonalDashboardScreen,
-  SettingsScreen
+  ProfileScreen
 } from '../screens';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
 import MainNavigator from './MainNavigator';
+import HomeTabNavigator from './HomeTabNavigator';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -37,7 +36,7 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   EnterOTP: { phoneNumber: string };
   ResetPassword: { phoneNumber: string; otp: string };
-  PersonalDashboard: undefined;
+  HomeTabs: undefined;
   WorkspaceSelection: undefined;
   CreateWorkspace: undefined;
   Main: { workspace?: any };
@@ -50,7 +49,7 @@ export type RootStackParamList = {
   ProjectSettings: { project: any };
   AcceptInvitation: { token: string };
   TaskTracking: { task: any };
-  Settings: undefined;
+  Profile: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -178,8 +177,14 @@ const AppNavigator: React.FC = () => {
       setShowOnboarding(true);
       setLastUsedWorkspace(null);
       setShouldNavigateToWorkspace(false);
+      setNavigationKey(prev => prev + 1);
     } catch (error) {
       console.error('Error during logout:', error);
+      setIsAuthenticated(false);
+      setShowOnboarding(true);
+      setLastUsedWorkspace(null);
+      setShouldNavigateToWorkspace(false);
+      setNavigationKey(prev => prev + 1);
     }
   };
 
@@ -190,7 +195,7 @@ const AppNavigator: React.FC = () => {
           headerShown: false,
           gestureEnabled: false,
         }}
-        initialRouteName={isLoading ? "Splash" : showOnboarding ? "Onboarding" : isAuthenticated ? "PersonalDashboard" : "SignIn"}
+        initialRouteName={isLoading ? "Splash" : showOnboarding ? "Onboarding" : isAuthenticated ? "HomeTabs" : "SignIn"}
       >
         {isLoading ? (
           <Stack.Screen name="Splash">
@@ -321,22 +326,29 @@ const AppNavigator: React.FC = () => {
               }}
             />
             <Stack.Screen
-              name="Settings"
-              component={SettingsScreen}
+              name="Profile"
               options={{
                 headerShown: false,
               }}
-            />
+            >
+              {(props) => (
+                <ProfileScreen
+                  {...props}
+                  onLogout={handleLogout}
+                />
+              )}
+            </Stack.Screen>
           </>
         ) : (
           <>
             <Stack.Screen
-              name="PersonalDashboard"
-              component={PersonalDashboardScreen}
+              name="HomeTabs"
               options={{
                 headerShown: false,
               }}
-            />
+            >
+              {(props) => <HomeTabNavigator {...props} onLogout={handleLogout} />}
+            </Stack.Screen>
             <Stack.Screen
               name="Main"
               options={{
@@ -416,12 +428,18 @@ const AppNavigator: React.FC = () => {
               }}
             />
             <Stack.Screen
-              name="Settings"
-              component={SettingsScreen}
+              name="Profile"
               options={{
                 headerShown: false,
               }}
-            />
+            >
+              {(props) => (
+                <ProfileScreen
+                  {...props}
+                  onLogout={handleLogout}
+                />
+              )}
+            </Stack.Screen>
           </>
         )}
       </Stack.Navigator>

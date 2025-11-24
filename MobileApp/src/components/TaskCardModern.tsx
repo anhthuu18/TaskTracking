@@ -17,6 +17,20 @@ interface TaskCardModernProps {
   canDelete?: boolean; // controls whether swipe-to-delete action is shown
 }
 
+const getWorkspaceTheme = (type?: 'personal' | 'group') => {
+  const color = type === 'group' ? Colors.semantic.success : Colors.semantic.info;
+  return {
+    container: {
+      backgroundColor: color + '20',
+      borderColor: color + '40',
+    },
+    text: {
+      color,
+    },
+    icon: color,
+  };
+};
+
 const TaskCardModern: React.FC<TaskCardModernProps> = ({ 
   task, 
   onPress,
@@ -92,6 +106,9 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
   };
 
 
+
+  const workspaceTheme = getWorkspaceTheme(task.workspaceType);
+  const projectIconName = task.workspaceType === 'group' ? 'groups' : 'person';
 
   const renderRightActions = () => {
     if (!canDelete) return null;
@@ -170,9 +187,14 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
 
             <View style={styles.rightFooter}>
               {showProjectName && !!task.projectName && (
-                <View style={styles.projectChipRight}>
-                  <MaterialIcons name="folder" size={12} color={Colors.neutral.medium} />
-                  <Text style={styles.projectChipText} numberOfLines={1}>{task.projectName}</Text>
+                <View style={[styles.projectChipRight, workspaceTheme.container]}>
+                  <MaterialIcons name={projectIconName as any} size={12} color={workspaceTheme.icon} />
+                  <Text
+                    style={[styles.projectChipText, workspaceTheme.text]}
+                    numberOfLines={1}
+                  >
+                    {task.projectName}
+                  </Text>
                 </View>
               )}
               <View style={styles.rightFooterRow}>
@@ -197,7 +219,7 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
             </View>
           </View>
         </TouchableOpacity>
-      </View>
+        </View>
     </Swipeable>
   );
 };

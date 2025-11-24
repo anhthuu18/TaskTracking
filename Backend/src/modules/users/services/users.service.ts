@@ -128,4 +128,20 @@ export class UsersService {
       }
     });
   }
+
+  // Method để lấy user với password (chỉ dùng cho authentication)
+  async findOneWithPassword(id: number): Promise<any> {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id,
+        dateDeleted: null
+      }
+    });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy người dùng');
+    }
+
+    return user;
+  }
 }

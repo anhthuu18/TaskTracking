@@ -561,7 +561,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
           <MaterialIcons name="arrow-back" size={24} color={Colors.neutral.dark} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.projectName || 'Project'}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{project?.projectName || 'Project'}</Text>
           {workspaceInfo?.name && (
             <Text style={styles.headerSubtitle} numberOfLines={1}>{workspaceInfo.name}</Text>
           )}

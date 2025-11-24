@@ -13,12 +13,13 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import TaskCardModern from '../components/TaskCardModern';
 import TaskDetailModal from '../components/TaskDetailModal';
-import BottomTabNavigator from '../navigation/BottomTabNavigator';
+import DashboardHeader from '../components/DashboardHeader';
 import { taskService, workspaceService } from '../services';
 import { notificationService } from '../services/notificationService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToastContext } from '../context/ToastContext';
 import NotificationModal from '../components/NotificationModal';
+import { WorkspaceType } from '../types';
 
 interface PersonalDashboardScreenProps {
   navigation: any;
@@ -35,6 +36,7 @@ interface TaskSummary {
   projectId: string;
   workspaceName: string;
   workspaceId: string;
+  workspaceType: 'personal' | 'group';
   assigneeName?: string;
   estimatedMinutes?: number;
 }
@@ -102,6 +104,9 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
       // Fetch tasks from all workspaces
       for (const workspace of workspaces) {
         try {
+          const workspaceTypeNormalized: 'group' | 'personal' =
+            workspace.workspaceType === WorkspaceType.GROUP ? 'group' : 'personal';
+
           const tasksRes = await taskService.getTasksByWorkspace(workspace.id);
           if (tasksRes && Array.isArray(tasksRes)) {
             const workspaceTasks = tasksRes
@@ -117,6 +122,7 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
                 projectId: String(task.projectId),
                 workspaceName: workspace.workspaceName,
                 workspaceId: String(workspace.id),
+                workspaceType: workspaceTypeNormalized,
                 assigneeName: task.assignee?.username || 'Unassigned',
                 estimatedMinutes: task.estimatedMinutes,
               }));
@@ -156,24 +162,50 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
 
       setStats({ ongoing, completed, overdue, focusTime, urgent, dueToday });
 
-      // Filter today's tasks (due today or overdue)
-      const tasksForToday = allTasks
-        .filter(t => {
-          if (t.status === 'completed') return false;
-          if (!t.dueDate) return false;
-          return t.dueDate <= today;
+      // Get top 5 most important tasks (recommended tasks)
+      // Scoring algorithm: 
+      // - Priority: urgent=10, high=7, medium=4, low=1
+      // - Due date proximity: closer = higher score
+      // - Status: in_progress gets bonus
+      const recommendedTasks = allTasks
+        .filter(t => t.status !== 'completed')
+        .map(task => {
+          let score = 0;
+          
+          // Priority score
+          const priorityScores = { urgent: 10, high: 7, medium: 4, low: 1 };
+          score += priorityScores[task.priority];
+          
+          // Due date score (closer date = higher score)
+          if (task.dueDate) {
+            const daysUntilDue = Math.ceil((task.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            if (daysUntilDue < 0) {
+              // Overdue tasks get highest priority
+              score += 15;
+            } else if (daysUntilDue === 0) {
+              // Due today
+              score += 12;
+            } else if (daysUntilDue <= 3) {
+              // Due within 3 days
+              score += 8;
+            } else if (daysUntilDue <= 7) {
+              // Due within a week
+              score += 5;
+            }
+          }
+          
+          // Status bonus
+          if (task.status === 'in_progress') {
+            score += 3;
+          }
+          
+          return { task, score };
         })
-        .sort((a, b) => {
-          // Sort by priority first, then by due date
-          const priorityOrder = { urgent: 4, high: 3, medium: 2, low: 1 };
-          const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority];
-          if (priorityDiff !== 0) return priorityDiff;
-          if (!a.dueDate) return 1;
-          if (!b.dueDate) return -1;
-          return a.dueDate.getTime() - b.dueDate.getTime();
-        });
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5) // Take top 5
+        .map(({ task }) => task);
 
-      setTodayTasks(tasksForToday);
+      setTodayTasks(recommendedTasks);
     } catch (error: any) {
       console.error('Error loading dashboard data:', error);
       showError(error.message || 'Failed to load dashboard data');
@@ -238,6 +270,28 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
     navigation.navigate('TaskTracking', { task });
   };
 
+  const handleAcceptInvitation = async (notificationId: number) => {
+    try {
+      // TODO: Implement invitation acceptance logic
+      console.log('Accept invitation:', notificationId);
+      await loadNotificationCount();
+    } catch (error) {
+      console.error('Error accepting invitation:', error);
+      showError('Failed to accept invitation');
+    }
+  };
+
+  const handleDeclineInvitation = async (notificationId: number) => {
+    try {
+      // TODO: Implement invitation decline logic
+      console.log('Decline invitation:', notificationId);
+      await loadNotificationCount();
+    } catch (error) {
+      console.error('Error declining invitation:', error);
+      showError('Failed to decline invitation');
+    }
+  };
+
   const formatFocusTime = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
@@ -258,28 +312,26 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.contentWrapper}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <View style={styles.textContainer}>
-              <Text style={styles.greeting}>Hi, {currentUser?.username || 'User'}!</Text>
-              <Text style={styles.subtitle}>Here's a quick look at your tasks today</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => setShowNotificationModal(true)}
-              activeOpacity={0.7}
-            >
-              <MaterialIcons name="notifications" size={24} color={Colors.neutral.dark} />
-              {notificationCount > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationBadgeText}>
-                    {notificationCount > 99 ? '99+' : notificationCount}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
+        <View style={styles.headerSpacing}>
+          <DashboardHeader
+            username={currentUser?.username || 'User'}
+            subtitle="Here's a quick look at your tasks today"
+            actions={[
+              {
+                icon: 'notifications',
+                onPress: () => setShowNotificationModal(true),
+                badgeCount: notificationCount,
+              },
+            ]}
+            searchPlaceholder="Search tasks..."
+            searchQuery=""
+            onSearchChange={() => {}}
+            showSearchBar={false}
+            onToggleSearchBar={() => {}}
+            onClearSearch={() => {}}
+            showSearchOptionsButton={false}
+            enableSearch={false}
+          />
         </View>
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -338,24 +390,16 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
           </View>
         </View>
 
-        {/* Today's Tasks Section */}
+        {/* Recommended Tasks Section */}
         <View style={styles.tasksSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Tasks for Today</Text>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity onPress={() => navigation.navigate('WorkspaceSelection')}>
-                <Text style={styles.seeAllText}>Workspaces</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => navigation.navigate('TaskList')}>
-                <Text style={styles.seeAllText}>See All</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.sectionTitle}>Recommended Tasks</Text>
           </View>
 
           {todayTasks.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="check-circle-outline" size={48} color={Colors.neutral.medium} />
-              <Text style={styles.emptyStateText}>No tasks for today</Text>
+              <Text style={styles.emptyStateText}>No pending tasks</Text>
               <Text style={styles.emptyStateSubtext}>You're all caught up! 🎉</Text>
             </View>
           ) : (
@@ -374,12 +418,6 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
         </View>
         </ScrollView>
       </View>
-
-      <BottomTabNavigator
-        navigation={navigation}
-        activeRoute="dashboard"
-        onCreateTask={() => navigation.navigate('WorkspaceSelection')}
-      />
 
       {/* Task Detail Modal */}
       {selectedTask && (
@@ -407,6 +445,8 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
       <NotificationModal
         visible={showNotificationModal}
         onClose={() => setShowNotificationModal(false)}
+        onAcceptInvitation={handleAcceptInvitation}
+        onDeclineInvitation={handleDeclineInvitation}
       />
 
     </SafeAreaView>
@@ -424,6 +464,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 120,
   },
+  headerSpacing: {
+    marginBottom: 2,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -434,71 +477,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.neutral.medium,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 20,
-    backgroundColor: Colors.neutral.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.light + '40',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  textContainer: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.neutral.dark,
-  },
-  subtitle: {
-    marginTop: 4,
-    fontSize: 14,
-    color: Colors.neutral.medium,
-  },
-  notificationButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: Colors.neutral.light + '40',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    minWidth: 16,
-    minHeight: 16,
-    borderRadius: 8,
-    backgroundColor: Colors.semantic.error,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  notificationBadgeText: {
-    fontSize: 10,
-    color: Colors.neutral.white,
-    fontWeight: '600',
-  },
   statsContainer: {
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
     backgroundColor: Colors.neutral.white,
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
+    gap: 10,
+    marginBottom: 10,
   },
   statCard: {
     flex: 1,
-    padding: 12,
+    padding: 10,
     borderRadius: 12,
     alignItems: 'center',
     gap: 6,
@@ -525,7 +517,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: Colors.accent + '15',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
+    marginHorizontal: 20,
+    marginBottom: 14,
     justifyContent: 'space-between',
     alignItems: 'center',
   },
@@ -549,14 +543,14 @@ const styles = StyleSheet.create({
     color: Colors.neutral.medium,
   },
   focusTimeRight: {
-    paddingLeft: 20,
+    paddingLeft: 18,
     borderLeftWidth: 1,
     borderLeftColor: Colors.neutral.light,
   },
   miniStatRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 14,
   },
   miniStat: {
     alignItems: 'center',

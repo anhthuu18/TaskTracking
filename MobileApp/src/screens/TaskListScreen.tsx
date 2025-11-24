@@ -297,7 +297,7 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
   const renderTaskItem = ({ item }: { item: TaskSummary }) => {
     const effective = statusOverrides[item.id] ? { ...item, status: statusOverrides[item.id] } : item;
     return (
-      <TaskCardModern
+    <TaskCardModern
         task={effective}
         showProjectName={false}
         canDelete={canDeleteTask(effective)}
@@ -309,8 +309,8 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
             navigation.navigate('TaskTracking', { task: effective });
           }
         }}
-      />
-    );
+    />
+  );
   };
 
   const renderEmptyList = () => (

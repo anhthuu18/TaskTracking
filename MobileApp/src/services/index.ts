@@ -3,3 +3,5 @@ export { authService } from './authService';
 export { projectService } from './projectService';
 export { workspaceService } from './workspaceService';
 export { taskService } from './taskService';
+export { userService } from './userService';
+export { otpService } from './otpService';

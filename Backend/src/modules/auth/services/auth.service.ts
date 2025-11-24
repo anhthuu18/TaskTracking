@@ -120,6 +120,50 @@ export class AuthService {
     };
   }
 
+  async getProfile(userId: number) {
+    const user = await this.usersService.findOne(userId);
+
+    return {
+      success: true,
+      message: 'Lấy thông tin người dùng thành công',
+      data: user,
+    };
+  }
+
+  async changePassword(userId: number, currentPassword: string, newPassword: string) {
+    try {
+      // Find user by ID (with password for verification)
+      const user = await this.usersService.findOneWithPassword(userId);
+      
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      // Verify current password
+      const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+      
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('Current password is incorrect');
+      }
+
+      // Hash new password
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update password
+      await this.usersService.updatePassword(userId, hashedNewPassword);
+
+      return {
+        success: true,
+        message: 'Password changed successfully',
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new Error('Failed to change password: ' + error.message);
+    }
+  }
+
   async loginWithGoogle(googleLoginDto: GoogleLoginDTO) {
     try {
       // Verify Google ID token với Android Client ID
