@@ -46,6 +46,7 @@ export interface TaskSummary {
   tags: string[];
   estimatedHours?: number;
   actualHours?: number;
+  workspaceType?: 'personal' | 'group';
 }
 
 export interface WorkspaceData {
@@ -77,7 +78,6 @@ export const useWorkspaceData = (workspaceId: string) => {
       setLoading(true);
       setError(null);
 
-      // Load workspace details
       let workspaceResponse;
       try {
         workspaceResponse = await workspaceService.getWorkspaceDetails(parseInt(workspaceId));
@@ -85,9 +85,7 @@ export const useWorkspaceData = (workspaceId: string) => {
           throw new Error(workspaceResponse.message || 'Failed to load workspace');
         }
       } catch (err: any) {
-        // If unauthorized, show user-friendly message but don't crash
         if (err?.message?.includes('Unauthorized') || err?.message?.includes('401')) {
-          console.warn('Unauthorized access - user may need to login again');
           setError('Please login again to access workspace data');
           setLoading(false);
           return;
@@ -95,7 +93,6 @@ export const useWorkspaceData = (workspaceId: string) => {
         throw err;
       }
 
-      // Load projects
       let projectsResponse;
       try {
         projectsResponse = await projectService.getProjectsByWorkspace(parseInt(workspaceId));
@@ -104,7 +101,6 @@ export const useWorkspaceData = (workspaceId: string) => {
         }
       } catch (err: any) {
         if (err?.message?.includes('Unauthorized') || err?.message?.includes('401')) {
-          console.warn('Unauthorized access when loading projects');
           setError('Please login again to access workspace data');
           setLoading(false);
           return;
@@ -112,25 +108,21 @@ export const useWorkspaceData = (workspaceId: string) => {
         throw err;
       }
 
-      // Load tasks (real API). The service returns Task[] directly in real API
       let rawTasks: any[] = [];
       try {
         const resp = await taskService.getTasksByWorkspace(workspaceId);
-        console.log('[useWorkspaceData] Raw tasks response:', resp);
         rawTasks = Array.isArray(resp) ? resp : (resp?.data || []);
-        console.log('[useWorkspaceData] Processed rawTasks:', rawTasks);
       } catch (err: any) {
-        console.error('[useWorkspaceData] Error loading tasks:', err);
         if (err?.message?.includes('Unauthorized') || err?.message?.includes('401')) {
-          console.warn('Unauthorized access when loading tasks');
         } else {
           throw err;
         }
       }
 
       const projects = projectsResponse.data || [];
+      const workspaceType: 'personal' | 'group' =
+        workspaceResponse.data.workspaceType === 'GROUP' ? 'group' : 'personal';
 
-      // Helpers to normalize real API payloads
       const normalizeStatus = (s: any): 'todo' | 'in_progress' | 'completed' => {
         if (!s) return 'todo';
         const val = String(s).toLowerCase();
@@ -153,7 +145,6 @@ export const useWorkspaceData = (workspaceId: string) => {
         return 'medium';
       };
 
-      // Map tasks to TaskSummary using robust field detection
       const taskSummaries: TaskSummary[] = rawTasks.map((t: any) => {
         const projectId = t.projectId ?? t.project?.id ?? t.project_id ?? '';
         const proj = projects.find((p: any) => String(p.id) === String(projectId));
@@ -178,6 +169,7 @@ export const useWorkspaceData = (workspaceId: string) => {
           tags: [],
           estimatedHours: t.estimatedMinutes ? t.estimatedMinutes / 60 : undefined,
           actualHours: undefined,
+          workspaceType,
         };
       });
       console.log('[useWorkspaceData] Task summaries:', taskSummaries);

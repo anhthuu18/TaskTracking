@@ -17,7 +17,7 @@ export const API_CONFIG = {
         GOOGLE: '/auth/google',
       },
       USER: {
-        PROFILE: '/user/profile',
+        PROFILE: '/auth/profile',
         UPDATE: '/user/update',
       },
 
@@ -74,7 +74,7 @@ export const API_CONFIG = {
         GOOGLE_WEB: '/auth/google/web', // Web admin
       },
       USER: {
-        PROFILE: '/user/profile',
+        PROFILE: '/auth/profile',
         UPDATE: '/user/update',
       },
       WORKSPACE: {

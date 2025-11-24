@@ -1,10 +1,11 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards, Request, Get } from '@nestjs/common';
 import { AuthService } from '../services/auth.service';
 import { CreateUserDTO } from '../../users/dtos/create-user.dto';
 import { LoginDTO } from '../dtos/login.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { GoogleLoginDTO } from '../dtos/google-login.dto';
 import { ForgotPasswordDTO, VerifyOtpDTO, ResetPasswordDTO } from '../dtos/forgot-password.dto';
+import { ChangePasswordDTO } from '../dtos/change-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -72,6 +73,24 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDTO) {
     return this.authService.resetPassword(resetPasswordDto);
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async changePassword(@Request() req, @Body() changePasswordDto: ChangePasswordDTO) {
+    return this.authService.changePassword(
+      req.user.id,
+      changePasswordDto.currentPassword,
+      changePasswordDto.newPassword,
+    );
+  }
+
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async getProfile(@Request() req) {
+    return this.authService.getProfile(req.user.id);
   }
 }
 

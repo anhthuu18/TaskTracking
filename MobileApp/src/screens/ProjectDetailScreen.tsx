@@ -155,7 +155,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
       if (response.success && response.data) {
         const proj = response.data;
         setProject(proj);
-        setProjectMembers(proj.members || []);
+        setProjectMembers((proj as any).members || []);
         if (proj.workspace) {
           setWorkspaceInfo({
             name: proj.workspace.workspaceName,
@@ -292,9 +292,14 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         canDelete={canDeleteTask(task)}
         onDelete={() => confirmAndDeleteTask(task)}
         onToggleStatus={() => confirmComplete(task)}
-        onPress={() => {
+        onEdit={() => {
           setSelectedTask(task);
           setIsTaskDetailVisible(true);
+        }}
+        onNavigateToTracking={() => {
+          if (navigation) {
+            navigation.navigate('TaskTracking', { task: taskSummary });
+          }
         }}
       />
     );
@@ -325,10 +330,10 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         let matchesBaseFilter = false;
         switch (activeTaskFilter) {
           case 'Upcoming':
-            matchesBaseFilter = task.status !== 'Done' && task.endTime && new Date(task.endTime) >= now;
+            matchesBaseFilter = task.status !== 'Done' && !!task.endTime && new Date(task.endTime) >= now;
             break;
           case 'Overdue':
-            matchesBaseFilter = task.status !== 'Done' && task.endTime && new Date(task.endTime) < now;
+            matchesBaseFilter = task.status !== 'Done' && !!task.endTime && new Date(task.endTime) < now;
             break;
           case 'Completed':
             matchesBaseFilter = task.status === 'Done';
@@ -556,7 +561,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
           <MaterialIcons name="arrow-back" size={24} color={Colors.neutral.dark} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project?.projectName || 'Project'}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{project?.projectName || 'Project'}</Text>
           {workspaceInfo?.name && (
             <Text style={styles.headerSubtitle} numberOfLines={1}>{workspaceInfo.name}</Text>
           )}

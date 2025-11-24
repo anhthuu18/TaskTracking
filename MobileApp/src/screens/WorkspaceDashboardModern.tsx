@@ -21,8 +21,12 @@ import { useWorkspaceData, TaskSummary, WorkspaceData } from '../hooks/useWorksp
 import ProjectCardModern from '../components/ProjectCardModern';
 import TaskCardModern from '../components/TaskCardModern';
 import TaskDetailModal from '../components/TaskDetailModal';
+import Toast from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 import { projectService, workspaceService, taskService } from '../services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NotificationModal from '../components/NotificationModal';
+import { notificationService } from '../services/notificationService';
 
 interface WorkspaceDashboardModernProps {
   navigation: any;
@@ -130,16 +134,16 @@ const TaskTabHeader = React.memo<TaskTabHeaderProps>(({
       {/* Quick Filters + Status Dropdown */}
       <View style={styles.filtersRow}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView}>
-          {filters.map(filter => (
-            <TouchableOpacity
-              key={filter}
-              style={[styles.filterButton, activeFilter === filter && styles.activeFilterButton]}
-              onPress={() => setActiveFilter(filter)}
-            >
-              <Text style={[styles.filterButtonText, activeFilter === filter && styles.activeFilterButtonText]}>{filter}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {filters.map(filter => (
+          <TouchableOpacity
+            key={filter}
+            style={[styles.filterButton, activeFilter === filter && styles.activeFilterButton]}
+            onPress={() => setActiveFilter(filter)}
+          >
+            <Text style={[styles.filterButtonText, activeFilter === filter && styles.activeFilterButtonText]}>{filter}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
         
         {/* Status Dropdown Filter */}
         <View style={[styles.statusDropdownWrap, { zIndex: showStatusDropdown ? 100 : 1 }]}>
@@ -194,6 +198,7 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   const workspace = route?.params?.workspace;
   const externalReloadKey: number | undefined = route?.params?.reloadKey;
   const onViewAllTasks = route?.params?.onViewAllTasks;
+  const { toast, showSuccess, showError, hideToast } = useToast();
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
   const [availableWorkspaces, setAvailableWorkspaces] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<TaskSummary | null>(null);
@@ -215,6 +220,10 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   type ProjectMemberCache = { ids: number[]; usernames: string[]; emails: string[]; rolesById: Record<number, string> };
   const [membersByProject, setMembersByProject] = useState<Record<string, ProjectMemberCache>>({});
   const [statusOverrides, setStatusOverrides] = useState<Record<string, 'todo'|'in_progress'|'completed'>>({});
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchBar, setShowSearchBar] = useState(false);
 
 
   const {
@@ -228,8 +237,12 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   const handleSwitchWorkspace = () => {
     if (onSwitchWorkspace) {
       onSwitchWorkspace();
-    } else if (navigation) {
-      navigation.navigate('WorkspaceSelection');
+    }
+
+    if (navigation) {
+      navigation.navigate('HomeTabs', {
+        screen: 'WorkspaceSelection',
+      });
     } else {
       console.error('Navigation is not available');
     }
@@ -313,7 +326,30 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
       } catch {}
     };
     loadUser();
+    loadNotificationCount();
   }, []);
+
+  const loadNotificationCount = async () => {
+    try {
+      const authToken = await AsyncStorage.getItem('authToken');
+      if (!authToken) {
+        setNotificationCount(0);
+        return;
+      }
+
+      const response = await notificationService.getUserNotifications();
+      if (response.success) {
+        setNotificationCount(response.data.length);
+      }
+    } catch (error: any) {
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
+        setNotificationCount(0);
+      } else {
+        console.error('Error loading notification count:', error);
+      }
+    }
+  };
 
   // Prefetch project members for all tasks
   useEffect(() => {
@@ -398,8 +434,9 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
   };
 
   const handleTrackTime = (task: TaskSummary) => {
-    // TODO: Implement time tracking functionality
-    console.log('Track time for task:', task.id);
+    if (navigation) {
+      navigation.navigate('TaskTracking', { task });
+    }
   };
 
   const handleDeleteTask = (taskId: string) => {
@@ -438,6 +475,28 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
     }
   };
 
+  const handleAcceptInvitation = async (notificationId: number) => {
+    try {
+      // TODO: Implement invitation acceptance logic
+      console.log('Accept invitation:', notificationId);
+      await loadNotificationCount();
+    } catch (error) {
+      console.error('Error accepting invitation:', error);
+      showError('Failed to accept invitation');
+    }
+  };
+
+  const handleDeclineInvitation = async (notificationId: number) => {
+    try {
+      // TODO: Implement invitation decline logic
+      console.log('Decline invitation:', notificationId);
+      await loadNotificationCount();
+    } catch (error) {
+      console.error('Error declining invitation:', error);
+      showError('Failed to decline invitation');
+    }
+  };
+
   const renderTasksTab = () => {
     if (!workspaceData) {
       return (
@@ -459,12 +518,12 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
 
     const filteredTasks = userTasks.filter(task => {
       // Search filter
-      if (debouncedSearchQuery && !task.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase())) {
-        return false;
-      }
+        if (debouncedSearchQuery && !task.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase())) {
+          return false;
+        }
 
       // Base filter (All/Overdue/Upcoming)
-      if (activeFilter !== 'All') {
+        if (activeFilter !== 'All') {
         const now = new Date();
         now.setHours(0, 0, 0, 0);
         
@@ -494,10 +553,10 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
         else if (statusFilter === 'review') matchesStatus = s.includes('review');
         else if (statusFilter === 'done') matchesStatus = s.includes('done') || s.includes('complete');
         if (!matchesStatus) return false;
-      }
-
-      return true;
-    })
+        }
+        
+        return true;
+      })
       .sort((a, b) => {
         const priorityWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
         if (priorityWeight[a.priority] !== priorityWeight[b.priority]) {
@@ -589,7 +648,7 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
           searchInput={searchInput} 
           setSearchInput={setSearchInput} 
           activeFilter={activeFilter} 
-          setActiveFilter={setActiveFilter}
+          setActiveFilter={setActiveFilter} 
           currentUserId={currentUserId}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
@@ -599,15 +658,15 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
         renderItem={({ item }) => {
           const effective = statusOverrides[item.id] ? { ...item, status: statusOverrides[item.id] } : item;
           return (
-            <TaskCardModern
+          <TaskCardModern
               task={effective}
-              showProjectName={false}
+            showProjectName={false}
               canDelete={canDeleteTask(effective)}
               onDelete={() => confirmAndDeleteTask(effective)}
-              onPress={() => handleTaskPress(effective)}
-              onTrackTime={() => handleTrackTime(effective)}
+              onEdit={() => handleTaskPress(effective)}
+              onNavigateToTracking={() => handleTrackTime(effective)}
               onToggleStatus={() => confirmComplete(effective)}
-            />
+          />
           );
         }}
         ListEmptyComponent={() => (
@@ -728,100 +787,119 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
       <SafeAreaView style={styles.container}>
         <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
         
-        {/* Header */}
+        {/* Workspace Header */}
         <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={handleSwitchWorkspace}
+          <View style={styles.headerTopRow}>
+          <TouchableOpacity
+            style={styles.workspaceBackWrapper}
+            onPress={() => navigation.goBack?.()}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="arrow-back" size={22} color={Colors.neutral.dark} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.workspaceInfo}
+            onPress={() => setShowWorkspaceDropdown(!showWorkspaceDropdown)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.workspaceNameRow}>
+              <Text style={styles.workspaceName}>
+                {workspace?.workspaceName || workspaceData?.workspace.name || 'Workspace'}
+              </Text>
+              <MaterialIcons
+                name={showWorkspaceDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+                size={20}
+                color={Colors.neutral.medium}
+              />
+            </View>
+            <Text style={styles.workspaceMeta}>
+              {workspace?.workspaceType === 'GROUP' || workspaceData?.workspace.type === 'group'
+                ? 'Team workspace'
+                : 'Personal workspace'}
+            </Text>
+          </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={() => setShowNotificationModal(true)}
+              activeOpacity={0.7}
             >
-              <MaterialIcons name="arrow-back" size={24} color={Colors.neutral.dark} />
-            </TouchableOpacity>
-            
-            <View style={styles.workspaceSection}>
-              <TouchableOpacity 
-                style={styles.workspaceSelector}
-                onPress={() => setShowWorkspaceDropdown(!showWorkspaceDropdown)}
-              >
-                <View style={styles.workspaceInfo}>
-                  <Text style={styles.workspaceName}>
-                    {workspace?.workspaceName || workspaceData?.workspace.name || 'Workspace'}
-                  </Text>
-                  <Text style={styles.workspaceType}>
-                    {workspace?.workspaceType === 'GROUP' || workspaceData?.workspace.type === 'group' ? 'Team Workspace' : 'Personal Workspace'}
+              <MaterialIcons name="notifications" size={22} color={Colors.neutral.dark} />
+              {notificationCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {notificationCount > 99 ? '99+' : notificationCount}
                   </Text>
                 </View>
-                <MaterialIcons 
-                  name={showWorkspaceDropdown ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
-                  size={20} 
-                  color={Colors.neutral.medium} 
-                />
-              </TouchableOpacity>
-
-              {/* Workspace Dropdown Modal */}
-              <Modal
-                visible={showWorkspaceDropdown}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setShowWorkspaceDropdown(false)}
-              >
-                <TouchableOpacity 
-                  style={styles.modalOverlay}
-                  onPress={() => setShowWorkspaceDropdown(false)}
-                  activeOpacity={1}
-                >
-                  <View style={styles.modalDropdown}>
-                    <FlatList
-                      data={availableWorkspaces}
-                      style={styles.modalScrollView}
-                      showsVerticalScrollIndicator={true}
-                      bounces={false}
-                      scrollEventThrottle={16}
-                      keyboardShouldPersistTaps="handled"
-                      keyExtractor={(item) => item.id.toString()}
-                      renderItem={({ item: ws }) => (
-                        <TouchableOpacity 
-                          style={styles.dropdownItem}
-                          onPress={() => handleWorkspaceSelect(ws.id.toString())}
-                        >
-                          <View style={styles.dropdownItemContent}>
-                            <Text style={styles.dropdownItemText}>{ws.workspaceName}</Text>
-                            <View style={[
-                              styles.workspaceTypeChip,
-                              getWorkspaceTypeChipStyle(ws.workspaceType)
-                            ]}>
-                              <Text style={[
-                                styles.workspaceTypeChipText,
-                                { color: getWorkspaceTypeColor(ws.workspaceType) }
-                              ]}>
-                                {ws.workspaceType === 'GROUP' ? 'Team' : 'Personal'}
-                              </Text>
-                            </View>
-                          </View>
-                        </TouchableOpacity>
-                      )}
-                      ListFooterComponent={() => (
-                        <TouchableOpacity 
-                          style={[styles.dropdownItem, styles.createWorkspaceItem]}
-                          onPress={() => {
-                            setShowWorkspaceDropdown(false);
-                            if (navigation) {
-                              navigation.navigate('CreateWorkspace');
-                            } else {
-                              console.error('Navigation is not available');
-                            }
-                          }}
-                        >
-                          <MaterialIcons name="add" size={20} color={Colors.primary} />
-                          <Text style={[styles.dropdownItemText, styles.createWorkspaceText]}>Create New</Text>
-                        </TouchableOpacity>
-                      )}
-                    />
-                  </View>
-                </TouchableOpacity>
-              </Modal>
-            </View>
+              )}
+            </TouchableOpacity>
           </View>
+
+          {/* Switch button removed */}
+
+          {/* Workspace Dropdown Modal */}
+          <Modal
+            visible={showWorkspaceDropdown}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowWorkspaceDropdown(false)}
+          >
+            <TouchableOpacity 
+              style={styles.modalOverlay}
+              onPress={() => setShowWorkspaceDropdown(false)}
+              activeOpacity={1}
+            >
+              <View style={styles.modalDropdown}>
+                <FlatList
+                  data={availableWorkspaces}
+                  style={styles.modalScrollView}
+                  showsVerticalScrollIndicator={true}
+                  bounces={false}
+                  scrollEventThrottle={16}
+                  keyboardShouldPersistTaps="handled"
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item: ws }) => (
+                    <TouchableOpacity 
+                      style={styles.dropdownItem}
+                      onPress={() => handleWorkspaceSelect(ws.id.toString())}
+                    >
+                      <View style={styles.dropdownItemContent}>
+                        <Text style={styles.dropdownItemText}>{ws.workspaceName}</Text>
+                        <View style={[
+                          styles.workspaceTypeChip,
+                          getWorkspaceTypeChipStyle(ws.workspaceType)
+                        ]}>
+                          <Text style={[
+                            styles.workspaceTypeChipText,
+                            { color: getWorkspaceTypeColor(ws.workspaceType) }
+                          ]}>
+                            {ws.workspaceType === 'GROUP' ? 'Team' : 'Personal'}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  ListFooterComponent={() => (
+                    <TouchableOpacity 
+                      style={[styles.dropdownItem, styles.createWorkspaceItem]}
+                      onPress={() => {
+                        setShowWorkspaceDropdown(false);
+                        if (navigation) {
+                          navigation.navigate('CreateWorkspace');
+                        } else {
+                          console.error('Navigation is not available');
+                        }
+                      }}
+                    >
+                      <MaterialIcons name="add" size={20} color={Colors.primary} />
+                      <Text style={[styles.dropdownItemText, styles.createWorkspaceText]}>Create New</Text>
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
+            </TouchableOpacity>
+          </Modal>
         </View>
 
         {/* Content */}
@@ -875,6 +953,16 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
             }
           }}
         />
+
+        {/* Notification Modal */}
+        <NotificationModal
+          visible={showNotificationModal}
+          onClose={() => setShowNotificationModal(false)}
+          onAcceptInvitation={handleAcceptInvitation}
+          onDeclineInvitation={handleDeclineInvitation}
+        />
+
+        <Toast visible={toast.visible} message={toast.message} type={toast.type} onHide={hideToast} />
       </SafeAreaView>
     </TouchableWithoutFeedback>
   );
@@ -887,80 +975,93 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: Colors.neutral.white,
-    padding: 20,
-    paddingTop: 10,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.light,
-    shadowColor: Colors.neutral.dark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderBottomColor: Colors.neutral.light + '40',
     zIndex: 1000,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
-  headerContent: {
+  headerTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  backButton: {
-    padding: 4,
-  },
-  workspaceSection: {
-    flex: 1,
-    position: 'relative',
-    zIndex: 1001,
-  },
-  workspaceSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  workspaceBackWrapper: {
+    marginRight: 12,
+    padding: 6,
+    borderRadius: 16,
     backgroundColor: Colors.neutral.light + '30',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
   },
   workspaceInfo: {
     flex: 1,
+    gap: 4,
   },
   workspaceName: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '700',
     color: Colors.neutral.dark,
-    marginBottom: 2,
   },
-  workspaceType: {
-    fontSize: 13,
+  workspaceMeta: {
+    fontSize: 14,
     color: Colors.neutral.medium,
   },
-  workspaceDropdown: {
+  workspaceNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  notificationButton: {
+    padding: 8,
+    borderRadius: 18,
+    backgroundColor: Colors.neutral.light + '30',
+  },
+  notificationBadge: {
     position: 'absolute',
-    top: 60,
-    left: 0,
-    right: 0,
-    maxHeight: 300,
-    backgroundColor: Colors.neutral.white,
-    borderRadius: 12,
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    minHeight: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.semantic.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  notificationBadgeText: {
+    fontSize: 9,
+    color: Colors.neutral.white,
+    fontWeight: '600',
+  },
+  switchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: Colors.primary + '10',
+  },
+  switchButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  dropdownToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.neutral.light,
-    shadowColor: Colors.neutral.dark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
-    zIndex: 9999,
-    paddingVertical: 8,
   },
-  dropdownOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'transparent',
-    zIndex: 9998,
+  dropdownToggleText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: Colors.neutral.dark,
   },
   dropdownItem: {
     flexDirection: 'row',

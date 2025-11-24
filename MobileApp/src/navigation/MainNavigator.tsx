@@ -42,7 +42,6 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
   useEffect(() => {
     const loadWorkspaceData = async () => {
       try {
-        // Get workspace from props or AsyncStorage
         let workspaceId = workspace?.id;
         if (!workspaceId) {
           const storedWorkspace = await AsyncStorage.getItem('currentWorkspace');
@@ -53,16 +52,12 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
         }
         
         if (workspaceId) {
-          console.log('[MainNavigator] Setting currentWorkspaceId:', workspaceId);
           setCurrentWorkspaceId(Number(workspaceId));
           
-          // Load workspace members
           const membersResponse = await workspaceService.getWorkspaceMembers(Number(workspaceId));
           if (membersResponse.success && membersResponse.data) {
             setWorkspaceMembers(membersResponse.data);
           }
-        } else {
-          console.log('[MainNavigator] No workspaceId found');
         }
       } catch (error) {
         console.error('Error loading workspace data:', error);
@@ -76,15 +71,10 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
     if (tabId === 'create') {
       setShowCreateModal(true);
     } else {
-      // If clicking directly on tasks tab (not from View All), reset showAllTasks
-      // This ensures filter will reset to 'all' when user clicks directly on task tab
       if (tabId === 'tasks') {
         if (activeTab !== 'tasks') {
-          // Switching to tasks tab - reset showAllTasks to false
           setShowAllTasks(false);
         }
-        // If already on tasks tab and clicking it again, also reset
-        // This handles the case where user clicks task tab again after View All
         if (activeTab === 'tasks' && showAllTasks) {
           setShowAllTasks(false);
         }

@@ -199,9 +199,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, onLoginSuccess 
           if (onLoginSuccess) {
             onLoginSuccess();
           }
-          
-          // Navigate directly to main screen (TaskList)
-          navigation.navigate('TaskList');
+          // Navigation handled by AppNavigator after authentication state updates
         } else {
           showError(response.message || 'Đăng ký Google thất bại');
         }

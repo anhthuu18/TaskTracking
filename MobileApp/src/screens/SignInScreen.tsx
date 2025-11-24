@@ -92,11 +92,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
         if (onLoginSuccess) {
           onLoginSuccess();
         }
-        
-        // Navigate to workspace selection after a short delay for toast to show
-        setTimeout(() => {
-          navigation.navigate('WorkspaceSelection');
-        }, 1000);
+        // Navigation handled by AppNavigator after authentication state updates
       } else {
         // API returned error
 
@@ -177,10 +173,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
             onLoginSuccess();
           }
           
-          // Navigate to workspace selection after very short delay
-          setTimeout(() => {
-            navigation.navigate('WorkspaceSelection');
-          }, 800);
+          // Navigation handled by AppNavigator once authentication state updates
         } else {
           showError(response.message || 'Đăng nhập Google thất bại');
         }

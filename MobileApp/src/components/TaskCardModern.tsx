@@ -9,17 +9,33 @@ import { TaskSummary } from '../hooks/useWorkspaceData';
 interface TaskCardModernProps {
   task: TaskSummary;
   onPress?: () => void;
-  onTrackTime?: () => void;
+  onEdit?: () => void;
+  onNavigateToTracking?: () => void;
   onDelete?: () => void;
   onToggleStatus?: () => void;
   showProjectName?: boolean; // when true, show a small project chip under description (default true)
   canDelete?: boolean; // controls whether swipe-to-delete action is shown
 }
 
+const getWorkspaceTheme = (type?: 'personal' | 'group') => {
+  const color = type === 'group' ? Colors.semantic.success : Colors.semantic.info;
+  return {
+    container: {
+      backgroundColor: color + '20',
+      borderColor: color + '40',
+    },
+    text: {
+      color,
+    },
+    icon: color,
+  };
+};
+
 const TaskCardModern: React.FC<TaskCardModernProps> = ({ 
   task, 
   onPress,
-  onTrackTime,
+  onEdit,
+  onNavigateToTracking,
   onDelete,
   onToggleStatus,
   showProjectName = true,
@@ -91,6 +107,9 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
 
 
 
+  const workspaceTheme = getWorkspaceTheme(task.workspaceType);
+  const projectIconName = task.workspaceType === 'group' ? 'groups' : 'person';
+
   const renderRightActions = () => {
     if (!canDelete) return null;
     return (
@@ -102,13 +121,11 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
 
   return (
     <Swipeable renderRightActions={renderRightActions} overshootRight={false}>
-      <TouchableOpacity 
+      <View 
         style={[
           styles.container,
           { borderLeftColor: getPriorityColor(task.priority) }
         ]}
-        onPress={onPress}
-        activeOpacity={0.7}
       >
         <TouchableOpacity
             onPress={(e) => {
@@ -123,20 +140,24 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
                 )}
             </View>
         </TouchableOpacity>
-        <View style={styles.content}>
+        <TouchableOpacity 
+          style={styles.content}
+          onPress={onNavigateToTracking}
+          activeOpacity={0.7}
+        >
           <View style={styles.header}>
             <Text style={[styles.title, task.status === 'completed' && styles.completedTitle]} numberOfLines={2}>
               {task.title}
             </Text>
             <TouchableOpacity 
-              style={styles.trackButton}
+              style={styles.editButton}
               onPress={(e) => {
                 e.stopPropagation();
-                if (onTrackTime) onTrackTime();
+                if (onEdit) onEdit();
               }}
               activeOpacity={0.7}
             >
-              <MaterialIcons name="access-time" size={20} color={Colors.primary} />
+              <MaterialIcons name="edit" size={18} color={Colors.neutral.medium} />
             </TouchableOpacity>
           </View>
 
@@ -166,9 +187,14 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
 
             <View style={styles.rightFooter}>
               {showProjectName && !!task.projectName && (
-                <View style={styles.projectChipRight}>
-                  <MaterialIcons name="folder" size={12} color={Colors.neutral.medium} />
-                  <Text style={styles.projectChipText} numberOfLines={1}>{task.projectName}</Text>
+                <View style={[styles.projectChipRight, workspaceTheme.container]}>
+                  <MaterialIcons name={projectIconName as any} size={12} color={workspaceTheme.icon} />
+                  <Text
+                    style={[styles.projectChipText, workspaceTheme.text]}
+                    numberOfLines={1}
+                  >
+                    {task.projectName}
+                  </Text>
                 </View>
               )}
               <View style={styles.rightFooterRow}>
@@ -192,8 +218,8 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
               </View>
             </View>
           </View>
+        </TouchableOpacity>
         </View>
-      </TouchableOpacity>
     </Swipeable>
   );
 };
@@ -252,8 +278,9 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
     color: Colors.neutral.medium,
   },
-  trackButton: {
-    padding: 2,
+  editButton: {
+    padding: 4,
+    marginLeft: 8,
   },
   description: {
     fontSize: 12,

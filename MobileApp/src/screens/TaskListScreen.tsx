@@ -115,11 +115,11 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
                 rolesByEmail: res.data.reduce((acc: Record<string, string>, m: any) => { if (m.user?.email) acc[m.user.email] = m.role; return acc; }, {}),
               };
             } else {
-              newMap[pid] = { ids: [], usernames: [], emails: [] };
+              newMap[pid] = { ids: [], usernames: [], emails: [], rolesById: {}, rolesByUsername: {}, rolesByEmail: {} };
             }
             changed = true;
           } catch {
-            newMap[pid] = { ids: [], usernames: [], emails: [] };
+            newMap[pid] = { ids: [], usernames: [], emails: [], rolesById: {}, rolesByUsername: {}, rolesByEmail: {} };
             changed = true;
           }
         }
@@ -279,7 +279,7 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
             try {
               await taskService.updateTask(Number(task.id), { status: 'Done' });
               // Auto switch to Completed tab
-              setActiveFilter('Completed');
+              setSelectedFilter('completed');
               refresh();
               showSuccess('Đã hoàn thành task');
             } catch (e: any) {
@@ -297,15 +297,20 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
   const renderTaskItem = ({ item }: { item: TaskSummary }) => {
     const effective = statusOverrides[item.id] ? { ...item, status: statusOverrides[item.id] } : item;
     return (
-      <TaskCardModern
+    <TaskCardModern
         task={effective}
         showProjectName={false}
         canDelete={canDeleteTask(effective)}
         onDelete={() => confirmAndDeleteTask(effective)}
         onToggleStatus={() => confirmComplete(effective)}
-        onPress={() => handleTaskPress(effective)}
-      />
-    );
+        onEdit={() => handleTaskPress(effective)}
+        onNavigateToTracking={() => {
+          if (navigation) {
+            navigation.navigate('TaskTracking', { task: effective });
+          }
+        }}
+    />
+  );
   };
 
   const renderEmptyList = () => (
