@@ -4,12 +4,9 @@ import {
   TouchableOpacity,
   Text,
   StyleSheet,
-  Dimensions,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { useTheme } from '../hooks/useTheme';
-
-const { width } = Dimensions.get('window');
+import { Colors } from '../constants/Colors';
 
 interface TabItem {
   id: string;
@@ -25,7 +22,6 @@ interface CustomFooterProps {
 }
 
 const CustomFooter: React.FC<CustomFooterProps> = ({ activeTab, onTabPress }) => {
-  const { colors } = useTheme();
 
   const tabs: TabItem[] = [
     {
@@ -68,7 +64,7 @@ const CustomFooter: React.FC<CustomFooterProps> = ({ activeTab, onTabPress }) =>
         key={tab.id}
         style={styles.tabContainer}
         onPress={tab.onPress}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
       >
         <View style={[
           styles.iconContainer,
@@ -76,8 +72,8 @@ const CustomFooter: React.FC<CustomFooterProps> = ({ activeTab, onTabPress }) =>
         ]}>
           <MaterialIcons 
             name={tab.icon as any} 
-            size={22} 
-            color={isActive ? '#FFFFFF' : '#9CA3AF'} 
+            size={20} 
+            color={isActive ? Colors.neutral.white : Colors.neutral.medium} 
           />
         </View>
         <Text style={[
@@ -91,10 +87,8 @@ const CustomFooter: React.FC<CustomFooterProps> = ({ activeTab, onTabPress }) =>
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.tabsContainer}>
-        {tabs.map(renderTab)}
-      </View>
+    <View style={styles.container}>
+      {tabs.map(renderTab)}
     </View>
   );
 };
@@ -105,63 +99,48 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 85,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-    paddingBottom: 25,
-    paddingTop: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  tabsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    flex: 1,
-    paddingHorizontal: 20,
+    height: 80,
+    paddingTop: 12,
+    paddingBottom: 24,
+    backgroundColor: Colors.neutral.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral.light + '70',
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 6,
   },
   tabContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    marginHorizontal: 2,
+    gap: 4,
   },
   iconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 0, 
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
   },
   activeIconContainer: {
-    backgroundColor: '#8B5CF6',
-    shadowColor: '#8B5CF6',
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
+    backgroundColor: Colors.primary,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 6,
   },
   label: {
     fontSize: 11,
-    color: '#9CA3AF',
+    color: Colors.neutral.medium,
     fontWeight: '500',
-    textAlign: 'center',
   },
   activeLabel: {
-    color: '#8B5CF6',
+    color: Colors.primary,
     fontWeight: '700',
   },
 });

@@ -734,8 +734,8 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
       
       {/* Content Wrapper */}
       <View style={styles.contentWrapper}>
-        {/* Content */}
-        <View style={styles.content}>
+      {/* Content */}
+      <View style={styles.content}>
         <DashboardHeader
           username={username}
           subtitle="Choose your workspace"
@@ -864,20 +864,20 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
         </View>
       </View>
 
-        {/* Create Workspace Button - Hidden when searching */}
-        {!searchQuery && (
-          <View style={styles.footer}>
-            <TouchableOpacity 
-              style={styles.createButton}
-              onPress={handleCreateWorkspace}
-            >
-              <Text style={styles.createButtonText}>Create workspace</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+      {/* Create Workspace Button - Hidden when searching */}
+      {!searchQuery && (
+        <View style={styles.footer}>
+          <TouchableOpacity 
+            style={styles.createButton}
+            onPress={handleCreateWorkspace}
+          >
+            <Text style={styles.createButtonText}>Create workspace</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-        {/* Search Options Modal */}
-        {renderSearchOptionsModal()}
+      {/* Search Options Modal */}
+      {renderSearchOptionsModal()}
       </View>
 
       <NotificationModal

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -32,12 +33,14 @@ interface TaskSummary {
   status: 'todo' | 'in_progress' | 'completed';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   dueDate?: Date;
+  startDate?: Date;
   projectName: string;
   projectId: string;
   workspaceName: string;
   workspaceId: string;
   workspaceType: 'personal' | 'group';
   assigneeName?: string;
+  assigneeId?: number;
   estimatedMinutes?: number;
 }
 
@@ -51,7 +54,7 @@ interface DashboardStats {
 }
 
 const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navigation }) => {
-  const { showError } = useToastContext();
+  const { showError, showSuccess } = useToastContext();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -68,6 +71,7 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
   const [isTaskDetailVisible, setIsTaskDetailVisible] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadUserData();
@@ -118,12 +122,14 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
                 status: convertStatusToString(task.status),
                 priority: convertPriorityToString(task.priority || 3),
                 dueDate: task.endTime ? new Date(task.endTime) : undefined,
+                startDate: task.startTime ? new Date(task.startTime) : undefined,
                 projectName: task.project?.projectName || 'Unknown Project',
                 projectId: String(task.projectId),
                 workspaceName: workspace.workspaceName,
                 workspaceId: String(workspace.id),
                 workspaceType: workspaceTypeNormalized,
                 assigneeName: task.assignee?.username || 'Unassigned',
+                assigneeId: task.assignedTo,
                 estimatedMinutes: task.estimatedMinutes,
               }));
             allTasks = [...allTasks, ...workspaceTasks];
@@ -167,8 +173,11 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
       // - Priority: urgent=10, high=7, medium=4, low=1
       // - Due date proximity: closer = higher score
       // - Status: in_progress gets bonus
-      const recommendedTasks = allTasks
-        .filter(t => t.status !== 'completed')
+      // - Completed tasks: always at the bottom
+      const incompleteTasks = allTasks.filter(t => t.status !== 'completed');
+      const completedTasks = allTasks.filter(t => t.status === 'completed');
+      
+      const scoredIncompleteTasks = incompleteTasks
         .map(task => {
           let score = 0;
           
@@ -201,11 +210,16 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
           
           return { task, score };
         })
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5) // Take top 5
-        .map(({ task }) => task);
+        .sort((a, b) => b.score - a.score);
 
-      setTodayTasks(recommendedTasks);
+      // Take top 5 incomplete tasks, then add completed tasks at the end
+      const topIncompleteTasks = scoredIncompleteTasks.slice(0, 5).map(({ task }) => task);
+      const remainingSlots = 5 - topIncompleteTasks.length;
+      const tasksToShow = remainingSlots > 0
+        ? [...topIncompleteTasks, ...completedTasks.slice(0, remainingSlots)]
+        : topIncompleteTasks;
+
+      setTodayTasks(tasksToShow);
     } catch (error: any) {
       console.error('Error loading dashboard data:', error);
       showError(error.message || 'Failed to load dashboard data');
@@ -268,6 +282,62 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
 
   const handleTrackTask = (task: TaskSummary) => {
     navigation.navigate('TaskTracking', { task });
+  };
+
+  const handleToggleTaskStatus = async (task: TaskSummary) => {
+    // Check if task is already completed
+    const effectiveStatus = statusOverrides[task.id] || task.status;
+    const isCompleted = effectiveStatus.toLowerCase() === 'completed' || 
+                       effectiveStatus.toLowerCase() === 'done';
+    
+    if (isCompleted) {
+      showSuccess('Task này đã được đánh dấu hoàn thành');
+      return;
+    }
+
+    // Show confirmation dialog
+    Alert.alert(
+      'Hoàn thành task',
+      'Bạn có muốn đánh dấu hoàn thành task này?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Đồng ý',
+          onPress: async () => {
+            // Optimistically update UI
+            setStatusOverrides(prev => ({ ...prev, [task.id]: 'completed' }));
+            
+            try {
+              await taskService.updateTask(parseInt(task.id), {
+                status: 'Done',
+              });
+              
+              // Refresh dashboard data
+              if (currentUser) {
+                await loadDashboardData(currentUser.id);
+              }
+            } catch (error: any) {
+              // Revert optimistic update on error
+              setStatusOverrides(prev => {
+                const newOverrides = { ...prev };
+                delete newOverrides[task.id];
+                return newOverrides;
+              });
+              console.error('Error toggling task status:', error);
+              showError(error?.message || 'Cập nhật trạng thái thất bại');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleNavigateToProject = (projectId: string, workspaceId: string) => {
+    setIsTaskDetailVisible(false);
+    navigation.navigate('ProjectDetail', {
+      projectId: parseInt(projectId),
+      workspaceId: parseInt(workspaceId),
+    });
   };
 
   const handleAcceptInvitation = async (notificationId: number) => {
@@ -404,15 +474,23 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
             </View>
           ) : (
             <View style={styles.tasksList}>
-              {todayTasks.map((task) => (
-                <TaskCardModern
-                  key={task.id}
-                  task={task as any}
-                  showProjectName={true}
-                  onEdit={() => handleTaskPress(task)}
-                  onNavigateToTracking={() => handleTrackTask(task)}
-                />
-              ))}
+              {todayTasks.map((task) => {
+                // Apply status override if exists
+                const effectiveTask: TaskSummary = statusOverrides[task.id]
+                  ? { ...task, status: statusOverrides[task.id] as 'todo' | 'in_progress' | 'completed' }
+                  : task;
+                
+                return (
+                  <TaskCardModern
+                    key={task.id}
+                    task={effectiveTask as any}
+                    showProjectName={true}
+                    onEdit={() => handleTaskPress(effectiveTask)}
+                    onNavigateToTracking={() => handleTrackTask(effectiveTask)}
+                    onToggleStatus={() => handleToggleTaskStatus(task)}
+                  />
+                );
+              })}
             </View>
           )}
         </View>
@@ -426,17 +504,22 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
           task={selectedTask as any}
           onClose={() => setIsTaskDetailVisible(false)}
           showProjectChip={true}
-          onUpdateTask={() => {
+          onUpdateTask={async () => {
             setIsTaskDetailVisible(false);
-            handleRefresh();
+            // Clear status override for this task
+            setStatusOverrides(prev => {
+              const newOverrides = { ...prev };
+              delete newOverrides[selectedTask.id];
+              return newOverrides;
+            });
+            await handleRefresh();
           }}
           onDeleteTask={() => {
             setIsTaskDetailVisible(false);
             handleRefresh();
           }}
           onNavigateToProject={(projectId) => {
-            // TODO: Navigate to project detail
-            console.log('Navigate to project:', projectId);
+            handleNavigateToProject(projectId, selectedTask.workspaceId);
           }}
         />
       )}
@@ -591,6 +674,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: Colors.primary,
+  },
+  tasksScrollView: {
+    maxHeight: 400, // Limit height to prevent screen stretching
   },
   tasksList: {
     gap: 12,

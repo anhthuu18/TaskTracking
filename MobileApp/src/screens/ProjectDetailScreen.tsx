@@ -236,6 +236,15 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
   };
 
   const confirmComplete = (task: Task) => {
+    // Check if task is already completed
+    const taskStatus = (task.status || '').toLowerCase();
+    const isCompleted = taskStatus.includes('done') || taskStatus.includes('complete');
+    
+    if (isCompleted) {
+      showSuccess('Task này đã được đánh dấu hoàn thành');
+      return;
+    }
+
     const isCreator = currentUserId && task.createdBy === currentUserId;
     const isAssignee = currentUserId && task.assignedTo === currentUserId;
     const role = projectMembers.find(m => m.userId === currentUserId)?.role;
@@ -279,9 +288,17 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
       status: convertStatusToString(task.status),
       priority: convertPriorityToString(task.priority || 3),
       dueDate: task.endTime ? new Date(task.endTime) : undefined,
+      startDate: task.startTime ? new Date(task.startTime) : undefined,
       projectName: project?.projectName || '',
       assigneeName: task.assignee?.username || 'Unassigned',
+      assigneeId: task.assignedTo,
       estimatedMinutes: task.estimatedMinutes,
+      // Pass original task fields for TaskDetailModal
+      taskName: task.taskName,
+      startTime: task.startTime,
+      endTime: task.endTime,
+      assignedTo: task.assignedTo,
+      projectId: task.projectId,
     };
 
     return (
@@ -364,6 +381,12 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         }
 
         return true;
+      })
+      .sort((a, b) => {
+        // Sort by created date (newest first)
+        const aTime = a.dateCreated ? new Date(a.dateCreated).getTime() : 0;
+        const bTime = b.dateCreated ? new Date(b.dateCreated).getTime() : 0;
+        return bTime - aTime;
       });
 
       return (
@@ -578,35 +601,35 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
       <View style={styles.footerTabSection}>
         <TouchableOpacity style={styles.footerTabButton} onPress={() => setActiveTab('tasks')}>
           <View style={[styles.iconContainer, activeTab === 'tasks' && styles.activeIconContainer]}>
-            <MaterialIcons name="home" size={22} color={activeTab === 'tasks' ? '#FFFFFF' : '#9CA3AF'} />
+            <MaterialIcons name="home" size={20} color={activeTab === 'tasks' ? Colors.neutral.white : Colors.neutral.medium} />
           </View>
           <Text style={[styles.footerTabButtonText, activeTab === 'tasks' && styles.activeFooterTabButtonText]}>Home</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.footerTabButton} onPress={() => setActiveTab('calendar')}>
           <View style={[styles.iconContainer, activeTab === 'calendar' && styles.activeIconContainer]}>
-            <MaterialIcons name="event" size={22} color={activeTab === 'calendar' ? '#FFFFFF' : '#9CA3AF'} />
+            <MaterialIcons name="event" size={20} color={activeTab === 'calendar' ? Colors.neutral.white : Colors.neutral.medium} />
           </View>
           <Text style={[styles.footerTabButtonText, activeTab === 'calendar' && styles.activeFooterTabButtonText]}>Calendar</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.footerTabButton} onPress={() => setShowCreateDropdown(true)}>
           <View style={styles.iconContainer}>
-            <MaterialIcons name="add" size={22} color={'#9CA3AF'} />
+            <MaterialIcons name="add" size={20} color={Colors.neutral.medium} />
           </View>
           <Text style={styles.footerTabButtonText}>Create</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.footerTabButton} onPress={() => setActiveTab('members')}>
           <View style={[styles.iconContainer, activeTab === 'members' && styles.activeIconContainer]}>
-            <MaterialIcons name="group" size={22} color={activeTab === 'members' ? '#FFFFFF' : '#9CA3AF'} />
+            <MaterialIcons name="group" size={20} color={activeTab === 'members' ? Colors.neutral.white : Colors.neutral.medium} />
           </View>
           <Text style={[styles.footerTabButtonText, activeTab === 'members' && styles.activeFooterTabButtonText]}>Members</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.footerTabButton} onPress={() => setActiveTab('settings')}>
           <View style={[styles.iconContainer, activeTab === 'settings' && styles.activeIconContainer]}>
-            <MaterialIcons name="settings" size={22} color={activeTab === 'settings' ? '#FFFFFF' : '#9CA3AF'} />
+            <MaterialIcons name="settings" size={20} color={activeTab === 'settings' ? Colors.neutral.white : Colors.neutral.medium} />
           </View>
           <Text style={[styles.footerTabButtonText, activeTab === 'settings' && styles.activeFooterTabButtonText]}>Settings</Text>
         </TouchableOpacity>
@@ -626,10 +649,12 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
           visible={isTaskDetailVisible}
           onClose={() => setIsTaskDetailVisible(false)}
           showProjectChip={false}
-          onUpdateTask={(updatedTask) => {
-            // Optimistically update list and currently selected task (no immediate refetch)
-            setProjectTasks(prevTasks => prevTasks.map(t => (t.id === updatedTask.id ? (updatedTask as Task) : t)));
-            setSelectedTask(updatedTask as Task);
+          onUpdateTask={async (updatedTask) => {
+            // Reload project data to update progress bar and task list
+            if (project?.id) {
+              await loadInitialData(project.id);
+            }
+            setIsTaskDetailVisible(false);
           }}
           onDeleteTask={(taskId) => {
             setProjectTasks(prevTasks => prevTasks.filter(t => t.id !== taskId));
@@ -841,32 +866,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingVertical: 8,
-    backgroundColor: Colors.surface,
+    height: 80,
+    paddingTop: 12,
+    paddingBottom: 24,
+    backgroundColor: Colors.neutral.white,
     borderTopWidth: 1,
-    borderTopColor: Colors.neutral.light,
-    paddingBottom: 20,
+    borderTopColor: Colors.neutral.light + '70',
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 6,
   },
   footerTabButton: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    paddingVertical: 4,
+    gap: 4,
   },
   iconContainer: {
-    width: 48,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
   },
   activeIconContainer: {
     backgroundColor: Colors.primary,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
   },
   footerTabButtonText: {
     fontSize: 11,
-    color: '#9CA3AF',
+    color: Colors.neutral.medium,
     fontWeight: '500',
   },
   activeFooterTabButtonText: {

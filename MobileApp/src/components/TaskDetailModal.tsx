@@ -176,7 +176,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       else if (s.includes('to do') || s.includes('todo')) statusVal = 'To Do';
     }
 
-    const start = task.startTime ? new Date(task.startTime as any) : null;
+    const start = task.startTime ? new Date(task.startTime as any) : (task.startDate ? new Date(task.startDate as any) : null);
     const due = task.endTime ? new Date(task.endTime as any) : (task.dueDate ? new Date(task.dueDate as any) : null);
 
     setName(nameVal);
@@ -245,21 +245,45 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     );
   }, [base, name, description, assigneeId, priority, status, startDate, dueDate]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!task || !isDirty) return;
-    const updated: Task = {
-      ...task,
-      taskName: name.trim(),
-      description: description.trim(),
-      assignedTo: assigneeId,
-      assignee: assigneeId ? (assignees.find(a => a.id === assigneeId) || undefined) : null,
-      priority: priority || task.priority,
-      status: status,
-      startTime: startDate ? startDate.toISOString() : null,
-      endTime: dueDate ? dueDate.toISOString() : null,
-    } as Task;
-    onUpdateTask && onUpdateTask(updated);
-    onClose();
+    
+    try {
+      // Prepare update payload
+      const updates: any = {
+        taskName: name.trim(),
+        description: description.trim(),
+        assignedTo: assigneeId,
+        priority: priority || task.priority,
+        status: status,
+        startTime: startDate ? startDate.toISOString() : null,
+        endTime: dueDate ? dueDate.toISOString() : null,
+      };
+
+      // Call API to update task
+      const taskId = Number(task.id || task.taskId);
+      await taskService.updateTask(taskId, updates);
+
+      // Prepare updated task object for local state
+      const updated: Task = {
+        ...task,
+        taskName: name.trim(),
+        description: description.trim(),
+        assignedTo: assigneeId,
+        assignee: assigneeId ? (assignees.find(a => a.id === assigneeId) || undefined) : null,
+        priority: priority || task.priority,
+        status: status,
+        startTime: startDate ? startDate.toISOString() : null,
+        endTime: dueDate ? dueDate.toISOString() : null,
+      } as Task;
+      
+      // Notify parent component to refresh
+      onUpdateTask && onUpdateTask(updated);
+      onClose();
+    } catch (error) {
+      console.error('Error updating task:', error);
+      // You might want to show an error toast here
+    }
   };
 
   if (!task) return null;

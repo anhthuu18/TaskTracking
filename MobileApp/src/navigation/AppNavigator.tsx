@@ -335,7 +335,7 @@ const AppNavigator: React.FC = () => {
                 <ProfileScreen
                   {...props}
                   onLogout={handleLogout}
-                />
+            />
               )}
             </Stack.Screen>
           </>
@@ -437,7 +437,7 @@ const AppNavigator: React.FC = () => {
                 <ProfileScreen
                   {...props}
                   onLogout={handleLogout}
-                />
+            />
               )}
             </Stack.Screen>
           </>
