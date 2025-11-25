@@ -151,33 +151,30 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   // Snapshot to detect changes
   const [base, setBase] = useState<{ name: string; description: string; assigneeId?: number; priority?: number | null; status?: string; start?: string | null; due?: string | null } | null>(null);
 
-  useEffect(() => {
-    if (!task) return;
-    // Support both Task and TaskSummary shapes
-    const nameVal = task.taskName ?? task.title ?? '';
-    const descVal = task.description ?? '';
-    const assigned = task.assignedTo ?? (task.assignee?.id ? Number(task.assignee.id) : (task.assigneeId ? Number(task.assigneeId) : undefined));
+  const populateFromTask = (t: any) => {
+    const nameVal = t.taskName ?? t.title ?? '';
+    const descVal = t.description ?? '';
+    const assigned = t.assignedTo ?? (t.assignee?.id ? Number(t.assignee.id) : (t.assigneeId ? Number(t.assigneeId) : undefined));
 
     let priorityVal: number | null = null;
-    if (typeof task.priority === 'number') {
-      priorityVal = task.priority;
-    } else if (typeof task.priority === 'string') {
+    if (typeof t.priority === 'number') {
+      priorityVal = t.priority;
+    } else if (typeof t.priority === 'string') {
       const map: Record<string, number> = { urgent: 5, high: 4, medium: 3, low: 2 };
-      priorityVal = map[task.priority.toLowerCase()] ?? null;
+      priorityVal = map[String(t.priority).toLowerCase()] ?? null;
     }
 
-    // Normalize status
     let statusVal = 'To Do';
-    if (task.status) {
-      const s = String(task.status).toLowerCase();
+    if (t.status) {
+      const s = String(t.status).toLowerCase();
       if (s.includes('progress')) statusVal = 'In Progress';
       else if (s.includes('review')) statusVal = 'Review';
       else if (s.includes('done') || s.includes('complete')) statusVal = 'Done';
       else if (s.includes('to do') || s.includes('todo')) statusVal = 'To Do';
     }
 
-    const start = task.startTime ? new Date(task.startTime as any) : null;
-    const due = task.endTime ? new Date(task.endTime as any) : (task.dueDate ? new Date(task.dueDate as any) : null);
+    const start = t.startTime ? new Date(t.startTime as any) : (t.startDate ? new Date(t.startDate as any) : null);
+    const due = t.endTime ? new Date(t.endTime as any) : (t.dueDate ? new Date(t.dueDate as any) : null);
 
     setName(nameVal);
     setDescription(descVal);
@@ -196,7 +193,25 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       start: start ? start.toISOString() : null,
       due: due ? due.toISOString() : null,
     });
+  };
+
+  useEffect(() => {
+    if (!task) return;
+    populateFromTask(task);
   }, [task]);
+
+  // Also hydrate from backend whenever modal opens to ensure latest status
+  useEffect(() => {
+    const hydrate = async () => {
+      try {
+        if (visible && task?.id) {
+          const latest = await taskService.getTaskById(Number(task.id));
+          if (latest) populateFromTask(latest);
+        }
+      } catch {}
+    };
+    hydrate();
+  }, [visible]);
 
   // Fetch possible assignees when modal opens and has projectId
   useEffect(() => {
@@ -245,8 +260,26 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     );
   }, [base, name, description, assigneeId, priority, status, startDate, dueDate]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!task || !isDirty) return;
+    
+    try {
+      // Prepare update payload
+      const updates: any = {
+        taskName: name.trim(),
+        description: description.trim(),
+        assignedTo: assigneeId,
+        priority: priority || task.priority,
+        status: status,
+        startTime: startDate ? startDate.toISOString() : null,
+        endTime: dueDate ? dueDate.toISOString() : null,
+      };
+
+      // Call API to update task
+      const taskId = Number(task.id || task.taskId);
+      await taskService.updateTask(taskId, updates);
+
+      // Prepare updated task object for local state
     const updated: Task = {
       ...task,
       taskName: name.trim(),
@@ -258,8 +291,14 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       startTime: startDate ? startDate.toISOString() : null,
       endTime: dueDate ? dueDate.toISOString() : null,
     } as Task;
+      
+      // Notify parent component to refresh
     onUpdateTask && onUpdateTask(updated);
     onClose();
+    } catch (error) {
+      console.error('Error updating task:', error);
+      // You might want to show an error toast here
+    }
   };
 
   if (!task) return null;

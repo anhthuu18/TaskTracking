@@ -32,6 +32,8 @@ model User {
   userSettings           UserSettings?
   starredProjects        StarredProject[]
   accessLogs             ProjectAccessLog[]
+  timeTrackingSessions   TimeTrackingSession[] @relation("TimeTrackingSessions")
+  pomodoroStatistics     PomodoroStatistics[]  @relation("PomodoroStatistics")
 
   @@map("Users")
 }
@@ -365,6 +367,8 @@ model Task {
   assignee    User?       @relation("AssignedTasks", fields: [assignedTo], references: [id])
   tracking    TaskTracking[]
   notifications Notification[]
+  timeTrackingSessions TimeTrackingSession[] @relation("TimeTrackingSessions")
+  pomodoroStatistics PomodoroStatistics? @relation("PomodoroStatistics")
 
   // Indexes for performance
   @@index([projectId])
@@ -446,4 +450,59 @@ model ProjectAccessLog {
 
   @@index([userId, projectId, accessedAt(sort: Desc)])
   @@map("ProjectAccessLogs")
+}
+
+// Pomodoro Time Tracking Sessions
+enum SessionType {
+  FOCUS
+  SHORT_BREAK
+  LONG_BREAK
+}
+
+model TimeTrackingSession {
+  id            Int         @id @default(autoincrement()) @map("SessionID")
+  taskId        Int         @map("TaskID")
+  userId        Int         @map("UserID")
+  sessionType   SessionType @map("SessionType")
+  duration      Int         @map("Duration") // in minutes
+  startTime     DateTime    @map("StartTime")
+  endTime       DateTime?   @map("EndTime")
+  isCompleted   Boolean     @default(false) @map("IsCompleted")
+  completedAt   DateTime?   @map("CompletedAt")
+  dateCreated   DateTime    @default(now()) @map("DateCreated")
+  dateModified  DateTime    @updatedAt @map("DateModified")
+
+  // Relations
+  task Task @relation("TimeTrackingSessions", fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation("TimeTrackingSessions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([sessionType])
+  @@index([isCompleted])
+  @@index([startTime])
+  @@map("TimeTrackingSessions")
+}
+
+// Pomodoro Statistics per Task
+model PomodoroStatistics {
+  id                  Int      @id @default(autoincrement()) @map("StatisticsID")
+  taskId              Int      @unique @map("TaskID")
+  userId              Int      @map("UserID")
+  totalFocusTime      Int      @default(0) @map("TotalFocusTime") // in minutes
+  totalBreakTime      Int      @default(0) @map("TotalBreakTime") // in minutes
+  completedSessions   Int      @default(0) @map("CompletedSessions")
+  totalSessions       Int      @default(0) @map("TotalSessions")
+  lastTrackedDate     DateTime? @map("LastTrackedDate")
+  dateCreated         DateTime @default(now()) @map("DateCreated")
+  dateModified        DateTime @updatedAt @map("DateModified")
+
+  // Relations
+  task Task @relation("PomodoroStatistics", fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation("PomodoroStatistics", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([lastTrackedDate])
+  @@map("PomodoroStatistics")
 }

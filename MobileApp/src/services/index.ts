@@ -5,3 +5,4 @@ export { workspaceService } from './workspaceService';
 export { taskService } from './taskService';
 export { userService } from './userService';
 export { otpService } from './otpService';
+export { timeTrackingService } from './timeTrackingService';

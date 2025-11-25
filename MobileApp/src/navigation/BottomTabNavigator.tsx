@@ -7,6 +7,7 @@ import { Colors } from '../constants/Colors';
 const DEFAULT_ICONS: Record<string, string> = {
   PersonalDashboard: 'home',
   WorkspaceSelection: 'folder-open',
+  PersonalSettings: 'tune',
   Profile: 'person',
 };
 

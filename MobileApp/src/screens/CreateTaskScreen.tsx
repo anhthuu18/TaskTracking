@@ -698,9 +698,9 @@ const styles = StyleSheet.create({
   backButton: { padding: 8, marginLeft: -8 },
   headerTitle: { fontSize: 20, fontWeight: '600', color: Colors.text, flex: 1, textAlign: 'center', marginRight: 36 },
   headerSpacer: { width: 36 },
-  content: { flex: 1, paddingHorizontal: ScreenLayout.contentHorizontalPadding, paddingTop: ScreenLayout.contentTopSpacing },
-  inputSection: { marginBottom: 24 },
-  sectionLabel: { fontSize: 16, fontWeight: '600', color: Colors.text, marginBottom: 12 },
+  content: { flex: 1, paddingHorizontal: ScreenLayout.contentHorizontalPadding, paddingTop: 12 },
+  inputSection: { marginBottom: 16 },
+  sectionLabel: { fontSize: 16, fontWeight: '600', color: Colors.text, marginBottom: 8 },
   textInput: { backgroundColor: Colors.background, fontSize: 16 },
   inputOutline: { borderRadius: 12, borderWidth: 1 },
   textInputError: { backgroundColor: Colors.background },
@@ -758,7 +758,7 @@ const styles = StyleSheet.create({
 
   errorText: { color: Colors.semantic.error, fontSize: 12, marginTop: 4, marginLeft: 12 },
 
-  footer: { paddingHorizontal: ScreenLayout.contentHorizontalPadding, paddingBottom: ScreenLayout.footerBottomSpacing, paddingTop: 24 },
+  footer: { paddingHorizontal: ScreenLayout.contentHorizontalPadding, paddingBottom: ScreenLayout.footerBottomSpacing, paddingTop: 16 },
   createButton: {
     backgroundColor: Colors.primary, ...ButtonStyles.primary,
     alignItems: 'center', justifyContent: 'center', alignSelf: 'center', shadowColor: Colors.primary,

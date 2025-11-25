@@ -38,6 +38,8 @@ export interface TaskSummary {
   status: 'todo' | 'in_progress' | 'completed';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   dueDate?: Date;
+  startDate?: Date;
+  createdAt?: Date;
   projectId: string;
   projectName: string;
   assigneeId?: string;
@@ -111,7 +113,7 @@ export const useWorkspaceData = (workspaceId: string) => {
       let rawTasks: any[] = [];
       try {
         const resp = await taskService.getTasksByWorkspace(workspaceId);
-        rawTasks = Array.isArray(resp) ? resp : (resp?.data || []);
+        rawTasks = Array.isArray(resp) ? resp : ((resp as any)?.data || []);
       } catch (err: any) {
         if (err?.message?.includes('Unauthorized') || err?.message?.includes('401')) {
         } else {
@@ -161,6 +163,8 @@ export const useWorkspaceData = (workspaceId: string) => {
           status: normalizeStatus(t.status),
           priority: normalizePriority(t.priority),
           dueDate: due ? new Date(due) : undefined,
+          startDate: t.startTime ? new Date(t.startTime) : undefined,
+          createdAt: t.dateCreated ? new Date(t.dateCreated) : undefined,
           projectId: String(projectId || ''),
           projectName: projectName || 'No Project',
           assigneeId: assigneeId ? String(assigneeId) : undefined,
