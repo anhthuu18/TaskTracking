@@ -264,6 +264,7 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
 
   const convertStatusToString = (status?: string): 'todo' | 'in_progress' | 'completed' => {
     const s = (status || '').toLowerCase();
+    if (s.includes('review')) return 'in_progress';
     if (s.includes('progress')) return 'in_progress';
     if (s.includes('done') || s.includes('complete')) return 'completed';
     return 'todo';
@@ -409,14 +410,25 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
 
   const handleToggleTaskStatus = async (task: TaskSummary) => {
     // Check if task is already completed
-    const effectiveStatus = statusOverrides[task.id] || task.status;
-    const isCompleted = effectiveStatus.toLowerCase() === 'completed' || 
-                       effectiveStatus.toLowerCase() === 'done';
-    
+    const effectiveStatus = (statusOverrides[task.id] || task.status || '').toLowerCase();
+    const isCompleted = effectiveStatus === 'completed' || effectiveStatus === 'done';
+
     if (isCompleted) {
       showSuccess('Task này đã được đánh dấu hoàn thành');
       return;
     }
+
+    const recomputeIfExhausted = async (updatedList: TaskSummary[], overrides: Record<string, string>) => {
+      try {
+        const { activeTimer } = await import('../services/activeTimer');
+        const st = activeTimer.get() || await activeTimer.load();
+        const activeId = st?.taskId ? String(st.taskId) : null;
+        const exhausted = updatedList.every(t => (overrides[t.id] || t.status) === 'completed' || t.id === activeId);
+        if (exhausted && currentUser) {
+          await loadDashboardData(currentUser.id);
+        }
+      } catch {}
+    };
 
     // Show confirmation dialog
     Alert.alert(
@@ -427,18 +439,22 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
         {
           text: 'Đồng ý',
           onPress: async () => {
-            // Optimistically update UI
+            // Optimistically update status + move to end of list
             setStatusOverrides(prev => ({ ...prev, [task.id]: 'completed' }));
-            
-            try {
-              await taskService.updateTask(parseInt(task.id), {
-                status: 'Done',
-              });
-              
-              // Refresh dashboard data
-              if (currentUser) {
-                await loadDashboardData(currentUser.id);
+            setTodayTasks(prev => {
+              const list = prev.map(t => t.id === task.id ? { ...t, status: 'completed' } : t);
+              const idx = list.findIndex(t => t.id === task.id);
+              if (idx >= 0) {
+                const [item] = list.splice(idx, 1);
+                list.push(item);
               }
+              // Trigger recompute if needed (all tasks completed/tracked)
+              setTimeout(() => recomputeIfExhausted(list, { ...statusOverrides, [task.id]: 'completed' }), 0);
+              return list;
+            });
+
+            try {
+              await taskService.updateTask(parseInt(task.id), { status: 'Done' });
             } catch (error: any) {
               // Revert optimistic update on error
               setStatusOverrides(prev => {
@@ -446,6 +462,7 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
                 delete newOverrides[task.id];
                 return newOverrides;
               });
+              setTodayTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: task.status } : t));
               console.error('Error toggling task status:', error);
               showError(error?.message || 'Cập nhật trạng thái thất bại');
             }
@@ -535,14 +552,7 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
             enableSearch={false}
           />
         </View>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[Colors.primary]} />
-          }
-          contentContainerStyle={styles.scrollContent}
-        >
-        {/* Stats Cards */}
+        {/* Fixed header blocks (non-scrollable) */}
         <View style={styles.statsContainer}>
           <View style={styles.statsRow}>
             <View style={[styles.statCard, { backgroundColor: Colors.semantic.error + '15' }]}>
@@ -592,41 +602,48 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
           </View>
         </View>
 
-        {/* Recommended Tasks Section */}
+        {/* Recommended Tasks Section - header fixed, list scrollable */}
         <View style={styles.tasksSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recommended Tasks</Text>
           </View>
 
-          {todayTasks.length === 0 ? (
-            <View style={styles.emptyState}>
-              <MaterialIcons name="check-circle-outline" size={48} color={Colors.neutral.medium} />
-              <Text style={styles.emptyStateText}>No pending tasks</Text>
-              <Text style={styles.emptyStateSubtext}>You're all caught up! 🎉</Text>
-            </View>
-          ) : (
-            <View style={styles.tasksList}>
-              {todayTasks.map((task) => {
-                // Apply status override if exists
-                const effectiveTask: TaskSummary = statusOverrides[task.id]
-                  ? { ...task, status: statusOverrides[task.id] as 'todo' | 'in_progress' | 'completed' }
-                  : task;
-                
-                return (
-                <TaskCardModern
-                  key={task.id}
-                    task={effectiveTask as any}
-                  showProjectName={true}
-                    onEdit={() => handleTaskPress(effectiveTask)}
-                    onNavigateToTracking={() => handleTrackTask(effectiveTask)}
-                    onToggleStatus={() => handleToggleTaskStatus(task)}
-                />
-                );
-              })}
-            </View>
-          )}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[Colors.primary]} />
+            }
+            contentContainerStyle={styles.tasksScrollContent}
+          >
+            {todayTasks.length === 0 ? (
+              <View style={styles.emptyState}>
+                <MaterialIcons name="check-circle-outline" size={48} color={Colors.neutral.medium} />
+                <Text style={styles.emptyStateText}>No pending tasks</Text>
+                <Text style={styles.emptyStateSubtext}>You're all caught up! 🎉</Text>
+              </View>
+            ) : (
+              <View style={styles.tasksList}>
+                {todayTasks.map((task) => {
+                  // Apply status override if exists
+                  const effectiveTask: TaskSummary = statusOverrides[task.id]
+                    ? { ...task, status: statusOverrides[task.id] as 'todo' | 'in_progress' | 'completed' }
+                    : task;
+                  
+                  return (
+                  <TaskCardModern
+                    key={task.id}
+                      task={effectiveTask as any}
+                    showProjectName={true}
+                      onEdit={() => handleTaskPress(effectiveTask)}
+                      onNavigateToTracking={() => handleTrackTask(effectiveTask)}
+                      onToggleStatus={() => handleToggleTaskStatus(task)}
+                  />
+                  );
+                })}
+              </View>
+            )}
+          </ScrollView>
         </View>
-        </ScrollView>
       </View>
 
       {/* Task Detail Modal */}
@@ -787,9 +804,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutral.light,
   },
   tasksSection: {
-    paddingHorizontal: 20,
+    flex: 1,
+    paddingHorizontal: 8,
     paddingTop: 24,
-    paddingBottom: 100,
+    paddingBottom: 0,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -811,7 +829,7 @@ const styles = StyleSheet.create({
     maxHeight: 400, // Limit height to prevent screen stretching
   },
   tasksList: {
-    gap: 12,
+    gap: 8,
   },
   emptyState: {
     alignItems: 'center',

@@ -21,9 +21,9 @@ import {
   CreateTaskScreen,
   CreateEventScreen,
   ProjectSettingsScreen,
-  TaskTrackingScreen,
   ProfileScreen
 } from '../screens';
+import TaskTrackingScreen from '../screens/TaskTrackingScreen';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
 import MainNavigator from './MainNavigator';
 import HomeTabNavigator from './HomeTabNavigator';
@@ -320,11 +320,12 @@ const AppNavigator: React.FC = () => {
             />
             <Stack.Screen
               name="TaskTracking"
-              component={TaskTrackingScreen}
               options={{
                 headerShown: false,
               }}
-            />
+            >
+              {(props) => <TaskTrackingScreen {...props} />}
+            </Stack.Screen>
             <Stack.Screen
               name="Profile"
               options={{
@@ -422,11 +423,12 @@ const AppNavigator: React.FC = () => {
             />
             <Stack.Screen
               name="TaskTracking"
-              component={TaskTrackingScreen}
               options={{
                 headerShown: false,
               }}
-            />
+            >
+              {(props) => <TaskTrackingScreen {...props} />}
+            </Stack.Screen>
             <Stack.Screen
               name="Profile"
               options={{

@@ -226,8 +226,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.neutral.white,
     borderRadius: 8,
-    padding: 12,
-    marginVertical: 6,
+    padding: 8,
+    marginVertical: 4,
     shadowColor: Colors.neutral.dark,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   radioButtonContainer: {
-    paddingRight: 12,
+    paddingRight: 10,
   },
   radioButton: {
     width: 24,
