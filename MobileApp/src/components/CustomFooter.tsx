@@ -88,7 +88,7 @@ const CustomFooter: React.FC<CustomFooterProps> = ({ activeTab, onTabPress }) =>
 
   return (
     <View style={styles.container}>
-      {tabs.map(renderTab)}
+        {tabs.map(renderTab)}
     </View>
   );
 };

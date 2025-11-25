@@ -13,8 +13,9 @@ interface TaskCardModernProps {
   onNavigateToTracking?: () => void;
   onDelete?: () => void;
   onToggleStatus?: () => void;
-  showProjectName?: boolean; // when true, show a small project chip under description (default true)
-  canDelete?: boolean; // controls whether swipe-to-delete action is shown
+  showProjectName?: boolean;
+  canDelete?: boolean;
+  isActiveTracking?: boolean; // when true, show highlighted style
 }
 
 const getWorkspaceTheme = (type?: 'personal' | 'group') => {
@@ -40,11 +41,11 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
   onToggleStatus,
   showProjectName = true,
   canDelete = false,
+  isActiveTracking = false,
 }) => {
   // Helper function to normalize priority to string
   const normalizePriority = (priority: any): string => {
     if (typeof priority === 'number') {
-      // Convert numeric priority (1-5) to string
       switch (priority) {
         case 5: return 'urgent';
         case 4: return 'high';
@@ -54,7 +55,6 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
         default: return 'low';
       }
     }
-    // If it's already a string or undefined, return it (or default to 'medium')
     return priority?.toLowerCase() || 'medium';
   };
 
@@ -70,42 +70,29 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
   };
 
   const formatDate = (date: Date) => {
-    // Ensure date is a valid Date object before formatting
     if (!(date instanceof Date) || isNaN(date.getTime())) {
-      // Try to parse it if it's a string
       const parsedDate = new Date(date);
-      if (isNaN(parsedDate.getTime())) return 'No date'; // Return fallback if invalid
+      if (isNaN(parsedDate.getTime())) return 'No date';
       date = parsedDate;
     }
 
     const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+    const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
     return `${day}/${month}/${year}`;
   };
 
   const getDateColor = (date: Date) => {
     if (task.status === 'completed') return Colors.neutral.dark;
-    
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const taskDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const diffTime = taskDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays < 0) {
-      // Overdue - red
-      return Colors.semantic.error;
-    } else if (diffDays <= 3) {
-      // Due soon (within 3 days) - orange
-      return Colors.warning;
-    } else {
-      // Normal - black
-      return Colors.neutral.dark;
-    }
+    if (diffDays < 0) return Colors.semantic.error;
+    if (diffDays <= 3) return Colors.warning;
+    return Colors.neutral.dark;
   };
-
-
 
   const workspaceTheme = getWorkspaceTheme(task.workspaceType);
   const projectIconName = task.workspaceType === 'group' ? 'groups' : 'person';
@@ -124,9 +111,18 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
       <View 
         style={[
           styles.container,
-          { borderLeftColor: getPriorityColor(task.priority) }
+          { borderLeftColor: getPriorityColor(task.priority) },
+          isActiveTracking && styles.activeTrackingContainer,
         ]}
       >
+        {/* Active tracking badge */}
+        {isActiveTracking && (
+          <View style={styles.trackingBadge}>
+            <MaterialIcons name="whatshot" size={12} color={Colors.primary} />
+            <Text style={styles.trackingBadgeText}>Tracking</Text>
+          </View>
+        )}
+
         <TouchableOpacity
             onPress={(e) => {
                 e.stopPropagation();
@@ -240,6 +236,31 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderWidth: 1,
     borderColor: Colors.neutral.light + '30',
+    position: 'relative',
+  },
+  activeTrackingContainer: {
+    backgroundColor: Colors.primary + '12',
+    borderColor: Colors.primary + '60',
+  },
+  trackingBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '15',
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
+    zIndex: 1,
+  },
+  trackingBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.primary,
   },
   radioButtonContainer: {
     paddingRight: 12,

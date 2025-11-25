@@ -12,12 +12,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
+import { useFocusEffect } from '@react-navigation/native';
+import { Modal, TextInput } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import TaskCardModern from '../components/TaskCardModern';
 import TaskDetailModal from '../components/TaskDetailModal';
 import DashboardHeader from '../components/DashboardHeader';
 import { taskService, workspaceService } from '../services';
 import { notificationService } from '../services/notificationService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToastContext } from '../context/ToastContext';
 import NotificationModal from '../components/NotificationModal';
 import { WorkspaceType } from '../types';
@@ -73,10 +75,44 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
 
+  // Pomodoro settings modal state
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [focusMin, setFocusMin] = useState<number>(25);
+  const [shortBreakMin, setShortBreakMin] = useState<number>(5);
+  const [longBreakMin, setLongBreakMin] = useState<number>(15);
+
+
   useEffect(() => {
     loadUserData();
     loadNotificationCount();
+    loadPomodoroSettings();
   }, []);
+
+  const loadPomodoroSettings = async () => {
+    try {
+      const raw = await AsyncStorage.getItem('pomodoroSettings');
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (Number.isFinite(s.focus)) setFocusMin(parseInt(String(s.focus), 10));
+        if (Number.isFinite(s.shortBreak)) setShortBreakMin(parseInt(String(s.shortBreak), 10));
+        if (Number.isFinite(s.longBreak)) setLongBreakMin(parseInt(String(s.longBreak), 10));
+      } else {
+        // Default to easy-test values; change to 25/5/15 later
+        setFocusMin(2);
+        setShortBreakMin(1);
+        setLongBreakMin(2);
+      }
+    } catch {}
+  };
+
+  // Refresh dashboard whenever screen gains focus (ensure latest task status)
+  useFocusEffect(
+    React.useCallback(() => {
+      // Always refresh when screen focused to ensure latest task status
+      handleRefresh();
+      return undefined;
+    }, [])
+  );
 
   const loadUserData = async () => {
     try {
@@ -275,14 +311,101 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
     setRefreshing(false);
   };
 
-  const handleTaskPress = (task: TaskSummary) => {
-    setSelectedTask(task);
-    setIsTaskDetailVisible(true);
+  const handleTaskPress = async (task: TaskSummary) => {
+    try {
+      const latest = await taskService.getTaskById(parseInt(task.id));
+      const updated: TaskSummary = {
+        ...task,
+        title: latest.taskName || task.title,
+        description: latest.description || task.description,
+        status: convertStatusToString(latest.status),
+        priority: convertPriorityToString(latest.priority || 3),
+        startDate: latest.startTime ? new Date(latest.startTime as any) : task.startDate,
+        dueDate: latest.endTime ? new Date(latest.endTime as any) : task.dueDate,
+      };
+      // Update list item locally so card shows fresh status
+      setTodayTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
+      setSelectedTask(updated);
+    } catch (e) {
+      // fallback open with current data
+      setSelectedTask(task);
+    } finally {
+      setIsTaskDetailVisible(true);
+    }
   };
 
-  const handleTrackTask = (task: TaskSummary) => {
-    navigation.navigate('TaskTracking', { task });
+  const handleTrackTask = async (task: TaskSummary) => {
+    try {
+      const { activeTimer } = await import('../services/activeTimer');
+      const active = activeTimer.get() || await activeTimer.load();
+      if (active && active.isRunning && active.taskId !== parseInt(task.id)) {
+        Alert.alert(
+          'Switch tracking task?',
+          `You are tracking another task. Do you want to pause it and start "${task.title}"?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Pause & Start',
+              onPress: async () => {
+                await activeTimer.update({ isRunning: false, remainingAtPause: Math.max(0, Math.round(((active.expectedEndTs || Date.now()) - Date.now()) / 1000)), expectedEndTs: null });
+                navigation.navigate('TaskTracking', {
+                  task,
+                  timerConfig: { focus: focusMin, shortBreak: shortBreakMin, longBreak: longBreakMin },
+                  onStatusChanged: (newStatusLabel: string) => {
+                    const mapped = ((): 'todo' | 'in_progress' | 'completed' => {
+                      const s = newStatusLabel.toLowerCase();
+                      if (s.includes('progress')) return 'in_progress';
+                      if (s.includes('done') || s.includes('complete')) return 'completed';
+                      return 'todo';
+                    })();
+                    setTodayTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: mapped } : t));
+                    setStatusOverrides(prev => ({ ...prev, [task.id]: mapped }));
+                  },
+                });
+              },
+            },
+          ]
+        );
+        return;
+      }
+    } catch {}
+
+    navigation.navigate('TaskTracking', {
+      task,
+      timerConfig: { focus: focusMin, shortBreak: shortBreakMin, longBreak: longBreakMin },
+      onStatusChanged: (newStatusLabel: string) => {
+        const mapped = ((): 'todo' | 'in_progress' | 'completed' => {
+          const s = newStatusLabel.toLowerCase();
+          if (s.includes('progress')) return 'in_progress';
+          if (s.includes('done') || s.includes('complete')) return 'completed';
+          return 'todo';
+        })();
+        setTodayTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: mapped } : t));
+        setStatusOverrides(prev => ({ ...prev, [task.id]: mapped }));
+      },
+    });
   };
+
+  const savePomodoroSettings = async () => {
+    try {
+      const toInt = (n: any, def: number) => {
+        const v = parseInt(String(n), 10);
+        return Number.isFinite(v) && v > 0 ? v : def;
+      };
+      const payload = {
+        focus: toInt(focusMin, 25),
+        shortBreak: toInt(shortBreakMin, 5),
+        longBreak: toInt(longBreakMin, 15),
+      };
+      await AsyncStorage.setItem('pomodoroSettings', JSON.stringify(payload));
+      setShowSettingsModal(false);
+      showSuccess('Saved Pomodoro settings');
+    } catch (e: any) {
+      showError(e?.message || 'Failed to save settings');
+    }
+  };
+
+
 
   const handleToggleTaskStatus = async (task: TaskSummary) => {
     // Check if task is already completed
@@ -333,11 +456,16 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
   };
 
   const handleNavigateToProject = (projectId: string, workspaceId: string) => {
+    // Pass minimal project object as ProjectDetailScreen expects route.params.project
+    const pid = parseInt(projectId);
+    const wid = parseInt(workspaceId);
+    const projectObj = {
+      id: pid,
+      projectName: selectedTask?.projectName || 'Project',
+      workspace: { id: wid, workspaceName: selectedTask?.workspaceName || 'Workspace', workspaceType: selectedTask?.workspaceType?.toUpperCase?.() || 'PERSONAL' },
+    } as any;
     setIsTaskDetailVisible(false);
-    navigation.navigate('ProjectDetail', {
-      projectId: parseInt(projectId),
-      workspaceId: parseInt(workspaceId),
-    });
+    navigation.navigate('ProjectDetail', { project: projectObj });
   };
 
   const handleAcceptInvitation = async (notificationId: number) => {
@@ -387,6 +515,10 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
             username={currentUser?.username || 'User'}
             subtitle="Here's a quick look at your tasks today"
             actions={[
+              {
+                icon: 'tune',
+                onPress: () => setShowSettingsModal(true),
+              },
               {
                 icon: 'notifications',
                 onPress: () => setShowNotificationModal(true),
@@ -481,14 +613,14 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
                   : task;
                 
                 return (
-                  <TaskCardModern
-                    key={task.id}
+                <TaskCardModern
+                  key={task.id}
                     task={effectiveTask as any}
-                    showProjectName={true}
+                  showProjectName={true}
                     onEdit={() => handleTaskPress(effectiveTask)}
                     onNavigateToTracking={() => handleTrackTask(effectiveTask)}
                     onToggleStatus={() => handleToggleTaskStatus(task)}
-                  />
+                />
                 );
               })}
             </View>

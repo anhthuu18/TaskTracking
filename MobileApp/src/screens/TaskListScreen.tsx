@@ -23,6 +23,7 @@ import { useToast } from '../hooks/useToast';
 import { TaskSummary, useWorkspaceData } from '../hooks/useWorkspaceData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { projectService, taskService } from '../services';
+import { activeTimer } from '../services/activeTimer';
 
 interface TaskListScreenProps {
   navigation?: any;
@@ -54,6 +55,8 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
   const workspaceId = route?.params?.workspaceId || '1';
 
   const { data: workspaceData, loading, error, refreshing, refresh } = useWorkspaceData(workspaceId);
+  const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
+  const [activeIsRunning, setActiveIsRunning] = useState<boolean>(false);
 
   const filterSetFromViewAllRef = useRef(false);
   const isFirstMountRef = useRef(true);
@@ -294,13 +297,31 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
     );
   };
 
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    (async () => {
+      try {
+        const g = await activeTimer.load();
+        setActiveTaskId(g?.taskId ?? null);
+        setActiveIsRunning(Boolean(g?.isRunning));
+      } catch {}
+      unsubscribe = activeTimer.subscribe((s) => {
+        setActiveTaskId(s?.taskId ?? null);
+        setActiveIsRunning(Boolean(s?.isRunning));
+      });
+    })();
+    return () => { try { unsubscribe && unsubscribe(); } catch {} };
+  }, []);
+
   const renderTaskItem = ({ item }: { item: TaskSummary }) => {
     const effective = statusOverrides[item.id] ? { ...item, status: statusOverrides[item.id] } : item;
+    const isActive = activeIsRunning && activeTaskId !== null && String(activeTaskId) === String(effective.id);
     return (
     <TaskCardModern
         task={effective}
         showProjectName={false}
         canDelete={canDeleteTask(effective)}
+        isActiveTracking={isActive}
         onDelete={() => confirmAndDeleteTask(effective)}
         onToggleStatus={() => confirmComplete(effective)}
         onEdit={() => handleTaskPress(effective)}

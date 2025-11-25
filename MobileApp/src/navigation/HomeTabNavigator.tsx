@@ -4,10 +4,12 @@ import BottomTabNavigator from './BottomTabNavigator';
 import PersonalDashboardScreen from '../screens/PersonalDashboardScreen';
 import WorkspaceSelectionScreen from '../screens/WorkspaceSelectionScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import PersonalSettingsScreen from '../screens/PersonalSettingsScreen';
 
 type HomeTabParamList = {
   PersonalDashboard: undefined;
   WorkspaceSelection: undefined;
+  PersonalSettings: undefined;
   Profile: undefined;
 };
 
@@ -37,6 +39,13 @@ const HomeTabNavigator: React.FC<HomeTabNavigatorProps> = ({ onLogout }) => {
         component={WorkspaceSelectionScreen}
         options={{
           tabBarLabel: 'Workspace',
+        }}
+      />
+      <Tab.Screen
+        name="PersonalSettings"
+        component={PersonalSettingsScreen}
+        options={{
+          tabBarLabel: 'Settings',
         }}
       />
       <Tab.Screen
