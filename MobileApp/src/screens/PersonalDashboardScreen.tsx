@@ -19,6 +19,7 @@ import TaskCardModern from '../components/TaskCardModern';
 import TaskDetailModal from '../components/TaskDetailModal';
 import DashboardHeader from '../components/DashboardHeader';
 import { taskService, workspaceService } from '../services';
+import { timeTrackingService, SessionType as TrackSessionType, TimeTrackingSession } from '../services/timeTrackingService';
 import { notificationService } from '../services/notificationService';
 import { useToastContext } from '../context/ToastContext';
 import NotificationModal from '../components/NotificationModal';
@@ -199,8 +200,24 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
         t.dueDate <= today
       ).length;
 
-      // Mock focus time for now (TODO: integrate with time tracking)
-      const focusTime = 270; // 4h 30m
+      // Compute today's focus time (real data) across all assigned tasks
+      let focusSecondsToday = 0;
+      try {
+        const taskIds = Array.from(new Set(allTasks.map(t => t.id))).filter(Boolean);
+        const results = await Promise.allSettled(taskIds.map(id => timeTrackingService.getSessionsByTaskToday(Number(id))));
+        for (const r of results) {
+          if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+            for (const ss of r.value as TimeTrackingSession[]) {
+              const upper = String(ss.sessionType || '').toUpperCase();
+              const durSec = ss.startTime && ss.endTime
+                ? Math.max(0, Math.round((new Date(ss.endTime).getTime() - new Date(ss.startTime).getTime()) / 1000))
+                : Math.round(((ss.duration || 0) as number) * 60);
+              if (upper.includes('FOCUS')) focusSecondsToday += durSec;
+            }
+          }
+        }
+      } catch {}
+      const focusTime = Math.floor(focusSecondsToday / 60);
 
       setStats({ ongoing, completed, overdue, focusTime, urgent, dueToday });
 
@@ -533,13 +550,15 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
             subtitle="Here's a quick look at your tasks today"
             actions={[
               {
-                icon: 'tune',
-                onPress: () => setShowSettingsModal(true),
-              },
-              {
                 icon: 'notifications',
                 onPress: () => setShowNotificationModal(true),
                 badgeCount: notificationCount,
+              },
+              {
+                icon: 'settings',
+                onPress: () => {
+                  try { navigation?.navigate?.('PersonalSettings'); } catch { setShowSettingsModal(true); }
+                },
               },
             ]}
             searchPlaceholder="Search tasks..."
