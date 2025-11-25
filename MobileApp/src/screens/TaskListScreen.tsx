@@ -319,7 +319,7 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
     return (
     <TaskCardModern
         task={effective}
-        showProjectName={false}
+        showProjectName={true}
         canDelete={canDeleteTask(effective)}
         isActiveTracking={isActive}
         onDelete={() => confirmAndDeleteTask(effective)}

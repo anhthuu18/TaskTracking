@@ -675,7 +675,7 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
           return (
           <TaskCardModern
               task={effective}
-            showProjectName={false}
+            showProjectName={true}
               canDelete={canDeleteTask(effective)}
               onDelete={() => confirmAndDeleteTask(effective)}
               onEdit={() => handleTaskPress(effective)}
