@@ -9,7 +9,11 @@ import CreateTaskScreen from '../screens/CreateTaskScreen';
 type HomeTabParamList = {
   PersonalDashboard: undefined;
   WorkspaceSelection: undefined;
-  CreateTask: undefined;
+  CreateTask: {
+    projectId?: string | number;
+    workspaceType?: string;
+    workspaceId?: string | number;
+  };
   Profile: undefined;
 };
 
@@ -43,11 +47,12 @@ const HomeTabNavigator: React.FC<HomeTabNavigatorProps> = ({ onLogout }) => {
       />
       <Tab.Screen
         name="CreateTask"
-        component={CreateTaskScreen}
         options={{
           tabBarLabel: 'Create',
         }}
-      />
+      >
+        {(props) => <CreateTaskScreen {...props} />}
+      </Tab.Screen>
       <Tab.Screen
         name="Profile"
         options={{

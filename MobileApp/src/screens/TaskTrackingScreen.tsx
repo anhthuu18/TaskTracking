@@ -369,11 +369,6 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
     await localNotification.showNow('Test Notification', 'This is a test notification');
   };
 
-  const notifyIn5s = async () => {
-    await localNotification.requestPermission();
-    await localNotification.scheduleAt(new Date(Date.now() + 5000), 'Pomodoro Test', 'Scheduled after 5 seconds');
-  };
-
   // ---- Stats fetching ----
   const formatHM = (totalSeconds: number) => {
     const h = Math.floor(totalSeconds / 3600);

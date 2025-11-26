@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
   Alert,
@@ -13,13 +12,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import { useFocusEffect } from '@react-navigation/native';
-import { Modal, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TaskCardModern from '../components/TaskCardModern';
 import TaskDetailModal from '../components/TaskDetailModal';
 import DashboardHeader from '../components/DashboardHeader';
 import { taskService, workspaceService } from '../services';
-import { timeTrackingService, SessionType as TrackSessionType, TimeTrackingSession } from '../services/timeTrackingService';
+import { timeTrackingService, TimeTrackingSession } from '../services/timeTrackingService';
 import { notificationService } from '../services/notificationService';
 import { useToastContext } from '../context/ToastContext';
 import NotificationModal from '../components/NotificationModal';
@@ -76,8 +74,7 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
 
-  // Pomodoro settings modal state
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  // Pomodoro settings state
   const [focusMin, setFocusMin] = useState<number>(25);
   const [shortBreakMin, setShortBreakMin] = useState<number>(5);
   const [longBreakMin, setLongBreakMin] = useState<number>(15);
@@ -272,7 +269,7 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
         ? [...topIncompleteTasks, ...completedTasks.slice(0, remainingSlots)]
         : topIncompleteTasks;
 
-      setTodayTasks(tasksToShow);
+      setTodayTasks(tasksToShow as TaskSummary[]);
     } catch (error: any) {
       console.error('Error loading dashboard data:', error);
       showError(error.message || 'Failed to load dashboard data');
@@ -404,27 +401,6 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
     });
   };
 
-  const savePomodoroSettings = async () => {
-    try {
-      const toInt = (n: any, def: number) => {
-        const v = parseInt(String(n), 10);
-        return Number.isFinite(v) && v > 0 ? v : def;
-      };
-      const payload = {
-        focus: toInt(focusMin, 25),
-        shortBreak: toInt(shortBreakMin, 5),
-        longBreak: toInt(longBreakMin, 15),
-      };
-      await AsyncStorage.setItem('pomodoroSettings', JSON.stringify(payload));
-      setShowSettingsModal(false);
-      showSuccess('Saved Pomodoro settings');
-    } catch (e: any) {
-      showError(e?.message || 'Failed to save settings');
-    }
-  };
-
-
-
   const handleToggleTaskStatus = async (task: TaskSummary) => {
     // Check if task is already completed
     const effectiveStatus = (statusOverrides[task.id] || task.status || '').toLowerCase();
@@ -459,7 +435,7 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
             // Optimistically update status + move to end of list
             setStatusOverrides(prev => ({ ...prev, [task.id]: 'completed' }));
             setTodayTasks(prev => {
-              const list = prev.map(t => t.id === task.id ? { ...t, status: 'completed' } : t);
+              const list = prev.map(t => t.id === task.id ? { ...t, status: 'completed' as const } : t);
               const idx = list.findIndex(t => t.id === task.id);
               if (idx >= 0) {
                 const [item] = list.splice(idx, 1);
@@ -467,7 +443,7 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
               }
               // Trigger recompute if needed (all tasks completed/tracked)
               setTimeout(() => recomputeIfExhausted(list, { ...statusOverrides, [task.id]: 'completed' }), 0);
-              return list;
+              return list as TaskSummary[];
             });
 
             try {
@@ -846,6 +822,10 @@ const styles = StyleSheet.create({
   },
   tasksScrollView: {
     maxHeight: 400, // Limit height to prevent screen stretching
+  },
+  tasksScrollContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 20,
   },
   tasksList: {
     gap: 8,
