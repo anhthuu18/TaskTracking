@@ -19,6 +19,7 @@ import { useToastContext } from '../context/ToastContext';
 import { taskService } from '../services/taskService';
 import { projectService } from '../services/projectService';
 import { workspaceService } from '../services/workspaceService';
+import { timeTrackingService } from '../services/timeTrackingService';
 import { CreateTaskDto, TaskPriority, TaskUser } from '../types/Task';
 import { WorkspaceType } from '../types/Workspace';
 
@@ -273,7 +274,7 @@ const CreateTaskScreen: React.FC<CreateTaskScreenProps> = ({ navigation, route }
     resolveMeta();
   }, [incomingProjectId, incomingWorkspaceType, incomingWorkspaceId, workspaceId, projectId]);
 
-  // Fetch projects
+  // Fetch projects for a single workspace
   const fetchProjects = async (wsId: number) => {
     try {
       setIsFetchingProjects(true);

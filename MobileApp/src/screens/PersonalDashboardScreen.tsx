@@ -429,7 +429,7 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
     // Check if task is already completed
     const effectiveStatus = (statusOverrides[task.id] || task.status || '').toLowerCase();
     const isCompleted = effectiveStatus === 'completed' || effectiveStatus === 'done';
-
+    
     if (isCompleted) {
       showSuccess('Task này đã được đánh dấu hoàn thành');
       return;
@@ -557,7 +557,7 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
               {
                 icon: 'settings',
                 onPress: () => {
-                  try { navigation?.navigate?.('PersonalSettings'); } catch { setShowSettingsModal(true); }
+                  try { navigation?.navigate?.('PersonalSettings'); } catch { /* fallback */ }
                 },
               },
             ]}
@@ -634,34 +634,34 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
             }
             contentContainerStyle={styles.tasksScrollContent}
           >
-            {todayTasks.length === 0 ? (
-              <View style={styles.emptyState}>
-                <MaterialIcons name="check-circle-outline" size={48} color={Colors.neutral.medium} />
-                <Text style={styles.emptyStateText}>No pending tasks</Text>
-                <Text style={styles.emptyStateSubtext}>You're all caught up! 🎉</Text>
-              </View>
-            ) : (
-              <View style={styles.tasksList}>
-                {todayTasks.map((task) => {
-                  // Apply status override if exists
-                  const effectiveTask: TaskSummary = statusOverrides[task.id]
-                    ? { ...task, status: statusOverrides[task.id] as 'todo' | 'in_progress' | 'completed' }
-                    : task;
-                  
-                  return (
-                  <TaskCardModern
-                    key={task.id}
-                      task={effectiveTask as any}
-                    showProjectName={true}
-                      onEdit={() => handleTaskPress(effectiveTask)}
-                      onNavigateToTracking={() => handleTrackTask(effectiveTask)}
-                      onToggleStatus={() => handleToggleTaskStatus(task)}
-                  />
-                  );
-                })}
-              </View>
-            )}
-          </ScrollView>
+          {todayTasks.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialIcons name="check-circle-outline" size={48} color={Colors.neutral.medium} />
+              <Text style={styles.emptyStateText}>No pending tasks</Text>
+              <Text style={styles.emptyStateSubtext}>You're all caught up! 🎉</Text>
+            </View>
+          ) : (
+            <View style={styles.tasksList}>
+              {todayTasks.map((task) => {
+                // Apply status override if exists
+                const effectiveTask: TaskSummary = statusOverrides[task.id]
+                  ? { ...task, status: statusOverrides[task.id] as 'todo' | 'in_progress' | 'completed' }
+                  : task;
+                
+                return (
+                <TaskCardModern
+                  key={task.id}
+                    task={effectiveTask as any}
+                  showProjectName={true}
+                    onEdit={() => handleTaskPress(effectiveTask)}
+                    onNavigateToTracking={() => handleTrackTask(effectiveTask)}
+                    onToggleStatus={() => handleToggleTaskStatus(task)}
+                />
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
         </View>
       </View>
 

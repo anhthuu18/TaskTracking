@@ -16,6 +16,7 @@ import InviteMemberModal from '../components/InviteMemberModal';
 
 import { projectService } from '../services/projectService';
 import { useToastContext } from '../context/ToastContext';
+import SettingsScreenExt from './SettingsScreen';
 
 
 const Tab = createBottomTabNavigator();
@@ -806,7 +807,7 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
         />
         <Tab.Screen 
           name="Settings" 
-          component={SettingsScreen}
+          component={SettingsScreenExt}
           options={{
             title: 'Settings',
             tabBarIcon: ({ color, size }) => (

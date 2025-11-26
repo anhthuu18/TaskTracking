@@ -212,40 +212,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
 
   const settingsItems = [
     {
-      id: 'notifications',
-      title: 'Notifications',
-      icon: 'notifications',
-      iconColor: '#FCD34D',
-      rightComponent: (
-        <View style={styles.switchContainer}>
-          <Text style={[styles.switchLabel, { color: colors.textSecondary }]}>In App</Text>
-          <Switch
-            value={notificationInApp}
-            onValueChange={(value) => saveNotificationSettings('inApp', value)}
-            trackColor={{ false: Colors.neutral.light, true: Colors.primary + '80' }}
-            thumbColor={notificationInApp ? Colors.primary : Colors.neutral.medium}
-          />
-        </View>
-      ),
-    },
-    {
-      id: 'notifications-push',
-      title: 'Push Notifications',
-      icon: 'notifications-active',
-      iconColor: '#FCD34D',
-      rightComponent: (
-        <View style={styles.switchContainer}>
-          <Text style={[styles.switchLabel, { color: colors.textSecondary }]}>Push</Text>
-          <Switch
-            value={notificationPush}
-            onValueChange={(value) => saveNotificationSettings('push', value)}
-            trackColor={{ false: Colors.neutral.light, true: Colors.primary + '80' }}
-            thumbColor={notificationPush ? Colors.primary : Colors.neutral.medium}
-          />
-        </View>
-      ),
-    },
-    {
       id: 'rename-workspace',
       title: 'Rename Workspace',
       icon: 'edit',

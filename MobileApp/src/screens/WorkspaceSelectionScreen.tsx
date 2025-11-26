@@ -1277,9 +1277,12 @@ const styles = StyleSheet.create({
   },
   // Removed viewMore and viewLess styles - no longer needed
   footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 16,
     paddingHorizontal: ScreenLayout.contentHorizontalPadding,
-    paddingBottom: 100, // Space for bottom tab navigator
-    paddingTop: 10,
+    paddingTop: 0,
   },
   createButton: {
     borderColor: Colors.neutral.light,
