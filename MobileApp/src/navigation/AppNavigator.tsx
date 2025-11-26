@@ -25,6 +25,7 @@ import {
 } from '../screens';
 import TaskTrackingScreen from '../screens/TaskTrackingScreen';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
+import PersonalSettingsScreen from '../screens/PersonalSettingsScreen';
 import MainNavigator from './MainNavigator';
 import HomeTabNavigator from './HomeTabNavigator';
 
@@ -49,6 +50,7 @@ export type RootStackParamList = {
   ProjectSettings: { project: any };
   AcceptInvitation: { token: string };
   TaskTracking: { task: any };
+  PersonalSettings: undefined;
   Profile: undefined;
 };
 
@@ -327,6 +329,13 @@ const AppNavigator: React.FC = () => {
               {(props) => <TaskTrackingScreen {...props} />}
             </Stack.Screen>
             <Stack.Screen
+              name="PersonalSettings"
+              component={PersonalSettingsScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="Profile"
               options={{
                 headerShown: false,
@@ -429,6 +438,13 @@ const AppNavigator: React.FC = () => {
             >
               {(props) => <TaskTrackingScreen {...props} />}
             </Stack.Screen>
+            <Stack.Screen
+              name="PersonalSettings"
+              component={PersonalSettingsScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
             <Stack.Screen
               name="Profile"
               options={{

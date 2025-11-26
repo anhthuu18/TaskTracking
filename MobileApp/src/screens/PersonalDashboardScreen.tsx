@@ -108,6 +108,8 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
     React.useCallback(() => {
       // Always refresh when screen focused to ensure latest task status
       handleRefresh();
+      // Also reload latest Pomodoro settings immediately after returning from Settings
+      loadPomodoroSettings();
       return undefined;
     }, [])
   );
@@ -349,7 +351,22 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
     }
   };
 
+  const getFreshPomodoro = async () => {
+    try {
+      const raw = await AsyncStorage.getItem('pomodoroSettings');
+      const s = raw ? JSON.parse(raw) : {};
+      return {
+        focus: Number.parseInt(String(s.focus ?? focusMin), 10) || focusMin,
+        shortBreak: Number.parseInt(String(s.shortBreak ?? shortBreakMin), 10) || shortBreakMin,
+        longBreak: Number.parseInt(String(s.longBreak ?? longBreakMin), 10) || longBreakMin,
+      };
+    } catch {
+      return { focus: focusMin, shortBreak: shortBreakMin, longBreak: longBreakMin };
+    }
+  };
+
   const handleTrackTask = async (task: TaskSummary) => {
+    const fresh = await getFreshPomodoro();
     try {
       const { activeTimer } = await import('../services/activeTimer');
       const active = activeTimer.get() || await activeTimer.load();
@@ -365,7 +382,7 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
                 await activeTimer.update({ isRunning: false, remainingAtPause: Math.max(0, Math.round(((active.expectedEndTs || Date.now()) - Date.now()) / 1000)), expectedEndTs: null });
                 navigation.navigate('TaskTracking', {
                   task,
-                  timerConfig: { focus: focusMin, shortBreak: shortBreakMin, longBreak: longBreakMin },
+                  timerConfig: fresh,
                   onStatusChanged: (newStatusLabel: string) => {
                     const mapped = ((): 'todo' | 'in_progress' | 'completed' => {
                       const s = newStatusLabel.toLowerCase();
@@ -383,11 +400,15 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
         );
         return;
       }
+      // If the active timer belongs to the same task, clear it so new settings apply cleanly
+      if (active && Number(active.taskId) === parseInt(task.id)) {
+        await activeTimer.clear();
+      }
     } catch {}
 
     navigation.navigate('TaskTracking', {
       task,
-      timerConfig: { focus: focusMin, shortBreak: shortBreakMin, longBreak: longBreakMin },
+      timerConfig: fresh,
       onStatusChanged: (newStatusLabel: string) => {
         const mapped = ((): 'todo' | 'in_progress' | 'completed' => {
           const s = newStatusLabel.toLowerCase();
@@ -533,7 +554,11 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
               {
                 icon: 'settings',
                 onPress: () => {
-                  try { navigation?.navigate?.('PersonalSettings'); } catch { /* fallback */ }
+                  try {
+                    const parent = navigation?.getParent?.();
+                    if (parent?.navigate) parent.navigate('PersonalSettings');
+                    else navigation?.navigate?.('PersonalSettings');
+                  } catch { /* fallback */ }
                 },
               },
             ]}
