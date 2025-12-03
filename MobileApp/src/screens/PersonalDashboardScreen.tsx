@@ -400,10 +400,12 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({ navig
         );
         return;
       }
-      // If the active timer belongs to the same task, clear it so new settings apply cleanly
-      if (active && Number(active.taskId) === parseInt(task.id)) {
-        await activeTimer.clear();
-      }
+      // If the active timer belongs to the same task, DO NOT clear it.
+      // Keep running session to avoid reset when user re-opens tracking from another screen.
+      // The TaskTracking screen will hydrate from activeTimer state.
+      // if (active && Number(active.taskId) === parseInt(task.id)) {
+      //   await activeTimer.clear();
+      // }
     } catch {}
 
     navigation.navigate('TaskTracking', {

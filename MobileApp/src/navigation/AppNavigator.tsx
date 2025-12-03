@@ -28,6 +28,7 @@ import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
 import PersonalSettingsScreen from '../screens/PersonalSettingsScreen';
 import MainNavigator from './MainNavigator';
 import HomeTabNavigator from './HomeTabNavigator';
+import { navigationRef } from '../services/NavigationService';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -56,6 +57,9 @@ export type RootStackParamList = {
 
 const Stack = createStackNavigator<RootStackParamList>();
 
+
+const DEMO_ALWAYS_START_ONBOARDING = true;
+
 const AppNavigator: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(true);
@@ -68,6 +72,14 @@ const AppNavigator: React.FC = () => {
   useEffect(() => {
     const loadAppState = async () => {
       try {
+        // Demo mode: always start from onboarding and clear persisted session
+        if (DEMO_ALWAYS_START_ONBOARDING) {
+          await AsyncStorage.multiRemove(['hasSeenOnboarding', 'authToken', 'user', 'lastUsedWorkspaceId']);
+          setShowOnboarding(true);
+          setIsAuthenticated(false);
+          setIsLoading(false);
+          return; // skip normal boot flow
+        }
         // Load onboarding state
         const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
         if (hasSeenOnboarding === 'true') {
@@ -172,7 +184,7 @@ const AppNavigator: React.FC = () => {
   const handleLogout = async () => {
     try {
       // Clear all stored data
-      await AsyncStorage.multiRemove(['authToken', 'user', 'lastUsedWorkspaceId', 'hasSeenOnboarding']);
+      await AsyncStorage.multiRemove(['authToken', 'user', 'lastUsedWorkspaceId', 'hasSeenOnboarding', 'activeTimer']);
       
       // Reset state
       setIsAuthenticated(false);
@@ -191,7 +203,7 @@ const AppNavigator: React.FC = () => {
   };
 
   return (
-    <NavigationContainer key={navigationKey}>
+    <NavigationContainer key={navigationKey} ref={navigationRef}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

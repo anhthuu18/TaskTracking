@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, ScrollView, StatusBar, Text, TouchableOpacity, View, AppState, AppStateStatus } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Svg, { Circle } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -8,6 +9,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../constants/Colors';
 import { localNotification } from '../services/localNotification';
 import { activeTimer, ActiveTimerState, ActiveTimerType } from '../services/activeTimer';
+import { notificationEventHandler } from '../services/notificationEventHandler';
+import { backgroundTimerService } from '../services/backgroundTimerService';
 import { timeTrackingService, SessionType as ApiSessionType, TimeTrackingSession, TrackingHistory, PomodoroStatistics } from '../services/timeTrackingService';
 import { taskService } from '../services';
 
@@ -26,10 +29,12 @@ interface Session {
 }
 
 const DEFAULTS = { focus: 25, shortBreak: 5, longBreak: 15 };
+const RECURRING_NOTIFICATION_INTERVAL = 7; // seconds
 
 const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, route }) => {
   const passedTask = route?.params?.task || null;
-  const timerConfig = route?.params?.timerConfig || null; // { focus, shortBreak, longBreak }
+  const timerConfig = route?.params?.timerConfig || null;
+  const showSessionCompleteDialog = route?.params?.showSessionCompleteDialog || false;
 
   // Load settings: route override > AsyncStorage > defaults
   const [focusMin, setFocusMin] = useState<number>(timerConfig?.focus ?? DEFAULTS.focus);
@@ -49,6 +54,7 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
   const [todayFocusSessionsCount, setTodayFocusSessionsCount] = useState(0);
   const [history, setHistory] = useState<TrackingHistory[] | null>(null);
   const [currentIdx, setCurrentIdx] = useState<number>(0);
+  const [isScreenFocused, setIsScreenFocused] = useState(true);
   const currentSession = sessions[currentIdx];
 
   const [taskStatus, setTaskStatus] = useState<string>(passedTask?.status || 'In Progress');
@@ -59,6 +65,9 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
 
   const progressAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const appStateRef = useRef<AppStateStatus>('active');
+  const hydrationDoneRef = useRef(false);
+  const sessionCompleteDialogShownRef = useRef(false);
 
   const statusOptions = ['To Do', 'In Progress', 'Review', 'Done'];
 
@@ -121,46 +130,156 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Helper: mark sessions completed up to index
+  const markCompletedUpTo = (idx: number, base: Session[]) => base.map((s, i) => ({ ...s, completed: i < idx ? true : s.completed }));
+
   // Hydrate from activeTimer so leaving/returning keeps progress
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
+        // Only hydrate once
+        if (hydrationDoneRef.current) return;
+
         let state = activeTimer.get();
         if (!state) state = await activeTimer.load();
+
         if (!mounted) return;
+
         if (state && passedTask && Number(state.taskId) === Number(passedTask.id)) {
           // Ensure sessions exist
-          if (sessions.length === 0) {
+          let baseSessions = sessions;
+          if (baseSessions.length === 0) {
             const f = focusMin, sb = shortBreakMin, lb = longBreakMin;
-            setSessions(buildDefaultSessions(f, sb, lb));
+            baseSessions = buildDefaultSessions(f, sb, lb);
           }
-          setCurrentIdx(state.currentSessionIndex ?? 0);
+
+          const idx = state.currentSessionIndex ?? 0;
+          setSessions(markCompletedUpTo(idx, baseSessions));
+          setCurrentIdx(idx);
           setIsRunning(!!state.isRunning);
+
           if (state.isRunning && state.expectedEndTs) {
             const rem = Math.max(0, Math.round((state.expectedEndTs - Date.now()) / 1000));
             setTimeRemaining(rem);
           } else if (state.remainingAtPause != null) {
             setTimeRemaining(Math.max(0, state.remainingAtPause));
           } else {
-            setTimeRemaining(state.durationSec ?? totalSeconds);
+            const dur = state.durationSec ?? ((baseSessions[idx]?.duration ?? focusMin) * 60);
+            setTimeRemaining(dur);
           }
+
+          hydrationDoneRef.current = true;
         }
-      } catch {}
+      } catch (error) {
+        console.error('[TaskTrackingScreen] Hydration error:', error);
+      }
     })();
     return () => { mounted = false; };
-    // Intentionally not including deps to run once after initial sessions set/hydration
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessions.length]);
+
+  // Sync helper when screen is focused
+  const syncFromActiveTimer = async () => {
+    try {
+      const st = activeTimer.get() || await activeTimer.load();
+      if (!st || !passedTask || Number(st.taskId) !== Number(passedTask.id)) return;
+
+      // Ensure sessions exist and completed flags are correct
+      let base = sessions;
+      if (base.length === 0) {
+        const f = focusMin, sb = shortBreakMin, lb = longBreakMin;
+        base = buildDefaultSessions(f, sb, lb);
+      }
+      const idx = st.currentSessionIndex ?? 0;
+      setSessions(markCompletedUpTo(idx, base));
+      setCurrentIdx(idx);
+
+      // Update running/remaining
+      let remaining = 0;
+      if (st.isRunning && st.expectedEndTs) {
+        remaining = Math.max(0, Math.round((st.expectedEndTs - Date.now()) / 1000));
+        setIsRunning(true);
+        setTimeRemaining(remaining);
+      } else if (st.remainingAtPause != null) {
+        remaining = Math.max(0, st.remainingAtPause);
+        setIsRunning(false);
+        setTimeRemaining(remaining);
+      } else {
+        const dur = st.durationSec ?? ((base[idx]?.duration ?? focusMin) * 60);
+        remaining = dur;
+        setIsRunning(false);
+        setTimeRemaining(dur);
+      }
+
+      // If a background handler already marked completion and we are at 0, show dialog now
+      if (!isScreenFocused) return; // only pop dialog when screen focused
+      if (st.completionHandled && remaining === 0 && !sessionCompleteDialogShownRef.current) {
+        sessionCompleteDialogShownRef.current = true;
+        handleShowSessionCompleteDialog();
+      }
+    } catch {}
+  };
+
+  // Handle screen focus/blur
+  useFocusEffect(
+    React.useCallback(() => {
+      setIsScreenFocused(true);
+      syncFromActiveTimer();
+
+      // If session complete dialog should be shown
+      if (showSessionCompleteDialog && !sessionCompleteDialogShownRef.current) {
+        sessionCompleteDialogShownRef.current = true;
+        setTimeout(() => {
+          handleShowSessionCompleteDialog();
+        }, 300);
+      }
+
+      return () => {
+        setIsScreenFocused(false);
+      };
+    }, [showSessionCompleteDialog])
+  );
+
+  // Handle app state changes
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      subscription.remove();
+    };
+  }, [isRunning, timeRemaining, currentIdx]);
+
+  const handleAppStateChange = async (state: AppStateStatus) => {
+    console.log('[TaskTrackingScreen] App state:', appStateRef.current, '->', state);
+    appStateRef.current = state;
+
+    if (state === 'active') {
+      // App came to foreground
+      if (isRunning && activeTimer.get()?.expectedEndTs) {
+        // Recalculate remaining time
+        const timerState = activeTimer.get() || await activeTimer.load();
+        if (timerState?.expectedEndTs) {
+          const rem = Math.max(0, Math.round((timerState.expectedEndTs - Date.now()) / 1000));
+          setTimeRemaining(rem);
+
+          // Check if session completed while in background
+          if (rem === 0) {
+            console.log('[TaskTrackingScreen] Session completed in background');
+            await handleSessionComplete();
+          }
+        }
+      }
+    }
+  };
 
   // Progress animation
   useEffect(() => {
     Animated.timing(progressAnim, { toValue: progress, duration: 300, useNativeDriver: false }).start();
   }, [progress, progressAnim]);
 
-  // Tick
+  // Tick - only when screen is focused and running
   useEffect(() => {
-    if (isRunning && timeRemaining > 0) {
+    if (isRunning && timeRemaining > 0 && isScreenFocused) {
       timerRef.current = setInterval(() => {
         setTimeRemaining((prev) => {
           if (prev <= 1) {
@@ -174,8 +293,11 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [isRunning, timeRemaining]);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isRunning, timeRemaining, isScreenFocused]);
 
   const completedFocusSessions = useMemo(
     () => sessions.filter(s => s.type === 'focus' && s.completed).length,
@@ -200,65 +322,55 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
     }
   };
 
-  const scheduleEndNotification = async (secsFromNow: number) => {
-    try {
-      const ok = await localNotification.requestPermission();
-      if (!ok) return null;
-      const when = new Date(Date.now() + secsFromNow * 1000);
-      const title = currentSession?.type === 'focus' ? 'Focus session complete' : 'Break finished';
-      const body = currentSession?.type === 'focus' ? 'Start a break?' : 'Start next focus?';
-      const id = await localNotification.scheduleAt(when, title, body);
-      return id;
-    } catch {
-      return null;
-    }
-  };
-
   const persistState = async (patch: Partial<ActiveTimerState>) => {
     const current: ActiveTimerState | null = activeTimer.get() || await activeTimer.load();
+
+    // Determine target session index/type/duration based on patch or current UI state
+    const targetIndex = (patch.currentSessionIndex ?? currentIdx);
+    const targetType = (patch.sessionType as ActiveTimerType) ?? (sessions[targetIndex]?.type as ActiveTimerType) ?? (currentSession?.type as ActiveTimerType) ?? 'focus';
+    const targetDurationSec = patch.durationSec ?? (((sessions[targetIndex]?.duration ?? (targetType === 'longBreak' ? longBreakMin : targetType === 'break' ? shortBreakMin : focusMin)) * 60) | 0);
+
     if (!current) {
       // Initialize state when first starting
       const init: ActiveTimerState = {
         taskId: Number(passedTask?.id ?? 0),
         taskTitle: title,
-        currentSessionIndex: currentIdx,
-        sessionType: (currentSession?.type ?? 'focus') as ActiveTimerType,
-        durationSec: totalSeconds,
+        currentSessionIndex: targetIndex,
+        sessionType: targetType,
+        durationSec: targetDurationSec,
         isRunning: !!patch.isRunning,
         startedAt: patch.startedAt,
         expectedEndTs: patch.expectedEndTs ?? null,
         remainingAtPause: patch.remainingAtPause ?? timeRemaining,
         backendSessionId: null,
         scheduledNotificationId: null,
+        completionHandled: false,
       };
-      await activeTimer.set({ ...init, ...patch } as ActiveTimerState);
+      await activeTimer.set({ ...init, ...patch, currentSessionIndex: targetIndex, sessionType: targetType, durationSec: targetDurationSec } as ActiveTimerState);
       return;
     }
+
     await activeTimer.update({
       ...patch,
       taskId: Number(passedTask?.id ?? current.taskId),
       taskTitle: title,
-      currentSessionIndex: currentIdx,
-      sessionType: (currentSession?.type ?? current.sessionType) as ActiveTimerType,
-      durationSec: totalSeconds,
+      currentSessionIndex: targetIndex,
+      sessionType: targetType,
+      durationSec: targetDurationSec,
     });
   };
 
   const handleStartPause = async () => {
     if (!currentSession) return;
+
     if (!isRunning) {
       // Start/resume
       const secs = timeRemaining > 0 ? timeRemaining : totalSeconds;
       const expectedEndTs = Date.now() + secs * 1000;
-      const schedId = await scheduleEndNotification(secs);
 
       try {
-        if (currentSession.type !== 'focus') {
-          // no-op backend for breaks
-        } else if (passedTask?.id) {
-          // try create or ensure a session exists
-          // This is best-effort, swallow errors to not block UI
-          // eslint-disable-next-line no-empty
+        if (currentSession.type === 'focus' && passedTask?.id) {
+          // Try create or ensure a session exists
           try {
             const s = activeTimer.get();
             if (!s?.backendSessionId) {
@@ -270,7 +382,9 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
               );
               await persistState({ backendSessionId: created.id });
             }
-          } catch {}
+          } catch (error) {
+            console.error('[TaskTrackingScreen] Backend session error:', error);
+          }
         }
       } catch {}
 
@@ -281,16 +395,20 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
         startedAt: Date.now(),
         expectedEndTs,
         remainingAtPause: null,
-        scheduledNotificationId: schedId || null,
+        scheduledNotificationId: null,
       });
     } else {
       // Pause
       const current = activeTimer.get() || await activeTimer.load();
       const rem = current?.expectedEndTs ? Math.max(0, Math.round((current.expectedEndTs - Date.now()) / 1000)) : timeRemaining;
-      await localNotification.cancel(current?.scheduledNotificationId || null);
       setIsRunning(false);
       setTimeRemaining(rem);
-      await persistState({ isRunning: false, expectedEndTs: null, remainingAtPause: rem, scheduledNotificationId: null });
+      await persistState({
+        isRunning: false,
+        expectedEndTs: null,
+        remainingAtPause: rem,
+        scheduledNotificationId: null,
+      });
     }
   };
 
@@ -298,49 +416,142 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
     const updated = [...sessions];
     if (currentIdx < updated.length) updated[currentIdx].completed = true;
     const nextIdx = Math.min(currentIdx + 1, updated.length - 1);
+
+    // Derive next session and duration BEFORE updating state to avoid race conditions
+    const nextSession = updated[nextIdx];
+    const nextSeconds = ((nextSession?.duration ?? focusMin) * 60) | 0;
+
+    // Apply state updates
     setSessions(updated);
     setCurrentIdx(nextIdx);
-    const nextSeconds = (updated[nextIdx]?.duration ?? focusMin) * 60;
     setTimeRemaining(nextSeconds);
 
-    await persistState({
-      currentSessionIndex: nextIdx as any, // will be overwritten in persist by currentIdx state, but keep for safety
-      sessionType: (updated[nextIdx]?.type ?? 'focus') as any,
-      isRunning: false,
-      expectedEndTs: null,
-      remainingAtPause: nextSeconds,
-      scheduledNotificationId: null,
-    });
+    // Stop any recurring notification
+    await notificationEventHandler.stopRecurringNotification();
 
-    if (autoStart) {
-      setTimeout(() => { handleStartPause(); }, 0);
+    if (autoStart && nextSession) {
+      // Auto start next session deterministically here (no setTimeout)
+      const expectedEndTs = Date.now() + nextSeconds * 1000;
+      setIsRunning(true);
+
+      // Best-effort backend create for focus session
+      try {
+        if (nextSession.type === 'focus' && passedTask?.id) {
+          const s = activeTimer.get() || await activeTimer.load();
+          if (!s?.backendSessionId) {
+            const created = await timeTrackingService.createSession(
+              Number(passedTask.id),
+              ApiSessionType.FOCUS,
+              Math.round((nextSession.duration ?? focusMin)),
+              new Date()
+            );
+            await persistState({ backendSessionId: created.id });
+          }
+        }
+      } catch {}
+
+      await persistState({
+        currentSessionIndex: nextIdx,
+        sessionType: (nextSession.type as any),
+        isRunning: true,
+        startedAt: Date.now(),
+        expectedEndTs,
+        remainingAtPause: null,
+        scheduledNotificationId: null,
+        completionHandled: false,
+      });
+    } else {
+      // Do not start automatically, just land on next session paused
+      await persistState({
+        currentSessionIndex: nextIdx,
+        sessionType: (nextSession?.type ?? 'focus') as any,
+        isRunning: false,
+        expectedEndTs: null,
+        remainingAtPause: nextSeconds,
+        scheduledNotificationId: null,
+        completionHandled: false,
+      });
     }
   };
 
   const handleSessionComplete = async () => {
+    console.log('[TaskTrackingScreen] Session complete');
     setIsRunning(false);
+
     try {
       const st = activeTimer.get() || await activeTimer.load();
-      await localNotification.cancel(st?.scheduledNotificationId || null);
-      await persistState({ isRunning: false, expectedEndTs: null, remainingAtPause: 0, scheduledNotificationId: null });
-      if (st?.backendSessionId && currentSession?.type === 'focus') {
-        // Best-effort complete
-        // eslint-disable-next-line no-empty
-        try { await timeTrackingService.completeSession(st.backendSessionId); } catch {}
-      }
-    } catch {}
 
+      // Mark completion as handled
+      if (st && !st.completionHandled) {
+        await activeTimer.markCompletionHandled();
+      }
+
+      if (currentSession?.type === 'focus') {
+        try {
+          // Only call backend if we have an auth token and a known session id
+          const token = await AsyncStorage.getItem('authToken');
+          if (token && st?.backendSessionId) {
+            await timeTrackingService.completeSession(st.backendSessionId);
+          }
+        } catch (error: any) {
+          // Do not surface a redbox for backend issues; just warn in dev
+          const msg = error?.message || String(error);
+          if (__DEV__) console.warn('[TaskTrackingScreen] completeSession failed:', msg);
+        }
+      }
+    } catch (error) {
+      console.error('[TaskTrackingScreen] Session complete error:', error);
+    }
+
+    if (!currentSession) return;
+
+    // If user is on this screen, show dialog
+    if (isScreenFocused) {
+      handleShowSessionCompleteDialog();
+    } else {
+      // User is not on this screen, show notification instead
+      await showSessionCompletionNotification();
+    }
+  };
+
+  const handleShowSessionCompleteDialog = () => {
     if (!currentSession) return;
 
     const isFocus = currentSession.type === 'focus';
     Alert.alert(
-      isFocus ? 'Focus done' : 'Break finished',
-      isFocus ? 'Start break now?' : 'Start next focus?',
+      isFocus ? 'Focus Session Complete!' : 'Break Time Over!',
+      isFocus ? 'Time for a break. Ready to continue?' : 'Ready for next focus session?',
       [
         { text: 'Later', style: 'cancel', onPress: () => moveToNextSession(false) },
         { text: 'Start', onPress: () => moveToNextSession(true) },
       ]
     );
+  };
+
+  const showSessionCompletionNotification = async () => {
+    try {
+      if (!currentSession) return;
+
+      const isFocus = currentSession.type === 'focus';
+      const title = isFocus ? 'Focus Session Complete!' : 'Break Time Over!';
+      const body = isFocus
+        ? 'Time for a break. Tap to continue.'
+        : 'Ready for next focus session? Tap to start.';
+
+      // Start recurring notification
+      await notificationEventHandler.startRecurringNotification(
+        title,
+        body,
+        {
+          taskId: String(passedTask?.id || 0),
+          taskTitle: title,
+          sessionType: currentSession.type,
+        },
+        RECURRING_NOTIFICATION_INTERVAL
+      );
+    } catch (error) {
+      console.error('[TaskTrackingScreen] Notification error:', error);
+    }
   };
 
   const handleReset = () => {
@@ -350,16 +561,24 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
       'Are you sure you want to reset the current session?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Reset', style: 'destructive', onPress: async () => {
-          const secs = (currentSession.duration) * 60;
-          setIsRunning(false);
-          setTimeRemaining(secs);
-          try {
-            const st = activeTimer.get() || await activeTimer.load();
-            await localNotification.cancel(st?.scheduledNotificationId || null);
-            await persistState({ isRunning: false, expectedEndTs: null, remainingAtPause: secs, scheduledNotificationId: null });
-          } catch {}
-        }},
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            const secs = (currentSession.duration) * 60;
+            setIsRunning(false);
+            setTimeRemaining(secs);
+            try {
+              const st = activeTimer.get() || await activeTimer.load();
+              await persistState({
+                isRunning: false,
+                expectedEndTs: null,
+                remainingAtPause: secs,
+                scheduledNotificationId: null,
+              });
+            } catch {}
+          },
+        },
       ]
     );
   };
@@ -397,10 +616,8 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
       // All time totals
       if (statsRes.status === 'fulfilled' && statsRes.value) {
         const s = statsRes.value as PomodoroStatistics;
-        // Assume totalFocusTime in minutes -> convert to seconds
         const totalFocusSec = Math.max(0, Math.round((s.totalFocusTime || 0) * 60));
         setTotalFocusSecondsAll(totalFocusSec);
-        // completedSessions expected to count focus sessions
         setCompletedSessionsAll(Math.max(0, s.completedSessions || 0));
       } else if (allRes.status === 'fulfilled') {
         const sessions = (allRes.value as TimeTrackingSession[]) || [];
@@ -485,9 +702,9 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
             {showStatusDropdown && (
               <View style={styles.inlineStatusDropdown}>
                 {statusOptions.map((status) => (
-                  <TouchableOpacity key={status} style={styles.inlineStatusOption} onPress={async () => { 
-                    setTaskStatus(status); 
-                    setShowStatusDropdown(false); 
+                  <TouchableOpacity key={status} style={styles.inlineStatusOption} onPress={async () => {
+                    setTaskStatus(status);
+                    setShowStatusDropdown(false);
                     try {
                       if (passedTask?.id) {
                         const apiStatus = (() => {
@@ -500,7 +717,7 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
                         await taskService.updateTask(Number(passedTask.id), { status: apiStatus } as any);
                       }
                     } catch {}
-                    route?.params?.onStatusChanged?.(status); 
+                    route?.params?.onStatusChanged?.(status);
                   }}>
                     <Text style={[styles.inlineStatusOptionText, taskStatus === status && styles.inlineStatusOptionTextActive]}>{status}</Text>
                     {taskStatus === status && (<MaterialIcons name="check" size={16} color={Colors.primary} />)}
@@ -555,7 +772,6 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
               style={[styles.secondaryButton, (currentSession?.type === 'focus') && { opacity: 0.5 }]}
               onPress={() => {
                 if (currentSession?.type !== 'focus') {
-                  // Skip only when on break
                   moveToNextSession(false);
                 }
               }}

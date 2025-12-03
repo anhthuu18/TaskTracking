@@ -5,6 +5,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../constants/Colors';
 import { useToastContext } from '../context/ToastContext';
+import { localNotification } from '../services/localNotification';
 
 const PersonalSettingsScreen: React.FC<any> = () => {
   const { showSuccess, showError } = useToastContext();
@@ -15,6 +16,7 @@ const PersonalSettingsScreen: React.FC<any> = () => {
 
   const [notifyInApp, setNotifyInApp] = useState(true);
   const [notifyEmail, setNotifyEmail] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<boolean | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -30,6 +32,10 @@ const PersonalSettingsScreen: React.FC<any> = () => {
         const email = await AsyncStorage.getItem('notifyDueEmail');
         if (inApp !== null) setNotifyInApp(inApp === 'true');
         if (email !== null) setNotifyEmail(email === 'true');
+
+        // Check notification permission status
+        const hasPermission = await localNotification.getPermissionStatus();
+        setNotificationPermission(hasPermission);
       } catch {}
     };
     load();
@@ -52,6 +58,28 @@ const PersonalSettingsScreen: React.FC<any> = () => {
       showSuccess('Saved settings');
     } catch (e: any) {
       showError(e?.message || 'Failed to save settings');
+    }
+  };
+
+  const requestNotificationPermission = async () => {
+    try {
+      const granted = await localNotification.requestPermission();
+      setNotificationPermission(granted);
+      if (granted) {
+        showSuccess('Notification permission granted');
+      } else {
+        showError('Notification permission denied');
+      }
+    } catch (error: any) {
+      showError(error?.message || 'Failed to request permission');
+    }
+  };
+
+  const openNotificationSettings = async () => {
+    try {
+      await localNotification.openSettings();
+    } catch (error: any) {
+      showError(error?.message || 'Failed to open settings');
     }
   };
 
@@ -101,7 +129,45 @@ const PersonalSettingsScreen: React.FC<any> = () => {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Due Task Notifications</Text>
+          <Text style={styles.cardTitle}>Notifications</Text>
+
+          {/* Notification Permission Status */}
+          <View style={styles.permissionSection}>
+            <View style={styles.permissionStatus}>
+              <MaterialIcons
+                name={notificationPermission ? 'check-circle' : 'info'}
+                size={20}
+                color={notificationPermission ? Colors.success : Colors.warning}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.permissionText}>
+                  {notificationPermission ? 'Notifications Enabled' : 'Notifications Disabled'}
+                </Text>
+                <Text style={styles.permissionSubtext}>
+                  {notificationPermission
+                    ? 'You will receive Pomodoro alerts'
+                    : 'Enable to receive Pomodoro alerts'}
+                </Text>
+              </View>
+            </View>
+
+            {!notificationPermission && (
+              <TouchableOpacity style={styles.permissionButton} onPress={requestNotificationPermission}>
+                <MaterialIcons name="notifications-active" size={16} color={Colors.neutral.white} />
+                <Text style={styles.permissionButtonText}>Enable Notifications</Text>
+              </TouchableOpacity>
+            )}
+
+            {notificationPermission && (
+              <TouchableOpacity style={styles.settingsButton} onPress={openNotificationSettings}>
+                <MaterialIcons name="settings" size={16} color={Colors.primary} />
+                <Text style={styles.settingsButtonText}>Notification Settings</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.divider} />
+
           <View style={styles.switchRow}>
             <View style={styles.switchItem}>
               <MaterialIcons name="notifications" size={20} color={Colors.primary} />
@@ -156,6 +222,15 @@ const styles = StyleSheet.create({
   inputGroup: { flex: 1 },
   label: { fontSize: 12, color: Colors.neutral.medium, marginBottom: 6 },
   input: { borderWidth: 1, borderColor: Colors.neutral.light, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10, backgroundColor: Colors.neutral.light + '20' },
+  permissionSection: { gap: 12, marginBottom: 12 },
+  permissionStatus: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: Colors.neutral.light + '20', borderRadius: 8 },
+  permissionText: { fontSize: 14, fontWeight: '600', color: Colors.neutral.dark },
+  permissionSubtext: { fontSize: 12, color: Colors.neutral.medium, marginTop: 2 },
+  permissionButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 10, borderRadius: 8 },
+  permissionButtonText: { color: Colors.neutral.white, fontWeight: '600', fontSize: 13 },
+  settingsButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary + '10', paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: Colors.primary + '30' },
+  settingsButtonText: { color: Colors.primary, fontWeight: '600', fontSize: 13 },
+  divider: { height: 1, backgroundColor: Colors.neutral.light + '40', marginVertical: 8 },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
   switchItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   switchLabel: { fontSize: 14, color: Colors.neutral.dark },
@@ -165,6 +240,3 @@ const styles = StyleSheet.create({
 });
 
 export default PersonalSettingsScreen;
-
-
-

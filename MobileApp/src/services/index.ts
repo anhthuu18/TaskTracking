@@ -6,3 +6,8 @@ export { taskService } from './taskService';
 export { userService } from './userService';
 export { otpService } from './otpService';
 export { timeTrackingService } from './timeTrackingService';
+export { activeTimer } from './activeTimer';
+export { localNotification } from './localNotification';
+export { backgroundTimerService } from './backgroundTimerService';
+export { notificationEventHandler } from './notificationEventHandler';
+export { appStateService } from './appStateService';
