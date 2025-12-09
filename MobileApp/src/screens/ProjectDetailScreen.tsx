@@ -168,10 +168,16 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
             name: proj.workspace.workspaceName,
             type: proj.workspace.workspaceType,
           });
-          // Fetch full workspace member list for the 'Add Member' modal
-          const wsMembersRes = await workspaceService.getWorkspaceMembers(proj.workspace.id);
-          if (wsMembersRes.success && wsMembersRes.data) {
-            setWorkspaceMembers(wsMembersRes.data as any);
+          // Fetch full workspace member list cho Add Member modal chỉ khi bạn là Admin/Owner
+          const myRole = (proj as any).members?.find((m: any) => m.userId === currentUserId)?.role;
+          const isAdminOrOwner = myRole === ProjectMemberRole.ADMIN || myRole === ProjectMemberRole.OWNER;
+          if (isAdminOrOwner) {
+            const wsMembersRes = await workspaceService.getWorkspaceMembers(proj.workspace.id);
+            if (wsMembersRes.success && wsMembersRes.data) {
+              setWorkspaceMembers(wsMembersRes.data as any);
+            }
+          } else {
+            setWorkspaceMembers([] as any);
           }
         }
       } else {
@@ -604,7 +610,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
                 <Text style={styles.membersSectionTitle}>Members</Text>
                 <Text style={styles.membersSectionCount}>{projectMembers.length} member{projectMembers.length !== 1 ? 's' : ''}</Text>
               </View>
-              {(project?.userRole === ProjectMemberRole.OWNER || project?.userRole === ProjectMemberRole.ADMIN || canManageMembers) && (
+              {canManageMembers && (
                 <TouchableOpacity 
                   style={styles.addMemberButton}
                   onPress={() => setShowAddMemberModal(true)}

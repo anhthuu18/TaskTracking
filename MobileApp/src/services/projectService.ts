@@ -58,13 +58,13 @@ class ProjectService {
 
       if (!response.ok) {
         const errorMessage = data?.message || `HTTP ${response.status}: ${response.statusText}`;
-        console.error('API Error:', errorMessage);
+        console.warn('API Error:', errorMessage);
         throw new Error(errorMessage);
       }
 
       return data as T;
     } catch (error: any) {
-      console.error('Request failed:', error);
+      console.warn('Request failed:', error);
       const isAbort = error?.name === 'AbortError';
       const errorMessage = isAbort ? 'Request timeout' : (error?.message || 'Network error');
       throw new Error(errorMessage);
