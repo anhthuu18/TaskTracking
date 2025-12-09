@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, ScrollView, StatusBar, Text, TouchableOpacity, View, AppState, AppStateStatus } from 'react-native';
+import { Alert, Animated, ScrollView, StatusBar, Text, TouchableOpacity, View, AppState, AppStateStatus, Vibration } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -68,6 +68,7 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
   const appStateRef = useRef<AppStateStatus>('active');
   const hydrationDoneRef = useRef(false);
   const sessionCompleteDialogShownRef = useRef(false);
+  const handlingCompleteRef = useRef(false);
 
   const statusOptions = ['To Do', 'In Progress', 'Review', 'Done'];
 
@@ -76,7 +77,9 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
   const circumference = 2 * Math.PI * radius;
 
   const totalSeconds = (currentSession?.duration ?? focusMin) * 60;
-  const progress = totalSeconds > 0 ? timeRemaining / totalSeconds : 1;
+  // When not running and remaining is 0, display full duration instead of 00:00
+  const effectiveRemaining = (isRunning || timeRemaining > 0) ? timeRemaining : totalSeconds;
+  const progress = totalSeconds > 0 ? effectiveRemaining / totalSeconds : 1;
   const strokeDashoffset = circumference - progress * circumference;
 
   const title = useMemo(() => {
@@ -97,33 +100,33 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
     ]
   );
 
-  // Load stored pomodoro settings if not passed via route
+  // Load pomodoro settings: route override > AsyncStorage > defaults (avoid race)
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        if (!timerConfig) {
-          const raw = await AsyncStorage.getItem('pomodoroSettings');
-          if (raw) {
-            const s = JSON.parse(raw);
-            const f = Number.parseInt(String(s.focus ?? DEFAULTS.focus), 10) || DEFAULTS.focus;
-            const sb = Number.parseInt(String(s.shortBreak ?? DEFAULTS.shortBreak), 10) || DEFAULTS.shortBreak;
-            const lb = Number.parseInt(String(s.longBreak ?? DEFAULTS.longBreak), 10) || DEFAULTS.longBreak;
-            if (!mounted) return;
-            setFocusMin(f); setShortBreakMin(sb); setLongBreakMin(lb);
-            setSessions(buildDefaultSessions(f, sb, lb));
-            setCurrentIdx(0);
-            setTimeRemaining(f * 60);
-          }
+        const raw = await AsyncStorage.getItem('pomodoroSettings');
+        const stored = raw ? JSON.parse(raw) : {};
+        const f = Number.parseInt(String(timerConfig?.focus ?? stored.focus ?? DEFAULTS.focus), 10) || DEFAULTS.focus;
+        const sb = Number.parseInt(String(timerConfig?.shortBreak ?? stored.shortBreak ?? DEFAULTS.shortBreak), 10) || DEFAULTS.shortBreak;
+        const lb = Number.parseInt(String(timerConfig?.longBreak ?? stored.longBreak ?? DEFAULTS.longBreak), 10) || DEFAULTS.longBreak;
+        if (!mounted) return;
+        setFocusMin(f); setShortBreakMin(sb); setLongBreakMin(lb);
+        if (sessions.length === 0) {
+          setSessions(buildDefaultSessions(f, sb, lb));
+          setCurrentIdx(0);
+          setTimeRemaining(f * 60);
         }
-      } catch {}
-      if (mounted && sessions.length === 0) {
-        const f = timerConfig?.focus ?? focusMin;
-        const sb = timerConfig?.shortBreak ?? shortBreakMin;
-        const lb = timerConfig?.longBreak ?? longBreakMin;
-        setSessions(buildDefaultSessions(f, sb, lb));
-        setCurrentIdx(0);
-        setTimeRemaining((timerConfig?.focus ?? f) * 60);
+      } catch (e) {
+        if (sessions.length === 0) {
+          const f = timerConfig?.focus ?? DEFAULTS.focus;
+          const sb = timerConfig?.shortBreak ?? DEFAULTS.shortBreak;
+          const lb = timerConfig?.longBreak ?? DEFAULTS.longBreak;
+          setFocusMin(+f); setShortBreakMin(+sb); setLongBreakMin(+lb);
+          setSessions(buildDefaultSessions(+f, +sb, +lb));
+          setCurrentIdx(0);
+          setTimeRemaining((+f) * 60);
+        }
       }
     })();
     return () => { mounted = false; };
@@ -146,7 +149,7 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
 
         if (!mounted) return;
 
-        if (state && passedTask && Number(state.taskId) === Number(passedTask.id)) {
+        if (state) {
           // Ensure sessions exist
           let baseSessions = sessions;
           if (baseSessions.length === 0) {
@@ -159,13 +162,15 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
           setCurrentIdx(idx);
           setIsRunning(!!state.isRunning);
 
+          const fullDur = ((baseSessions[idx]?.duration ?? focusMin) * 60) | 0;
           if (state.isRunning && state.expectedEndTs) {
             const rem = Math.max(0, Math.round((state.expectedEndTs - Date.now()) / 1000));
-            setTimeRemaining(rem);
+            setTimeRemaining(rem > 0 ? rem : fullDur);
           } else if (state.remainingAtPause != null) {
-            setTimeRemaining(Math.max(0, state.remainingAtPause));
+            const rem = Math.max(0, state.remainingAtPause);
+            setTimeRemaining(rem > 0 ? rem : fullDur);
           } else {
-            const dur = state.durationSec ?? ((baseSessions[idx]?.duration ?? focusMin) * 60);
+            const dur = (state.durationSec && state.durationSec > 0) ? state.durationSec : fullDur;
             setTimeRemaining(dur);
           }
 
@@ -195,28 +200,48 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
       setSessions(markCompletedUpTo(idx, base));
       setCurrentIdx(idx);
 
-      // Update running/remaining
+      // Update running/remaining with fallback to full duration when zero
+      const fullDur = ((base[idx]?.duration ?? focusMin) * 60) | 0;
       let remaining = 0;
       if (st.isRunning && st.expectedEndTs) {
         remaining = Math.max(0, Math.round((st.expectedEndTs - Date.now()) / 1000));
         setIsRunning(true);
-        setTimeRemaining(remaining);
+        setTimeRemaining(remaining > 0 ? remaining : fullDur);
       } else if (st.remainingAtPause != null) {
         remaining = Math.max(0, st.remainingAtPause);
         setIsRunning(false);
-        setTimeRemaining(remaining);
+        setTimeRemaining(remaining > 0 ? remaining : fullDur);
       } else {
-        const dur = st.durationSec ?? ((base[idx]?.duration ?? focusMin) * 60);
+        const dur = (st.durationSec && st.durationSec > 0) ? st.durationSec : fullDur;
         remaining = dur;
         setIsRunning(false);
         setTimeRemaining(dur);
       }
 
-      // If a background handler already marked completion and we are at 0, show dialog now
-      if (!isScreenFocused) return; // only pop dialog when screen focused
-      if (st.completionHandled && remaining === 0 && !sessionCompleteDialogShownRef.current) {
-        sessionCompleteDialogShownRef.current = true;
-        handleShowSessionCompleteDialog();
+      // If session was completed in background: advance to next session paused and show dialog
+      if (st.completionHandled && remaining === 0 && !st.isRunning) {
+        try {
+          const updated = [...base];
+          if (idx < updated.length) updated[idx].completed = true;
+          const nextIdx = Math.min(idx + 1, updated.length - 1);
+          const nextSeconds = ((updated[nextIdx]?.duration ?? focusMin) * 60) | 0;
+          setSessions(updated);
+          setCurrentIdx(nextIdx);
+          setIsRunning(false);
+          setTimeRemaining(nextSeconds);
+          await activeTimer.update({
+            currentSessionIndex: nextIdx,
+            sessionType: (updated[nextIdx]?.type as any) || 'focus',
+            isRunning: false,
+            expectedEndTs: null,
+            remainingAtPause: nextSeconds,
+            completionHandled: false,
+          });
+        } catch {}
+        if (isScreenFocused && !sessionCompleteDialogShownRef.current) {
+          sessionCompleteDialogShownRef.current = true;
+          handleShowSessionCompleteDialog();
+        }
       }
     } catch {}
   };
@@ -225,14 +250,46 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
   useFocusEffect(
     React.useCallback(() => {
       setIsScreenFocused(true);
+      // reset flags so dialog can show again when navigating via notify
+      sessionCompleteDialogShownRef.current = false;
+      handlingCompleteRef.current = false;
+
       syncFromActiveTimer();
 
-      // If session complete dialog should be shown
+      // If session complete dialog should be shown (e.g., from tapping notification)
       if (showSessionCompleteDialog && !sessionCompleteDialogShownRef.current) {
         sessionCompleteDialogShownRef.current = true;
-        setTimeout(() => {
+        setTimeout(async () => {
+          try {
+            // Ensure UI moves to next session (paused) before showing dialog
+            const st = activeTimer.get() || await activeTimer.load();
+            let base = sessions;
+            if (base.length === 0) {
+              base = buildDefaultSessions(focusMin, shortBreakMin, longBreakMin);
+            }
+            const idx = st?.currentSessionIndex ?? currentIdx;
+            const rem = st?.expectedEndTs ? Math.max(0, Math.round((st.expectedEndTs - Date.now()) / 1000)) : (st?.remainingAtPause ?? 0);
+            if ((rem <= 0) || st?.completionHandled) {
+              const updated = [...base];
+              if (idx < updated.length) updated[idx].completed = true;
+              const nextIdx = Math.min(idx + 1, updated.length - 1);
+              const nextSeconds = ((updated[nextIdx]?.duration ?? focusMin) * 60) | 0;
+              setSessions(updated);
+              setCurrentIdx(nextIdx);
+              setIsRunning(false);
+              setTimeRemaining(nextSeconds);
+              await activeTimer.update({
+                currentSessionIndex: nextIdx,
+                sessionType: (updated[nextIdx]?.type as any) || 'focus',
+                isRunning: false,
+                expectedEndTs: null,
+                remainingAtPause: nextSeconds,
+                completionHandled: false,
+              });
+            }
+          } catch {}
           handleShowSessionCompleteDialog();
-        }, 300);
+        }, 200);
       }
 
       return () => {
@@ -255,20 +312,45 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
 
     if (state === 'active') {
       // App came to foreground
-      if (isRunning && activeTimer.get()?.expectedEndTs) {
-        // Recalculate remaining time
+      // Always recalc from persisted activeTimer state to be robust
+      try {
         const timerState = activeTimer.get() || await activeTimer.load();
+        // Keep scheduled end notification; do not cancel on foreground resume
         if (timerState?.expectedEndTs) {
           const rem = Math.max(0, Math.round((timerState.expectedEndTs - Date.now()) / 1000));
+          console.log('[TaskTrackingScreen] Recalculated remaining (on resume):', rem);
           setTimeRemaining(rem);
+          setIsRunning(!!timerState.isRunning);
 
-          // Check if session completed while in background
+          // If session completed while in background
           if (rem === 0) {
             console.log('[TaskTrackingScreen] Session completed in background');
             await handleSessionComplete();
           }
         }
+      } catch (e) {
+        console.warn('[TaskTrackingScreen] Foreground recalc error:', e);
       }
+    } else if (state === 'background') {
+      // Schedule one end notification for background case only
+      try {
+        const st = activeTimer.get() || await activeTimer.load();
+        if (st?.isRunning) {
+          const endTs = st.expectedEndTs || (Date.now() + (timeRemaining * 1000));
+          await activeTimer.update({ expectedEndTs: endTs });
+          const granted = await localNotification.requestPermission();
+          // cancel previous scheduled if any
+          try { await localNotification.cancel(st?.scheduledNotificationId || null); } catch {}
+          if (granted && endTs > Date.now()) {
+            const scheduledId = await localNotification.scheduleAt(
+              new Date(endTs),
+              (st.sessionType === 'focus') ? 'Focus session complete' : 'Break finished',
+              (st.sessionType === 'focus') ? 'Time for a break.' : 'Ready for next focus?'
+            );
+            await activeTimer.update({ scheduledNotificationId: scheduledId || null });
+          }
+        }
+      } catch {}
     }
   };
 
@@ -388,6 +470,24 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
         }
       } catch {}
 
+      // Schedule one end notification so it can fire even if user navigates away or app goes background
+      let scheduledId: string | null = null;
+      try {
+        const granted = await localNotification.requestPermission();
+        const cur = activeTimer.get() || await activeTimer.load();
+        try { await localNotification.cancel(cur?.scheduledNotificationId || null); } catch {}
+        if (granted) {
+          scheduledId = await localNotification.scheduleAt(
+            new Date(expectedEndTs),
+            currentSession.type === 'focus' ? 'Focus session complete' : 'Break finished',
+            currentSession.type === 'focus' ? 'Time for a break.' : 'Ready for next focus?',
+            { data: { taskId: String(passedTask?.id || 0), taskTitle: title, sessionType: currentSession.type } }
+          );
+        }
+      } catch (e) {
+        console.warn('[TaskTrackingScreen] Schedule notification error:', e);
+      }
+
       setIsRunning(true);
       setTimeRemaining(secs);
       await persistState({
@@ -395,12 +495,16 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
         startedAt: Date.now(),
         expectedEndTs,
         remainingAtPause: null,
-        scheduledNotificationId: null,
+        scheduledNotificationId: scheduledId || null,
       });
     } else {
       // Pause
       const current = activeTimer.get() || await activeTimer.load();
       const rem = current?.expectedEndTs ? Math.max(0, Math.round((current.expectedEndTs - Date.now()) / 1000)) : timeRemaining;
+
+      // Cancel scheduled end notification when pausing
+      try { await localNotification.cancel(current?.scheduledNotificationId || null); } catch {}
+
       setIsRunning(false);
       setTimeRemaining(rem);
       await persistState({
@@ -475,6 +579,12 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
   };
 
   const handleSessionComplete = async () => {
+    if (handlingCompleteRef.current) {
+      console.log('[TaskTrackingScreen] Session complete ignored (already handling)');
+      return;
+    }
+    handlingCompleteRef.current = true;
+
     console.log('[TaskTrackingScreen] Session complete');
     setIsRunning(false);
 
@@ -505,12 +615,48 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
 
     if (!currentSession) return;
 
-    // If user is on this screen, show dialog
+    // Cancel any scheduled end notification to avoid duplicates
+    try {
+      const cur = activeTimer.get() || await activeTimer.load();
+      await localNotification.cancel(cur?.scheduledNotificationId || null);
+      await activeTimer.update({ scheduledNotificationId: null });
+    } catch {}
+
     if (isScreenFocused) {
+      // Option 1: In-app dialog + vibration, no push notification
+      try {
+        Vibration.vibrate([0, 600, 250, 600]);
+      } catch {}
+      // Persist completion to avoid re-trigger loops on resume
+      try {
+        await activeTimer.update({
+          isRunning: false,
+          expectedEndTs: null,
+          remainingAtPause: 0,
+          completionHandled: true,
+        });
+      } catch {}
       handleShowSessionCompleteDialog();
     } else {
-      // User is not on this screen, show notification instead
-      await showSessionCompletionNotification();
+      // Option 2: App not focused: show exactly one push notification
+      try {
+        await localNotification.requestPermission();
+        await localNotification.showNow(
+          currentSession.type === 'focus' ? 'Focus session complete' : 'Break finished',
+          currentSession.type === 'focus' ? 'Time for a break.' : 'Ready for next focus?'
+        );
+      } catch (e) {
+        console.warn('[TaskTrackingScreen] showNow notification error:', e);
+      }
+      // Persist completion to avoid re-trigger loops on resume
+      try {
+        await activeTimer.update({
+          isRunning: false,
+          expectedEndTs: null,
+          remainingAtPause: 0,
+          completionHandled: true,
+        });
+      } catch {}
     }
   };
 
@@ -751,7 +897,7 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
               <Circle cx={radius + strokeWidth} cy={radius + strokeWidth} r={radius} stroke={getSessionTypeColor(currentSession?.type || 'focus')} strokeWidth={strokeWidth} fill="none" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" transform={`rotate(-90 ${radius + strokeWidth} ${radius + strokeWidth})`} />
             </Svg>
             <View style={styles.timerContent}>
-              <Text style={styles.timerText}>{formatTime(timeRemaining)}</Text>
+              <Text style={styles.timerText}>{formatTime(effectiveRemaining)}</Text>
               <Text style={styles.sessionCountText}>
                 Session {Math.min(completedFocusSessions + (currentSession?.type === 'focus' && timeRemaining !== totalSeconds ? 1 : 0), totalFocusSessions)} of {totalFocusSessions}
               </Text>
@@ -759,7 +905,7 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({ navigation, rou
           </View>
 
           <TouchableOpacity style={[styles.primaryButton, { backgroundColor: isRunning ? Colors.warning : Colors.primary }]} onPress={handleStartPause}>
-            <Text style={styles.primaryButtonText}>{isRunning ? 'Pause' : (timeRemaining === totalSeconds ? (currentSession?.type === 'focus' ? 'Start Focus' : 'Start Break') : 'Resume')}</Text>
+            <Text style={styles.primaryButtonText}>{isRunning ? 'Pause' : ((timeRemaining === 0 || timeRemaining === totalSeconds) ? (currentSession?.type === 'focus' ? 'Start Focus' : 'Start Break') : 'Resume')}</Text> 
           </TouchableOpacity>
 
           <View style={styles.secondaryButtonsRow}>

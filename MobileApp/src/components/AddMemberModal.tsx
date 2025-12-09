@@ -25,10 +25,8 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
 
-  // Filter out members who are already in the project
-  const availableMembers = workspaceMembers?.filter(workspaceMember => 
-    !projectMembers?.some(projectMember => projectMember.userId === workspaceMember.userId)
-  ) || [];
+  // Helper: check if a workspace member is already in the project
+  const isInProject = (userId: number) => projectMembers?.some(pm => pm.userId === userId) || false;
 
   const getInitials = (name: string) => {
     return name
@@ -51,12 +49,13 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   };
 
   const handleAddMember = () => {
-    if (selectedMember) {
-      onAddMember(selectedMember.userId, selectedRole);
-      setSelectedMember(null);
-      setSelectedRole(ProjectMemberRole.MEMBER);
-      onClose();
-    }
+    // Always render the button; enable only when a member is selected
+    if (!selectedMember) return;
+
+    onAddMember(selectedMember.userId, selectedRole);
+    setSelectedMember(null);
+    setSelectedRole(ProjectMemberRole.MEMBER);
+    onClose();
   };
 
   const handleClose = () => {
@@ -131,40 +130,46 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
             {showMemberDropdown && (
               <View style={styles.memberDropdownMenu}>
                 <FlatList
-                  data={availableMembers}
+                  data={workspaceMembers}
                   keyExtractor={(item) => item.id.toString()}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.memberItem}
-                      onPress={() => {
-                        setSelectedMember(item);
-                        setShowMemberDropdown(false);
-                      }}
-                    >
-                      <View style={styles.memberAvatar}>
-                        {item.user.avatar ? (
-                          <Image 
-                            source={{ uri: item.user.avatar }} 
-                            style={styles.avatarImage}
-                          />
-                        ) : (
-                          <View style={styles.avatarPlaceholder}>
-                            <Text style={styles.avatarText}>
-                              {getInitials(item.user.name || item.user.username)}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                      <View style={styles.memberInfo}>
-                        <Text style={styles.memberName}>
-                          {item.user.name || item.user.username}
-                        </Text>
-                        <Text style={styles.memberEmail}>
-                          {item.user.email}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
+                  renderItem={({ item }) => {
+                    const disabled = isInProject(item.userId);
+                    return (
+                      <TouchableOpacity
+                        style={[styles.memberItem, disabled && { opacity: 0.5 }]}
+                        disabled={disabled}
+                        onPress={() => {
+                          if (disabled) return;
+                          setSelectedMember(item);
+                          setShowMemberDropdown(false);
+                        }}
+                      >
+                        <View style={styles.memberAvatar}>
+                          {item.user.avatar ? (
+                            <Image 
+                              source={{ uri: item.user.avatar }} 
+                              style={styles.avatarImage}
+                            />
+                          ) : (
+                            <View style={styles.avatarPlaceholder}>
+                              <Text style={styles.avatarText}>
+                                {getInitials(item.user.name || item.user.username)}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.memberInfo}>
+                          <Text style={[styles.memberName, disabled && { color: Colors.neutral.medium }]} numberOfLines={1} ellipsizeMode="tail">
+                            {item.user.name || item.user.username}
+                          </Text>
+                          <Text style={[styles.memberEmail, disabled && { color: Colors.neutral.medium }]} numberOfLines={1} ellipsizeMode="tail">
+                            {item.user.email}
+                          </Text>
+                        </View>
+                        
+                      </TouchableOpacity>
+                    );
+                  }}
                   style={styles.memberList}
                 />
               </View>
@@ -220,11 +225,6 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
               </View>
             )}
           </View>
-
-          {/* Info Text */}
-          <Text style={styles.infoText}>
-            Thông báo sẽ được gửi qua email và có hiệu lực trong 7 ngày.
-          </Text>
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
@@ -469,12 +469,30 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   sendButtonDisabled: {
-    backgroundColor: Colors.neutral.light,
+    backgroundColor: Colors.primary + '80',
   },
   sendButtonText: {
     fontSize: 15,
     fontWeight: '500',
     color: Colors.surface,
+  },
+  sendButtonTextDisabled: {
+    color: Colors.neutral.dark,
+  },
+  addedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: Colors.neutral.medium,
+    marginLeft: 8,
+  },
+  addedTagText: {
+    color: Colors.neutral.white,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 

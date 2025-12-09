@@ -59,12 +59,20 @@ export class ProjectsService {
       }
     });
 
-    // Create default admin role for this project
+    // Create default roles for this project
     const adminRole = await this.prisma.projectRole.create({
       data: {
         projectId: project.id,
         roleName: 'Admin',
         description: 'Project administrator with full permissions'
+      }
+    });
+
+    const memberRole = await this.prisma.projectRole.create({
+      data: {
+        projectId: project.id,
+        roleName: 'Member',
+        description: 'Project member with standard permissions'
       }
     });
 
@@ -79,7 +87,8 @@ export class ProjectsService {
 
     return {
       ...project,
-      adminRole
+      adminRole,
+      memberRole
     };
   }
 
@@ -262,6 +271,41 @@ export class ProjectsService {
       throw new NotFoundException('Project not found or access denied');
     }
 
+    // Ensure project creator is included in members list with OWNER role
+    const creatorIsInMembers = project.members.some(m => m.userId === project.createdBy);
+    if (!creatorIsInMembers && project.creator) {
+      // Find or create OWNER role
+      let ownerRole = project.projectRoles.find(r => r.roleName === 'Owner');
+      if (!ownerRole) {
+        ownerRole = await this.prisma.projectRole.create({
+          data: {
+            projectId: project.id,
+            roleName: 'Owner',
+            description: 'Project owner'
+          }
+        });
+      }
+
+      // Add creator as member with OWNER role
+      const creatorMember = await this.prisma.projectMember.create({
+        data: {
+          projectId: project.id,
+          userId: project.createdBy,
+          projectRoleId: ownerRole.id
+        },
+        include: {
+          user: {
+            select: { id: true, username: true, email: true }
+          },
+          projectRole: {
+            select: { id: true, roleName: true, description: true }
+          }
+        }
+      });
+
+      project.members.push(creatorMember);
+    }
+
     return project;
   }
 
@@ -394,10 +438,36 @@ export class ProjectsService {
       throw new BadRequestException('User is already a member of this project');
     }
 
+    // Determine which role to use
+    let roleId = projectRoleId;
+    
+    // If no role specified, find or create "Member" role
+    if (!roleId) {
+      let memberRole = await this.prisma.projectRole.findFirst({
+        where: {
+          projectId,
+          roleName: 'Member'
+        }
+      });
+
+      // If Member role doesn't exist, create it
+      if (!memberRole) {
+        memberRole = await this.prisma.projectRole.create({
+          data: {
+            projectId,
+            roleName: 'Member',
+            description: 'Project member with standard permissions'
+          }
+        });
+      }
+
+      roleId = memberRole.id;
+    }
+
     // Verify the role exists for this project
     const role = await this.prisma.projectRole.findFirst({
       where: {
-        id: projectRoleId,
+        id: roleId,
         projectId
       }
     });
@@ -423,7 +493,7 @@ export class ProjectsService {
       data: {
         projectId,
         userId: newUserId,
-        projectRoleId
+        projectRoleId: roleId
       },
       include: {
         user: {

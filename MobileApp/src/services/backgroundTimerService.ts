@@ -4,7 +4,7 @@
  * Triggers session completion events and notifications
  */
 
-import { AppState, NativeEventEmitter, NativeModules } from 'react-native';
+import { AppState, NativeEventEmitter, NativeModules, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { activeTimer, ActiveTimerState } from './activeTimer';
 import { localNotification } from './localNotification';
@@ -161,10 +161,44 @@ class BackgroundTimerService {
         sessionType: timerState.sessionType,
       });
 
-      // If user is currently on TaskTracking screen, do NOT show push notification
       const route = NavigationService.getCurrentRoute();
       const isOnTracking = String(route?.name || '').toLowerCase() === 'tasktracking';
-      if (!isOnTracking) {
+      const isForeground = this.lastAppState === 'active';
+
+      // Cancel any scheduled end notification to avoid duplicates
+      try {
+        const st = activeTimer.get() || await activeTimer.load();
+        await localNotification.cancel(st?.scheduledNotificationId || null);
+        await activeTimer.update({ scheduledNotificationId: null });
+      } catch {}
+
+      if (isForeground) {
+        // App is open but user is on another screen: show a lightweight confirm dialog here
+        if (!isOnTracking) {
+          try {
+            Alert.alert(
+              timerState.sessionType === 'focus' ? 'Focus Session Complete!' : 'Break Time Over!',
+              timerState.sessionType === 'focus' ? 'Time for a break. Continue?' : 'Ready for next focus?',
+              [
+                { text: 'OK', onPress: () => {
+                    NavigationService.navigate('TaskTracking', {
+                      task: { id: timerState.taskId, title: timerState.taskTitle },
+                      showSessionCompleteDialog: true,
+                    });
+                  }
+                },
+              ]
+            );
+          } catch {
+            // Fallback navigate if Alert fails
+            NavigationService.navigate('TaskTracking', {
+              task: { id: timerState.taskId, title: timerState.taskTitle },
+              showSessionCompleteDialog: true,
+            });
+          }
+        }
+      } else {
+        // App in background: show exactly one push notification
         await this.showSessionCompletionNotification(timerState);
       }
 
@@ -186,13 +220,18 @@ class BackgroundTimerService {
         ? 'Time for a break. Tap to continue.'
         : 'Ready for next focus session? Tap to start.';
 
-      // Show notification with high priority and sound
+      // Show notification with high priority and sound, include data payload
       await localNotification.showNow(title, body, {
         sound: 'default',
         vibration: true,
         importance: 'high',
         tag: 'session-complete',
         autoCancel: false,
+        data: {
+          taskId: String(timerState.taskId),
+          taskTitle: timerState.taskTitle || '',
+          sessionType: timerState.sessionType,
+        },
       });
     } catch (error) {
       console.error('[BackgroundTimerService] Notification error:', error);

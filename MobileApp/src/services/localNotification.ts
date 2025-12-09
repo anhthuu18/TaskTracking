@@ -2,7 +2,7 @@
 // Tries to load @notifee/react-native at runtime; if unavailable, all methods are no-ops
 
 import { Platform } from 'react-native';
-import notifee from '@notifee/react-native';
+import notifee, { TriggerType } from '@notifee/react-native';
 
 export type NotificationId = string;
 
@@ -131,10 +131,6 @@ class LocalNotificationService {
           vibration: options?.vibration !== false,
           tag: options?.tag || 'notification',
           autoCancel: options?.autoCancel !== false,
-          // Heads-up notification
-          fullScreenAction: {
-            id: 'default',
-          },
           // Allow bypass of Do Not Disturb
           bypassDnd: true,
         },
@@ -197,8 +193,9 @@ class LocalNotificationService {
           },
         },
         {
-          type: 1, // TimestampType.TIMESTAMP
+          type: TriggerType.TIMESTAMP,
           timestamp: date.getTime(),
+          alarmManager: { allowWhileIdle: true },
         }
       );
 

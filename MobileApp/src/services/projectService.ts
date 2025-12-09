@@ -126,6 +126,25 @@ class ProjectService {
         method: 'GET',
     });
 
+    // Map projectRole to role for members
+    if (backendResponse?.members && Array.isArray(backendResponse.members)) {
+      backendResponse.members = backendResponse.members.map((member: any) => {
+        // Map projectRole.roleName to ProjectMemberRole enum
+        let role = ProjectMemberRole.MEMBER;
+        if (member.projectRole?.roleName === 'Admin') {
+          role = ProjectMemberRole.ADMIN;
+        } else if (member.projectRole?.roleName === 'Owner') {
+          role = ProjectMemberRole.OWNER;
+        }
+        return {
+          ...member,
+          role,
+          // Normalize join date field name for UI components
+          joinedAt: member.joinedAt || member.dateJoined || member.joined_at || member.joined || null,
+        };
+      });
+    }
+
     // Backend trả về object trực tiếp, cần wrap thành format mong đợi
     return {
       success: true,
@@ -247,6 +266,20 @@ class ProjectService {
     const project = await this.request<any>(detailsUrl, { method: 'GET' });
     let members: ProjectMember[] = project?.members || project?.data?.members || [];
 
+    // Map projectRole to role for members
+    members = members.map((member: any) => {
+      let role = ProjectMemberRole.MEMBER;
+      if (member.projectRole?.roleName === 'Admin') {
+        role = ProjectMemberRole.ADMIN;
+      } else if (member.projectRole?.roleName === 'Owner') {
+        role = ProjectMemberRole.OWNER;
+      }
+      return {
+        ...member,
+        role
+      };
+    });
+
     // Ensure project owner appears as a member-like entry for permission mapping
     const owner = project?.user || project?.data?.user;
     if (owner && !members.some((m: any) => m.userId === owner.id)) {
@@ -254,7 +287,7 @@ class ProjectService {
         id: -owner.id,
         projectId: project?.id || project?.data?.id || projectId,
         userId: owner.id,
-        role: 'OWNER' as any,
+        role: ProjectMemberRole.OWNER,
         joinedAt: new Date(),
         user: { id: owner.id, username: owner.username, email: owner.email },
       };

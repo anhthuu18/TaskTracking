@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -52,6 +52,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
 
   const [project, setProject] = useState<Project | null>(initialProject);
   const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
+  const [projectRoles, setProjectRoles] = useState<any[]>([]);
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingTasks, setLoadingTasks] = useState(false);
@@ -78,7 +79,12 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   const [currentEmail, setCurrentEmail] = useState<string | null>(null);
 
-  const isCurrentUserAdmin = true; // Mock for now
+  // Determine if current user can manage members (Owner/Admin)
+  const canManageMembers = useMemo(() => {
+    if (!currentUserId) return false;
+    const me = projectMembers.find(m => m.userId === currentUserId);
+    return me?.role === ProjectMemberRole.OWNER || me?.role === ProjectMemberRole.ADMIN;
+  }, [projectMembers, currentUserId]);
 
   // Helper function to convert numeric priority to string priority
   const convertPriorityToString = (priority: number): 'low' | 'medium' | 'high' | 'urgent' => {
@@ -156,6 +162,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
         const proj = response.data;
         setProject(proj);
         setProjectMembers((proj as any).members || []);
+        setProjectRoles((proj as any).projectRoles || []);
         if (proj.workspace) {
           setWorkspaceInfo({
             name: proj.workspace.workspaceName,
@@ -233,6 +240,35 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     if (s.includes('progress')) return 'in_progress';
     if (s.includes('done') || s.includes('complete')) return 'completed';
     return 'todo';
+  };
+
+  const handleAddMember = async (userId: number, role: ProjectMemberRole) => {
+    try {
+      // Map UI role to backend ProjectRole id
+      const desiredRoleName = role === ProjectMemberRole.ADMIN ? 'Admin' : 'Member';
+      let roleId: number | undefined = projectRoles?.find((r: any) => r.roleName === desiredRoleName)?.id;
+
+      // Create role if missing (edge case)
+      if (!roleId && project?.id) {
+        const created = await projectService.createProjectRole(project.id, desiredRoleName, undefined, undefined);
+        roleId = created?.id;
+      }
+
+      const response = await projectService.addMemberToProject(project!.id, userId, roleId);
+      
+      if (response.success) {
+        showSuccess(`Đã thêm thành viên${desiredRoleName === 'Admin' ? ' (Admin)' : ''}`);
+        // Reload project data
+        if (project?.id) {
+          await loadInitialData(project.id);
+        }
+        setShowAddMemberModal(false);
+      } else {
+        showError(response.message || 'Failed to add member');
+      }
+    } catch (error: any) {
+      showError(error?.message || 'Failed to add member');
+    }
   };
 
   const confirmComplete = (task: Task) => {
@@ -376,7 +412,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
 
         // Assignee filter
         if (assigneeFilter !== 'all') {
-          const matchesAssignee = String(task.assignedTo || '') === assigneeFilter || task.assignee?.username === assigneeFilter;
+          const matchesAssignee = String(task.assignedTo ?? '') === assigneeFilter;
           if (!matchesAssignee) return false;
         }
 
@@ -471,7 +507,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
                 >
                   <MaterialIcons name="person" size={16} color={Colors.neutral.dark} />
                   <Text style={styles.dropdownFilterText}>
-                    {assigneeFilter === 'all' ? 'Assignee' : (projectTasks.find(t => String(t.assignedTo) === assigneeFilter || t.assignee?.username === assigneeFilter)?.assignee?.username || 'Assignee')}
+                    {assigneeFilter === 'all' ? 'Assignee' : (projectMembers.find(m => String(m.userId) === assigneeFilter)?.user?.username || 'Assignee')}
                   </Text>
                   <MaterialIcons name={showAssigneeDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={18} color={Colors.neutral.medium} />
                 </TouchableOpacity>
@@ -490,24 +526,24 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
                         </Text>
                         {assigneeFilter === 'all' && <MaterialIcons name="check" size={18} color={Colors.primary} />}
                       </TouchableOpacity>
-                      {Array.from(new Set(projectTasks.map(t => t.assignee?.username).filter(Boolean))).map(name => (
+                      {projectMembers.map(m => (
                         <TouchableOpacity
-                          key={name}
+                          key={m.userId}
                           style={styles.dropdownFilterOption}
                           onPress={() => {
-                            setAssigneeFilter(name || 'all');
+                            setAssigneeFilter(String(m.userId));
                             setShowAssigneeDropdown(false);
                           }}
                         >
                           <View style={styles.assigneeOptionContent}>
                             <View style={styles.assigneeAvatar}>
-                              <Text style={styles.assigneeAvatarText}>{(name || 'U').charAt(0).toUpperCase()}</Text>
+                              <Text style={styles.assigneeAvatarText}>{(m.user?.username || 'U').charAt(0).toUpperCase()}</Text>
                             </View>
-                            <Text style={[styles.dropdownFilterOptionText, assigneeFilter === name && styles.dropdownFilterOptionTextActive]}>
-                              {name}
+                            <Text style={[styles.dropdownFilterOptionText, assigneeFilter === String(m.userId) && styles.dropdownFilterOptionTextActive]}>
+                              {m.user?.username || m.user?.email || m.userId}
                             </Text>
                           </View>
-                          {assigneeFilter === name && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                          {assigneeFilter === String(m.userId) && <MaterialIcons name="check" size={18} color={Colors.primary} />}
                         </TouchableOpacity>
                       ))}
                     </ScrollView>
@@ -560,18 +596,129 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     } else {
       // Members Tab
       return (
-        <View style={styles.tabContent}>
-          {projectMembers.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <MaterialIcons name="group" size={32} color={Colors.neutral.medium} />
-              <Text style={styles.emptyTitle}>No members found</Text>
+        <ScrollView style={styles.tabContent}>
+          <View style={styles.membersSection}>
+            {/* Header with Add Member Button */}
+            <View style={styles.membersSectionHeader}>
+              <View>
+                <Text style={styles.membersSectionTitle}>Members</Text>
+                <Text style={styles.membersSectionCount}>{projectMembers.length} member{projectMembers.length !== 1 ? 's' : ''}</Text>
+              </View>
+              {(project?.userRole === ProjectMemberRole.OWNER || project?.userRole === ProjectMemberRole.ADMIN || canManageMembers) && (
+                <TouchableOpacity 
+                  style={styles.addMemberButton}
+                  onPress={() => setShowAddMemberModal(true)}
+                >
+                  <MaterialIcons name="person-add" size={18} color={Colors.neutral.white} />
+                  <Text style={styles.addMemberButtonText}>Add</Text>
+                </TouchableOpacity>
+              )}
             </View>
-          ) : (
-            <View style={styles.membersSection}>
-              {/* Member rendering logic here */}
-            </View>
-          )}
-        </View>
+
+            {projectMembers.length === 0 ? (
+              <View style={styles.emptyMembersContainer}>
+                <MaterialIcons name="group-outline" size={48} color={Colors.neutral.medium} />
+                <Text style={styles.emptyMembersTitle}>No members yet</Text>
+                <Text style={styles.emptyMembersSubtitle}>Add members to collaborate on this project</Text>
+              </View>
+            ) : (
+              <View style={styles.membersList}>
+                {/* Separate members by role - Leaders first */}
+                {projectMembers
+                  .filter(m => m.role === ProjectMemberRole.OWNER || m.role === ProjectMemberRole.ADMIN)
+                  .map((member) => (
+                    <View key={member.id} style={styles.memberCard}>
+                      <View style={styles.memberCardContent}>
+                        <View style={styles.memberAvatar}>
+                          <Text style={styles.memberAvatarText}>
+                            {(member.user?.name || member.user?.username || 'U').charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.memberInfo}>
+                          <View style={styles.memberNameRow}>
+                            <Text style={styles.memberName} numberOfLines={1}>
+                              {member.user?.name || member.user?.username}
+                            </Text>
+
+                          </View>
+                          <Text style={styles.memberEmail} numberOfLines={1}>
+                            {member.user?.email}
+                          </Text>
+                          <Text style={styles.memberJoinedDate}>
+                            Joined {new Date(member.joinedAt).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.memberCardRight}>
+                        <View style={[
+                          styles.roleBadge,
+                          member.role === ProjectMemberRole.OWNER 
+                            ? styles.ownerBadge 
+                            : styles.adminBadge
+                        ]}>
+                          <MaterialIcons 
+                            name={member.role === ProjectMemberRole.OWNER ? 'admin-panel-settings' : 'verified-user'} 
+                            size={14} 
+                            color={Colors.neutral.white} 
+                          />
+                          <Text style={styles.roleBadgeText}>
+                            {member.role === ProjectMemberRole.OWNER ? 'Owner' : 'Admin'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+
+                {/* Regular members */}
+                {projectMembers
+                  .filter(m => m.role === ProjectMemberRole.MEMBER)
+                  .map((member) => (
+                    <View key={member.id} style={styles.memberCard}>
+                      <View style={styles.memberCardContent}>
+                        <View style={styles.memberAvatar}>
+                          <Text style={styles.memberAvatarText}>
+                            {(member.user?.name || member.user?.username || 'U').charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.memberInfo}>
+                          <View style={styles.memberNameRow}>
+                            <Text style={styles.memberName} numberOfLines={1}>
+                              {member.user?.name || member.user?.username}
+                            </Text>
+
+                          </View>
+                          <Text style={styles.memberEmail} numberOfLines={1}>
+                            {member.user?.email}
+                          </Text>
+                          <Text style={styles.memberJoinedDate}>
+                            Joined {new Date(member.joinedAt).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.memberCardRight}>
+                        <View style={styles.memberBadge}>
+                          <MaterialIcons 
+                            name="person" 
+                            size={14} 
+                            color={Colors.neutral.white} 
+                          />
+                          <Text style={styles.roleBadgeText}>Member</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+              </View>
+            )}
+          </View>
+        </ScrollView>
       );
     }
   };
@@ -662,6 +809,14 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
           }}
         />
       )}
+
+      <AddMemberModal
+        visible={showAddMemberModal}
+        onClose={() => setShowAddMemberModal(false)}
+        onAddMember={handleAddMember}
+        workspaceMembers={workspaceMembers}
+        projectMembers={projectMembers}
+      />
     </View>
   );
 };
@@ -908,7 +1063,160 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   membersSection: {
-    padding: 16,
+    flex: 1,
+    paddingVertical: 16,
+  },
+  membersSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  membersSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.neutral.dark,
+  },
+  membersSectionCount: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    marginTop: 2,
+  },
+  addMemberButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  addMemberButtonText: {
+    color: Colors.neutral.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyMembersContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 32,
+    gap: 12,
+  },
+  emptyMembersTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+  },
+  emptyMembersSubtitle: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+    textAlign: 'center',
+  },
+  membersList: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  memberCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light + '40',
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  memberCardContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  memberAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  memberAvatarText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  memberName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+    flex: 1,
+  },
+  youBadge: {
+    backgroundColor: Colors.primary + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  youBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  memberEmail: {
+    fontSize: 13,
+    color: Colors.neutral.medium,
+    marginBottom: 4,
+  },
+  memberJoinedDate: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+  },
+  memberCardRight: {
+    marginLeft: 8,
+  },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  ownerBadge: {
+    backgroundColor: Colors.primary,
+  },
+  adminBadge: {
+    backgroundColor: Colors.primary + 'CC',
+  },
+  memberBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: Colors.neutral.medium,
+    gap: 4,
+  },
+  roleBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.neutral.white,
   },
 });
 

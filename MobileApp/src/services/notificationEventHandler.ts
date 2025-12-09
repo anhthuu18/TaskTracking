@@ -95,15 +95,38 @@ class NotificationEventHandler {
       // Cancel recurring notification if any
       await this.stopRecurringNotification();
 
+      // Decide whether session actually completed
+      let showDialog = true;
+      try {
+        const st = activeTimer.get() || await activeTimer.load();
+        if (st?.expectedEndTs) {
+          const deltaMs = st.expectedEndTs - Date.now();
+          // Treat as completed if within 1.5s late or already past
+          if (deltaMs > 1500 && st.isRunning) {
+            showDialog = false;
+          } else {
+            // Normalize state to completed so UI can advance reliably
+            await activeTimer.update({
+              isRunning: false,
+              remainingAtPause: 0,
+              expectedEndTs: null,
+              completionHandled: true,
+            });
+          }
+        }
+      } catch {}
+
       // Clear notification state
       await this.clearNotificationState();
 
-      // Navigate to TaskTrackingScreen
-      if (data?.taskId) {
-        const taskId = parseInt(data.taskId, 10);
+      // Navigate to TaskTrackingScreen - prefer active timer's taskId for accuracy
+      const st2 = activeTimer.get() || await activeTimer.load();
+      const taskId = st2?.taskId ?? (data?.taskId ? parseInt(data.taskId, 10) : 0);
+      const taskTitle = st2?.taskTitle || data?.taskTitle || '';
+      if (taskId) {
         NavigationService.navigate('TaskTracking', {
-          task: { id: taskId, title: data.taskTitle },
-          showSessionCompleteDialog: true, // Flag to show dialog on mount
+          task: { id: taskId, title: taskTitle },
+          showSessionCompleteDialog: showDialog,
         });
       }
     } catch (error) {
