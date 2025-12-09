@@ -52,10 +52,10 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     // Always render the button; enable only when a member is selected
     if (!selectedMember) return;
 
-    onAddMember(selectedMember.userId, selectedRole);
-    setSelectedMember(null);
-    setSelectedRole(ProjectMemberRole.MEMBER);
-    onClose();
+      onAddMember(selectedMember.userId, selectedRole);
+      setSelectedMember(null);
+      setSelectedRole(ProjectMemberRole.MEMBER);
+      onClose();
   };
 
   const handleClose = () => {
@@ -135,39 +135,39 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
                   renderItem={({ item }) => {
                     const disabled = isInProject(item.userId);
                     return (
-                      <TouchableOpacity
+                    <TouchableOpacity
                         style={[styles.memberItem, disabled && { opacity: 0.5 }]}
                         disabled={disabled}
-                        onPress={() => {
+                      onPress={() => {
                           if (disabled) return;
-                          setSelectedMember(item);
-                          setShowMemberDropdown(false);
-                        }}
-                      >
-                        <View style={styles.memberAvatar}>
-                          {item.user.avatar ? (
-                            <Image 
-                              source={{ uri: item.user.avatar }} 
-                              style={styles.avatarImage}
-                            />
-                          ) : (
-                            <View style={styles.avatarPlaceholder}>
-                              <Text style={styles.avatarText}>
-                                {getInitials(item.user.name || item.user.username)}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        <View style={styles.memberInfo}>
+                        setSelectedMember(item);
+                        setShowMemberDropdown(false);
+                      }}
+                    >
+                      <View style={styles.memberAvatar}>
+                        {item.user.avatar ? (
+                          <Image 
+                            source={{ uri: item.user.avatar }} 
+                            style={styles.avatarImage}
+                          />
+                        ) : (
+                          <View style={styles.avatarPlaceholder}>
+                            <Text style={styles.avatarText}>
+                              {getInitials(item.user.name || item.user.username)}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.memberInfo}>
                           <Text style={[styles.memberName, disabled && { color: Colors.neutral.medium }]} numberOfLines={1} ellipsizeMode="tail">
-                            {item.user.name || item.user.username}
-                          </Text>
+                          {item.user.name || item.user.username}
+                        </Text>
                           <Text style={[styles.memberEmail, disabled && { color: Colors.neutral.medium }]} numberOfLines={1} ellipsizeMode="tail">
-                            {item.user.email}
-                          </Text>
-                        </View>
+                          {item.user.email}
+                        </Text>
+                      </View>
                         
-                      </TouchableOpacity>
+                    </TouchableOpacity>
                     );
                   }}
                   style={styles.memberList}

@@ -475,11 +475,17 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
 
   const handleToggleStar = async (projectId: string) => {
     try {
-      await projectService.toggleStarProject(Number(projectId));
+      const res = await projectService.toggleStarProject(Number(projectId));
+      const isStarred = (res as any)?.isStarred;
+      if (typeof isStarred === 'boolean') {
+        showSuccess(isStarred ? 'Added to favorites' : 'Removed from favorites');
+      } else {
+        showSuccess('Updated favorites');
+      }
       refresh(); // Refresh data to get the new star status
     } catch (error) {
       console.error('Failed to toggle star status:', error);
-      // Optionally, show an error message to the user
+      showError('Failed to update favorites');
     }
   };
 

@@ -198,6 +198,25 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     }
   }, [initialProject?.id, loadInitialData]);
 
+  // Open Add Member directly if requested via route params
+  useEffect(() => {
+    const open = (route.params as any)?.openAddMember;
+    if (open && project) {
+      setActiveTab('members');
+      setShowAddMemberModal(true);
+      try { (navigation as any)?.setParams?.({ openAddMember: false }); } catch {}
+    }
+  }, [route?.params, project]);
+
+  // Switch tab if requested via route params
+  useEffect(() => {
+    const openTab = (route.params as any)?.openTab as typeof activeTab | undefined;
+    if (openTab) {
+      setActiveTab(openTab);
+      try { (navigation as any)?.setParams?.({ openTab: undefined }); } catch {}
+    }
+  }, [route?.params]);
+
   // Reload tasks when the screen is focused
   useFocusEffect(
     useCallback(() => {
@@ -784,7 +803,7 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
           <View style={[styles.iconContainer, activeTab === 'settings' && styles.activeIconContainer]}>
             <MaterialIcons name="settings" size={20} color={activeTab === 'settings' ? Colors.neutral.white : Colors.neutral.medium} />
           </View>
-          <Text style={[styles.footerTabButtonText, activeTab === 'settings' && styles.activeFooterTabButtonText]}>Settings</Text>
+          <Text style={[styles.footerTabButtonText, activeTab === 'settings' && styles.activeFooterTabButtonText]}>{canManageMembers ? 'Manage' : 'Info'}</Text>
         </TouchableOpacity>
       </View>
 
