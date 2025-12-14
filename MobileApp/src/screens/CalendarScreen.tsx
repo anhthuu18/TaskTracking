@@ -42,23 +42,35 @@ interface CalendarScreenProps {
 }
 
 // Helper to convert priority number to string
-const getPriorityFromNumber = (priority: number | undefined): 'urgent' | 'high' | 'medium' | 'low' => {
+const getPriorityFromNumber = (
+  priority: number | undefined,
+): 'urgent' | 'high' | 'medium' | 'low' => {
   if (!priority) return 'medium';
   switch (priority) {
-    case 5: return 'urgent';
-    case 4: return 'high';
-    case 3: return 'medium';
+    case 5:
+      return 'urgent';
+    case 4:
+      return 'high';
+    case 3:
+      return 'medium';
     case 2:
     case 1:
-    default: return 'low';
+    default:
+      return 'low';
   }
 };
 
-const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, contentTopSpacing, safeAreaEdges, projectId }) => {
+const CalendarScreen: React.FC<CalendarScreenProps> = ({
+  navigation,
+  route,
+  contentTopSpacing,
+  safeAreaEdges,
+  projectId,
+}) => {
   const { colors } = useTheme();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const passedTasks = route?.params?.tasks;
   const passedTimeTrackings = route?.params?.timeTrackings;
 
@@ -66,7 +78,9 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [tasks, setTasks] = useState<Task[]>(passedTasks || []);
-  const [timeTrackings, setTimeTrackings] = useState<EnrichedTimeTracking[]>(passedTimeTrackings || []);
+  const [timeTrackings, setTimeTrackings] = useState<EnrichedTimeTracking[]>(
+    passedTimeTrackings || [],
+  );
   const [loading, setLoading] = useState(!passedTasks);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -102,18 +116,74 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
     console.log('[Calendar] projectId changed:', projectId);
     loadData();
   }, [projectId]);
-    }
-  }, [passedTimeTrackings]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      
+
+      // If projectId is provided, load project tasks directly
+      if (projectId) {
+        console.log('[Calendar] Loading tasks for project:', projectId);
+        const tasksResponse = await taskService.getTasksByProject(
+          Number(projectId),
+        );
+        console.log('[Calendar] Project tasks response:', tasksResponse);
+
+        // Handle both direct array and wrapped response
+        const rawTasks = Array.isArray(tasksResponse)
+          ? tasksResponse
+          : tasksResponse?.data || [];
+
+        console.log('[Calendar] Raw tasks count:', rawTasks.length);
+        console.log('[Calendar] Sample task:', rawTasks[0]);
+
+        // Convert API tasks to Task type with proper dates
+        const apiTasks: Task[] = rawTasks.map((task: any) => {
+          const dueDate = task.endTime ? new Date(task.endTime) : undefined;
+          console.log(
+            `[Calendar] Task ${task.id} (${task.taskName}): endTime=${task.endTime}, dueDate=${dueDate}`,
+          );
+
+          return {
+            id: task.id?.toString() || '',
+            title: task.taskName || '',
+            description: task.description || '',
+            status: task.status?.toLowerCase() || 'todo',
+            priority: getPriorityFromNumber(task.priority),
+            dueDate: dueDate,
+            createdAt: task.dateCreated
+              ? new Date(task.dateCreated)
+              : new Date(),
+            updatedAt: task.dateModified
+              ? new Date(task.dateModified)
+              : new Date(),
+            assignee: task.assignee?.username || '',
+            project: task.project?.projectName || '',
+          };
+        });
+
+        // Filter tasks with deadline
+        const tasksWithDeadline = apiTasks.filter(task => task.dueDate);
+        console.log(
+          '[Calendar] Tasks with deadline:',
+          tasksWithDeadline.length,
+        );
+
+        setTasks(tasksWithDeadline);
+        setTimeTrackings([]); // Clear trackings for now
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      // Otherwise, load workspace tasks
       // Get workspace from route params first, then fallback to AsyncStorage
       let workspace = route?.params?.workspace;
-      
+
       if (!workspace) {
-        console.log('[Calendar] No workspace in route params, checking AsyncStorage...');
+        console.log(
+          '[Calendar] No workspace in route params, checking AsyncStorage...',
+        );
         const workspaceStr = await AsyncStorage.getItem('currentWorkspace');
         if (!workspaceStr) {
           console.log('[Calendar] No workspace found in storage');
@@ -122,40 +192,42 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
         }
         workspace = JSON.parse(workspaceStr);
       }
-      
+
       const workspaceId = workspace?.id;
-      
+
       if (!workspaceId) {
         console.log('[Calendar] No workspace ID');
         setLoading(false);
         return;
       }
-      
-      console.log('[Calendar] Loading tasks for workspace:', workspaceId, workspace.workspaceName || workspace.name);
-      
-      // Load tasks from workspace or project
-      let tasksResponse: any;
-      if (projectId) {
-        console.log('[Calendar] Loading tasks for project:', projectId);
-        tasksResponse = await taskService.getTasksByProject(Number(projectId));
-      } else {
-        tasksResponse = await taskService.getTasksByWorkspace(workspaceId);
-      }
-      
+
+      console.log(
+        '[Calendar] Loading tasks for workspace:',
+        workspaceId,
+        workspace.workspaceName || workspace.name,
+      );
+
+      // Load tasks from workspace
+      const tasksResponse = await taskService.getTasksByWorkspace(workspaceId);
+
       console.log('[Calendar] Raw API response:', tasksResponse);
-      
+
       // Handle both direct array and wrapped response
-      const rawTasks = Array.isArray(tasksResponse) ? tasksResponse : (tasksResponse?.data || []);
-      
+      const rawTasks = Array.isArray(tasksResponse)
+        ? tasksResponse
+        : tasksResponse?.data || [];
+
       console.log('[Calendar] Raw tasks count:', rawTasks.length);
       console.log('[Calendar] Sample task:', rawTasks[0]);
-      
+
       // Convert API tasks to Task type with proper dates
       // Don't filter by endTime yet, let's see all tasks first
       const apiTasks: Task[] = rawTasks.map((task: any) => {
         const dueDate = task.endTime ? new Date(task.endTime) : undefined;
-        console.log(`[Calendar] Task ${task.id} (${task.taskName}): endTime=${task.endTime}, dueDate=${dueDate}`);
-        
+        console.log(
+          `[Calendar] Task ${task.id} (${task.taskName}): endTime=${task.endTime}, dueDate=${dueDate}`,
+        );
+
         return {
           id: task.id?.toString() || '',
           title: task.taskName || '',
@@ -164,124 +236,178 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
           priority: getPriorityFromNumber(task.priority),
           dueDate: dueDate,
           createdAt: task.dateCreated ? new Date(task.dateCreated) : new Date(),
-          updatedAt: task.dateModified ? new Date(task.dateModified) : new Date(),
+          updatedAt: task.dateModified
+            ? new Date(task.dateModified)
+            : new Date(),
           assignee: task.assignee?.username || '',
           project: task.project?.projectName || '',
         };
       });
-      
+
       // Filter tasks with deadline
       const tasksWithDeadline = apiTasks.filter(task => task.dueDate);
       console.log('[Calendar] Tasks with deadline:', tasksWithDeadline.length);
-      
+
       setTasks(tasksWithDeadline);
       setTimeTrackings([]); // Clear trackings for now
-      
+
       // Keep mock tasks for demo if no real tasks
       if (tasksWithDeadline.length === 0) {
         console.log('[Calendar] No tasks with deadline, using mock data');
         const mockToday = new Date();
         mockToday.setHours(0, 0, 0, 0);
-        
-        const mockTasks: Task[] = [
-        {
-          id: '1',
-          title: 'API Integration Testing',
-          description: 'Complete API integration and testing',
-          status: 'in_progress' as any,
-          priority: 'urgent' as any,
-          dueDate: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() + 1),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          assignee: 'John Doe',
-          project: 'Mobile App',
-        },
-        {
-          id: '2',
-          title: 'UI Design Review',
-          description: 'Review and finalize UI designs',
-          status: 'todo' as any,
-          priority: 'high' as any,
-          dueDate: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() + 2),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          assignee: 'Jane Smith',
-          project: 'Mobile App',
-        },
-        {
-          id: '3',
-          title: 'Database Optimization',
-          description: 'Optimize database queries',
-          status: 'in_progress' as any,
-          priority: 'medium' as any,
-          dueDate: mockToday,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          assignee: 'Bob Johnson',
-          project: 'Backend',
-        },
-        {
-          id: '4',
-          title: 'Code Review',
-          description: 'Review pull requests',
-          status: 'done' as any,
-          priority: 'medium' as any,
-          dueDate: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 1),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          assignee: 'Alice Brown',
-          project: 'Backend',
-        },
-        {
-          id: '5',
-          title: 'Documentation Update',
-          description: 'Update project documentation',
-          status: 'todo' as any,
-          priority: 'low' as any,
-          dueDate: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() + 5),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          assignee: 'Charlie Wilson',
-          project: 'Documentation',
-        },
-      ];
-      
-      // Mock time tracking data for past dates
-      const rawMockTrackings: TimeTracking[] = [
-        {
-          id: '1',
-          taskId: '4',
-          taskTitle: 'Code Review',
-          startTime: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 1, 9, 0),
-          endTime: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 1, 11, 30),
-          duration: 150,
-        },
-        {
-          id: '2',
-          taskId: '4',
-          taskTitle: 'Code Review',
-          startTime: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 1, 14, 0),
-          endTime: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 1, 16, 0),
-          duration: 120,
-        },
-        {
-          id: '3',
-          taskId: '3',
-          taskTitle: 'Database Optimization',
-          startTime: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 2, 10, 0),
-          endTime: new Date(mockToday.getFullYear(), mockToday.getMonth(), mockToday.getDate() - 2, 13, 0),
-          duration: 180,
-        },
-      ];
 
-      // Enrich tracking data with full task details
-      const enrichedTrackings = rawMockTrackings.map(tracking => {
-        const task = mockTasks.find(t => t.id === tracking.taskId);
-        return { ...tracking, task };
-      });
-      
-      setTasks(mockTasks);
-      setTimeTrackings(enrichedTrackings);
+        const mockTasks: Task[] = [
+          {
+            id: '1',
+            title: 'API Integration Testing',
+            description: 'Complete API integration and testing',
+            status: 'in_progress' as any,
+            priority: 'urgent' as any,
+            dueDate: new Date(
+              mockToday.getFullYear(),
+              mockToday.getMonth(),
+              mockToday.getDate() + 1,
+            ),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            assignee: 'John Doe',
+            project: 'Mobile App',
+          },
+          {
+            id: '2',
+            title: 'UI Design Review',
+            description: 'Review and finalize UI designs',
+            status: 'todo' as any,
+            priority: 'high' as any,
+            dueDate: new Date(
+              mockToday.getFullYear(),
+              mockToday.getMonth(),
+              mockToday.getDate() + 2,
+            ),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            assignee: 'Jane Smith',
+            project: 'Mobile App',
+          },
+          {
+            id: '3',
+            title: 'Database Optimization',
+            description: 'Optimize database queries',
+            status: 'in_progress' as any,
+            priority: 'medium' as any,
+            dueDate: mockToday,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            assignee: 'Bob Johnson',
+            project: 'Backend',
+          },
+          {
+            id: '4',
+            title: 'Code Review',
+            description: 'Review pull requests',
+            status: 'done' as any,
+            priority: 'medium' as any,
+            dueDate: new Date(
+              mockToday.getFullYear(),
+              mockToday.getMonth(),
+              mockToday.getDate() - 1,
+            ),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            assignee: 'Alice Brown',
+            project: 'Backend',
+          },
+          {
+            id: '5',
+            title: 'Documentation Update',
+            description: 'Update project documentation',
+            status: 'todo' as any,
+            priority: 'low' as any,
+            dueDate: new Date(
+              mockToday.getFullYear(),
+              mockToday.getMonth(),
+              mockToday.getDate() + 5,
+            ),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            assignee: 'Charlie Wilson',
+            project: 'Documentation',
+          },
+        ];
+
+        // Mock time tracking data for past dates
+        const rawMockTrackings: TimeTracking[] = [
+          {
+            id: '1',
+            taskId: '4',
+            taskTitle: 'Code Review',
+            startTime: new Date(
+              mockToday.getFullYear(),
+              mockToday.getMonth(),
+              mockToday.getDate() - 1,
+              9,
+              0,
+            ),
+            endTime: new Date(
+              mockToday.getFullYear(),
+              mockToday.getMonth(),
+              mockToday.getDate() - 1,
+              11,
+              30,
+            ),
+            duration: 150,
+          },
+          {
+            id: '2',
+            taskId: '4',
+            taskTitle: 'Code Review',
+            startTime: new Date(
+              mockToday.getFullYear(),
+              mockToday.getMonth(),
+              mockToday.getDate() - 1,
+              14,
+              0,
+            ),
+            endTime: new Date(
+              mockToday.getFullYear(),
+              mockToday.getMonth(),
+              mockToday.getDate() - 1,
+              16,
+              0,
+            ),
+            duration: 120,
+          },
+          {
+            id: '3',
+            taskId: '3',
+            taskTitle: 'Database Optimization',
+            startTime: new Date(
+              mockToday.getFullYear(),
+              mockToday.getMonth(),
+              mockToday.getDate() - 2,
+              10,
+              0,
+            ),
+            endTime: new Date(
+              mockToday.getFullYear(),
+              mockToday.getMonth(),
+              mockToday.getDate() - 2,
+              13,
+              0,
+            ),
+            duration: 180,
+          },
+        ];
+
+        // Enrich tracking data with full task details
+        const enrichedTrackings = rawMockTrackings.map(tracking => {
+          const task = mockTasks.find(t => t.id === tracking.taskId);
+          return { ...tracking, task };
+        });
+
+        setTasks(mockTasks);
+        setTimeTrackings(enrichedTrackings);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -340,8 +466,18 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
 
   const getMonthName = (month: number) => {
     const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     return months[month];
   };
@@ -355,30 +491,35 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
     const daysInMonth = getDaysInMonth(currentMonth, currentYear);
     const firstDay = getFirstDayOfMonth(currentMonth, currentYear);
     const days = [];
-    
-    console.log(`[Calendar] Rendering calendar for ${currentMonth + 1}/${currentYear}, total tasks:`, tasks.length);
-    
+
+    console.log(
+      `[Calendar] Rendering calendar for ${
+        currentMonth + 1
+      }/${currentYear}, total tasks:`,
+      tasks.length,
+    );
+
     // Add empty cells for days before the first day of the month
     for (let i = 0; i < firstDay; i++) {
-      days.push(
-        <View key={`empty-${i}`} style={styles.calendarDay} />
-      );
+      days.push(<View key={`empty-${i}`} style={styles.calendarDay} />);
     }
-    
+
     // Add days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDate = new Date(currentYear, currentMonth, day);
       currentDate.setHours(0, 0, 0, 0);
-      
-      const isSelected = selectedDate.getDate() === day && 
-                        selectedDate.getMonth() === currentMonth && 
-                        selectedDate.getFullYear() === currentYear;
+
+      const isSelected =
+        selectedDate.getDate() === day &&
+        selectedDate.getMonth() === currentMonth &&
+        selectedDate.getFullYear() === currentYear;
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const isToday = today.getDate() === day && 
-                     today.getMonth() === currentMonth && 
-                     today.getFullYear() === currentYear;
-      
+      const isToday =
+        today.getDate() === day &&
+        today.getMonth() === currentMonth &&
+        today.getFullYear() === currentYear;
+
       // Check if there are tasks due on this day OR trackings (red dot for both)
       const hasDueTasks = tasks.some(task => {
         // Check endTime (deadline from API) or fallback to dueDate
@@ -388,20 +529,24 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
         taskDate.setHours(0, 0, 0, 0);
         const hasMatch = taskDate.getTime() === currentDate.getTime();
         if (hasMatch) {
-          console.log(`[Calendar] Match found for ${day}/${currentMonth + 1}: Task ${task.title}`);
+          console.log(
+            `[Calendar] Match found for ${day}/${currentMonth + 1}: Task ${
+              task.title
+            }`,
+          );
         }
         return hasMatch;
       });
-      
+
       const hasTrackings = timeTrackings.some(tracking => {
         const trackingDate = new Date(tracking.startTime);
         trackingDate.setHours(0, 0, 0, 0);
         return trackingDate.getTime() === currentDate.getTime();
       });
-      
+
       // Show red dot if there are tasks due OR trackings
       const hasActivity = hasDueTasks || hasTrackings;
-      
+
       days.push(
         <TouchableOpacity
           key={day}
@@ -413,44 +558,46 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
             setSelectedDate(newDate);
           }}
         >
-          <View style={[
-            styles.calendarDayInner,
-            isToday && styles.calendarDayToday,
-            isSelected && styles.calendarDaySelected
-          ]}>
-            <Text style={[
-              styles.calendarDayText,
-              isSelected && styles.calendarDayTextSelected,
-              isToday && styles.calendarDayTextToday
-            ]}>
+          <View
+            style={[
+              styles.calendarDayInner,
+              isToday && styles.calendarDayToday,
+              isSelected && styles.calendarDaySelected,
+            ]}
+          >
+            <Text
+              style={[
+                styles.calendarDayText,
+                isSelected && styles.calendarDayTextSelected,
+                isToday && styles.calendarDayTextToday,
+              ]}
+            >
               {day}
             </Text>
           </View>
           {/* Show red dot for dates with activity (tasks or trackings) */}
-          {hasActivity && (
-            <View style={styles.activityDot} />
-          )}
-        </TouchableOpacity>
+          {hasActivity && <View style={styles.activityDot} />}
+        </TouchableOpacity>,
       );
     }
-    
+
     // Add empty cells to fill the remaining space (always 42 cells total)
     const totalCells = 42;
     const remainingCells = totalCells - days.length;
     for (let i = 0; i < remainingCells; i++) {
-      days.push(
-        <View key={`empty-end-${i}`} style={styles.calendarDay} />
-      );
+      days.push(<View key={`empty-end-${i}`} style={styles.calendarDay} />);
     }
-    
+
     return days;
   };
 
   const getTasksForSelectedDate = () => {
     const selectedDateCopy = new Date(selectedDate);
     selectedDateCopy.setHours(0, 0, 0, 0);
-    console.log(`[Calendar] Getting tasks for selected date: ${selectedDateCopy.toISOString()} (${selectedDateCopy.getTime()})`);
-    
+    console.log(
+      `[Calendar] Getting tasks for selected date: ${selectedDateCopy.toISOString()} (${selectedDateCopy.getTime()})`,
+    );
+
     const filtered = tasks.filter(task => {
       // Check endTime (deadline from API) or fallback to dueDate
       const deadlineField = task.endTime || task.dueDate;
@@ -459,12 +606,16 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
       }
       const taskDate = new Date(deadlineField);
       taskDate.setHours(0, 0, 0, 0);
-      
+
       const match = taskDate.getTime() === selectedDateCopy.getTime();
-      console.log(`[Calendar] Comparing task "${task.title}": deadline=${deadlineField} => taskDate=${taskDate.toISOString()} (${taskDate.getTime()}) vs selected=${selectedDateCopy.toISOString()} (${selectedDateCopy.getTime()}) => ${match}`);
+      console.log(
+        `[Calendar] Comparing task "${
+          task.title
+        }": deadline=${deadlineField} => taskDate=${taskDate.toISOString()} (${taskDate.getTime()}) vs selected=${selectedDateCopy.toISOString()} (${selectedDateCopy.getTime()}) => ${match}`,
+      );
       return match;
     });
-    
+
     console.log(`[Calendar] Found ${filtered.length} tasks for selected date`);
     return filtered;
   };
@@ -472,9 +623,11 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
   const getTrackingsForSelectedDate = () => {
     return timeTrackings.filter(tracking => {
       const trackingDate = new Date(tracking.startTime);
-      return trackingDate.getDate() === selectedDate.getDate() &&
-             trackingDate.getMonth() === selectedDate.getMonth() &&
-             trackingDate.getFullYear() === selectedDate.getFullYear();
+      return (
+        trackingDate.getDate() === selectedDate.getDate() &&
+        trackingDate.getMonth() === selectedDate.getMonth() &&
+        trackingDate.getFullYear() === selectedDate.getFullYear()
+      );
     });
   };
 
@@ -493,8 +646,6 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
       hour12: true,
     });
   };
-
-
 
   const renderTaskItem = (task: Task) => {
     // Convert Task to TaskSummary format for TaskCardModern
@@ -524,7 +675,7 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
           // Navigate to task tracking
           console.log('[Calendar] Navigate to tracking:', task.id);
           if (navigation) {
-            navigation.navigate('TaskTracking', { 
+            navigation.navigate('TaskTracking', {
               task: {
                 id: task.id,
                 title: task.title,
@@ -535,7 +686,7 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
                 dueDate: task.dueDate,
                 project: task.project,
                 assignee: task.assignee,
-              }
+              },
             });
           }
         }}
@@ -573,7 +724,7 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
               </Text>
             </View>
           </View>
-          
+
           {/* Task Card */}
           <TaskCardModern
             task={taskSummary as any}
@@ -605,9 +756,9 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
             </Text>
           </View>
         </View>
-        
+
         {/* Simple Task Card */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.trackingCard}
           onPress={() => {
             console.log('Tracking pressed:', tracking.id);
@@ -634,7 +785,12 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
     >
       <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
       {/* Header */}
-      <View style={[styles.headerRow, { paddingTop: contentTopSpacing ?? 20, paddingHorizontal: 20 }]}>
+      <View
+        style={[
+          styles.headerRow,
+          { paddingTop: contentTopSpacing ?? 20, paddingHorizontal: 20 },
+        ]}
+      >
         <View style={styles.headerLeft}>
           <Text style={[styles.title, { color: colors.text }]}>Calendar</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
@@ -642,7 +798,7 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
           </Text>
         </View>
       </View>
-      
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -656,28 +812,43 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
         stickyHeaderIndices={[0]}
       >
         {/* Calendar Grid - Sticky */}
-        <View style={[styles.calendarContainer, { backgroundColor: colors.surface }]}>
+        <View
+          style={[
+            styles.calendarContainer,
+            { backgroundColor: colors.surface },
+          ]}
+        >
           {/* Calendar Header */}
           <View style={styles.calendarHeader}>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => navigateMonth('prev')}
               style={styles.navButton}
             >
-              <MaterialIcons name="chevron-left" size={20} color={colors.text} />
+              <MaterialIcons
+                name="chevron-left"
+                size={20}
+                color={colors.text}
+              />
             </TouchableOpacity>
             <View style={styles.calendarTitleContainer}>
               <Text style={[styles.calendarTitle, { color: colors.text }]}>
                 {getMonthName(currentMonth)}
               </Text>
-              <Text style={[styles.calendarYear, { color: colors.textSecondary }]}>
+              <Text
+                style={[styles.calendarYear, { color: colors.textSecondary }]}
+              >
                 {currentYear}
               </Text>
             </View>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => navigateMonth('next')}
               style={styles.navButton}
             >
-              <MaterialIcons name="chevron-right" size={20} color={colors.text} />
+              <MaterialIcons
+                name="chevron-right"
+                size={20}
+                color={colors.text}
+              />
             </TouchableOpacity>
           </View>
 
@@ -685,9 +856,14 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
           <View style={styles.calendarGrid}>
             {/* Weekday Headers */}
             <View style={styles.calendarHeaderRow}>
-              {[0, 1, 2, 3, 4, 5, 6].map((day) => (
+              {[0, 1, 2, 3, 4, 5, 6].map(day => (
                 <View key={day} style={styles.weekdayHeaderContainer}>
-                  <Text style={[styles.weekdayHeader, { color: colors.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.weekdayHeader,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
                     {getWeekdayName(day)}
                   </Text>
                 </View>
@@ -695,9 +871,7 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
             </View>
 
             {/* Calendar Days */}
-            <View style={styles.calendarDays}>
-              {renderCalendarDays()}
-            </View>
+            <View style={styles.calendarDays}>{renderCalendarDays()}</View>
           </View>
         </View>
 
@@ -707,8 +881,11 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
             {formatDate(selectedDate)}
           </Text>
           {selectedDateTasks.length > 0 && (
-            <Text style={[styles.itemCountText, { color: colors.textSecondary }]}>
-              {selectedDateTasks.length} task{selectedDateTasks.length > 1 ? 's' : ''}
+            <Text
+              style={[styles.itemCountText, { color: colors.textSecondary }]}
+            >
+              {selectedDateTasks.length} task
+              {selectedDateTasks.length > 1 ? 's' : ''}
             </Text>
           )}
         </View>
@@ -719,25 +896,31 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={Colors.primary} />
             </View>
-          ) : (
-            // Always show tasks with deadlines, regardless of past/future
-            selectedDateTasks.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <MaterialIcons name="check-circle" size={48} color={Colors.neutral.medium} />
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>No tasks due</Text>
-                <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                  No tasks are due on this date
-                </Text>
-              </View>
-            ) : (
-              <ScrollView 
-                style={styles.itemsScrollView}
-                showsVerticalScrollIndicator={true}
-                nestedScrollEnabled={true}
+          ) : // Always show tasks with deadlines, regardless of past/future
+          selectedDateTasks.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <MaterialIcons
+                name="check-circle"
+                size={48}
+                color={Colors.neutral.medium}
+              />
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                No tasks due
+              </Text>
+              <Text
+                style={[styles.emptySubtitle, { color: colors.textSecondary }]}
               >
-                {selectedDateTasks.map((task) => renderTaskItem(task))}
-              </ScrollView>
-            )
+                No tasks are due on this date
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.itemsScrollView}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+            >
+              {selectedDateTasks.map(task => renderTaskItem(task))}
+            </ScrollView>
           )}
         </View>
       </ScrollView>
@@ -745,41 +928,64 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
       {/* Task Detail Modal */}
       <TaskDetailModal
         visible={showTaskDetailModal}
-        task={selectedTask ? {
-          ...selectedTask,
-          // Ensure project data is properly formatted
-          project: selectedTask.project ? 
-            (typeof selectedTask.project === 'string' ? 
-              { projectName: selectedTask.project } : 
-              selectedTask.project) : 
-            undefined,
-          projectName: typeof selectedTask.project === 'string' ? 
-            selectedTask.project : 
-            selectedTask.project?.projectName,
-        } : null}
+        task={
+          selectedTask
+            ? {
+                ...selectedTask,
+                // Ensure project data is properly formatted
+                project: selectedTask.project
+                  ? typeof selectedTask.project === 'string'
+                    ? { projectName: selectedTask.project }
+                    : selectedTask.project
+                  : undefined,
+                projectName:
+                  typeof selectedTask.project === 'string'
+                    ? selectedTask.project
+                    : selectedTask.project?.projectName,
+              }
+            : null
+        }
         onClose={() => {
           setShowTaskDetailModal(false);
           setSelectedTask(null);
         }}
-        onUpdateTask={(updatedTask) => {
+        onUpdateTask={updatedTask => {
           console.log('[Calendar] Task updated:', updatedTask);
           // Update task in local state - map all fields properly
           setTasks(prevTasks => {
             const newTasks = prevTasks.map(t => {
-              const taskIdMatch = t.id === updatedTask.id || 
-                                 t.id === updatedTask.id?.toString() || 
-                                 t.id?.toString() === updatedTask.id?.toString();
-              
+              const taskIdMatch =
+                t.id === updatedTask.id ||
+                t.id === updatedTask.id?.toString() ||
+                t.id?.toString() === updatedTask.id?.toString();
+
               if (taskIdMatch) {
-                console.log('[Calendar] Updating task in list:', t.id, '-> name:', updatedTask.name || updatedTask.title);
+                console.log(
+                  '[Calendar] Updating task in list:',
+                  t.id,
+                  '-> name:',
+                  updatedTask.name || updatedTask.title,
+                );
                 return {
                   ...t,
                   title: updatedTask.name || updatedTask.title || t.title,
-                  description: updatedTask.description !== undefined ? updatedTask.description : t.description,
+                  description:
+                    updatedTask.description !== undefined
+                      ? updatedTask.description
+                      : t.description,
                   status: updatedTask.status || t.status,
-                  priority: updatedTask.priority !== undefined ? updatedTask.priority : t.priority,
-                  dueDate: updatedTask.dueDate || updatedTask.endTime ? new Date(updatedTask.dueDate || updatedTask.endTime) : t.dueDate,
-                  assignee: updatedTask.assignee?.username || updatedTask.assigneeName || t.assignee,
+                  priority:
+                    updatedTask.priority !== undefined
+                      ? updatedTask.priority
+                      : t.priority,
+                  dueDate:
+                    updatedTask.dueDate || updatedTask.endTime
+                      ? new Date(updatedTask.dueDate || updatedTask.endTime)
+                      : t.dueDate,
+                  assignee:
+                    updatedTask.assignee?.username ||
+                    updatedTask.assigneeName ||
+                    t.assignee,
                 };
               }
               return t;
@@ -790,27 +996,28 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation, route, cont
           setShowTaskDetailModal(false);
           setSelectedTask(null);
         }}
-        onDeleteTask={(taskId) => {
+        onDeleteTask={taskId => {
           console.log('[Calendar] Task deleted:', taskId);
           // Remove task from local state
-          setTasks(prevTasks => prevTasks.filter(t => 
-            t.id !== taskId && t.id !== taskId?.toString()
-          ));
+          setTasks(prevTasks =>
+            prevTasks.filter(
+              t => t.id !== taskId && t.id !== taskId?.toString(),
+            ),
+          );
           setShowTaskDetailModal(false);
           setSelectedTask(null);
         }}
         showProjectChip={true}
-        onNavigateToProject={(projectId) => {
+        onNavigateToProject={projectId => {
           console.log('[Calendar] Navigate to project:', projectId);
           setShowTaskDetailModal(false);
           if (navigation) {
-            navigation.navigate('ProjectDetail', { 
-              project: { id: projectId }
+            navigation.navigate('ProjectDetail', {
+              project: { id: projectId },
             });
           }
         }}
       />
-
     </SafeAreaView>
   );
 };
@@ -973,7 +1180,7 @@ const styles = StyleSheet.create({
   activityDot: {
     position: 'absolute',
     bottom: 2,
-    width: 4  ,
+    width: 4,
     height: 4,
     borderRadius: 2,
     backgroundColor: Colors.semantic.error,
@@ -1019,7 +1226,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  
+
   // New Tracking Card Styles
   trackingItemContainer: {
     marginBottom: 16,
