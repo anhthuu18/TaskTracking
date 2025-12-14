@@ -46,7 +46,10 @@ interface ProjectDetailScreenProps {
   };
 }
 
-const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, route }) => {
+const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({
+  navigation,
+  route,
+}) => {
   const { project: initialProject, initialTab = 'tasks' } = route.params;
   const { showSuccess, showError } = useToastContext();
 
@@ -56,16 +59,25 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingTasks, setLoadingTasks] = useState(false);
-  const [activeTab, setActiveTab] = useState<'tasks' | 'members' | 'calendar' | 'settings'>(initialTab);
+  const [activeTab, setActiveTab] = useState<
+    'tasks' | 'members' | 'calendar' | 'settings'
+  >(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTaskFilter, setActiveTaskFilter] = useState<'All' | 'Upcoming' | 'Overdue' | 'Completed'>('All');
+  const [activeTaskFilter, setActiveTaskFilter] = useState<
+    'All' | 'Upcoming' | 'Overdue' | 'Completed'
+  >('All');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
 
-  const [workspaceInfo, setWorkspaceInfo] = useState<{ name: string; type?: WorkspaceType | string } | null>(null);
-  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
+  const [workspaceInfo, setWorkspaceInfo] = useState<{
+    name: string;
+    type?: WorkspaceType | string;
+  } | null>(null);
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>(
+    [],
+  );
 
   // Modals and dropdowns state
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
@@ -83,11 +95,16 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
   const canManageMembers = useMemo(() => {
     if (!currentUserId) return false;
     const me = projectMembers.find(m => m.userId === currentUserId);
-    return me?.role === ProjectMemberRole.OWNER || me?.role === ProjectMemberRole.ADMIN;
+    return (
+      me?.role === ProjectMemberRole.OWNER ||
+      me?.role === ProjectMemberRole.ADMIN
+    );
   }, [projectMembers, currentUserId]);
 
   // Helper function to convert numeric priority to string priority
-  const convertPriorityToString = (priority: number): 'low' | 'medium' | 'high' | 'urgent' => {
+  const convertPriorityToString = (
+    priority: number,
+  ): 'low' | 'medium' | 'high' | 'urgent' => {
     switch (priority) {
       case 5:
         return 'urgent';
@@ -111,7 +128,9 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
           navigation.navigate('CreateTask', {
             projectId: Number(project.id),
             // Pass workspaceType if available; CreateTaskScreen will resolve if missing
-            workspaceType: (project as any)?.workspace?.workspaceType || (workspaceInfo?.type as any),
+            workspaceType:
+              (project as any)?.workspace?.workspaceType ||
+              (workspaceInfo?.type as any),
           } as any);
         }
         break;
@@ -124,18 +143,21 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     }
   };
 
-  const loadProjectTasks = useCallback(async (id: number) => {
-    try {
-      setLoadingTasks(true);
-      const tasks = await taskService.getTasksByProject(id);
-      setProjectTasks(tasks || []);
-    } catch (error: any) {
-      showError(`Failed to load tasks: ${error.message}`);
-      setProjectTasks([]); // Clear tasks on error
-    } finally {
-      setLoadingTasks(false);
-    }
-  }, [showError]);
+  const loadProjectTasks = useCallback(
+    async (id: number) => {
+      try {
+        setLoadingTasks(true);
+        const tasks = await taskService.getTasksByProject(id);
+        setProjectTasks(tasks || []);
+      } catch (error: any) {
+        showError(`Failed to load tasks: ${error.message}`);
+        setProjectTasks([]); // Clear tasks on error
+      } finally {
+        setLoadingTasks(false);
+      }
+    },
+    [showError],
+  );
 
   // Load current user for delete permission
   useEffect(() => {
@@ -153,44 +175,53 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     loadUser();
   }, []);
 
-  const loadInitialData = useCallback(async (id: number) => {
-    try {
-      setLoading(true);
-      // Fetch project details, which also contains members and workspace info
-      const response = await projectService.getProjectDetails(id);
-      if (response.success && response.data) {
-        const proj = response.data;
-        setProject(proj);
-        setProjectMembers((proj as any).members || []);
-        setProjectRoles((proj as any).projectRoles || []);
-        if (proj.workspace) {
-          setWorkspaceInfo({
-            name: proj.workspace.workspaceName,
-            type: proj.workspace.workspaceType,
-          });
-          // Fetch full workspace member list cho Add Member modal chỉ khi bạn là Admin/Owner
-          const myRole = (proj as any).members?.find((m: any) => m.userId === currentUserId)?.role;
-          const isAdminOrOwner = myRole === ProjectMemberRole.ADMIN || myRole === ProjectMemberRole.OWNER;
-          if (isAdminOrOwner) {
-            const wsMembersRes = await workspaceService.getWorkspaceMembers(proj.workspace.id);
-            if (wsMembersRes.success && wsMembersRes.data) {
-              setWorkspaceMembers(wsMembersRes.data as any);
+  const loadInitialData = useCallback(
+    async (id: number) => {
+      try {
+        setLoading(true);
+        // Fetch project details, which also contains members and workspace info
+        const response = await projectService.getProjectDetails(id);
+        if (response.success && response.data) {
+          const proj = response.data;
+          setProject(proj);
+          setProjectMembers((proj as any).members || []);
+          setProjectRoles((proj as any).projectRoles || []);
+          if (proj.workspace) {
+            setWorkspaceInfo({
+              name: proj.workspace.workspaceName,
+              type: proj.workspace.workspaceType,
+            });
+            // Fetch full workspace member list cho Add Member modal chỉ khi bạn là Admin/Owner
+            const myRole = (proj as any).members?.find(
+              (m: any) => m.userId === currentUserId,
+            )?.role;
+            const isAdminOrOwner =
+              myRole === ProjectMemberRole.ADMIN ||
+              myRole === ProjectMemberRole.OWNER;
+            if (isAdminOrOwner) {
+              const wsMembersRes = await workspaceService.getWorkspaceMembers(
+                proj.workspace.id,
+              );
+              if (wsMembersRes.success && wsMembersRes.data) {
+                setWorkspaceMembers(wsMembersRes.data as any);
+              }
+            } else {
+              setWorkspaceMembers([] as any);
             }
-          } else {
-            setWorkspaceMembers([] as any);
           }
+        } else {
+          showError(response.message || 'Failed to load project details');
         }
-      } else {
-        showError(response.message || 'Failed to load project details');
+        // Fetch tasks separately
+        await loadProjectTasks(id);
+      } catch (error: any) {
+        showError(`Error loading project data: ${error.message}`);
+      } finally {
+        setLoading(false);
       }
-      // Fetch tasks separately
-      await loadProjectTasks(id);
-    } catch (error: any) {
-      showError(`Error loading project data: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [showError, loadProjectTasks]);
+    },
+    [showError, loadProjectTasks],
+  );
 
   useEffect(() => {
     if (initialProject?.id) {
@@ -204,16 +235,22 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     if (open && project) {
       setActiveTab('members');
       setShowAddMemberModal(true);
-      try { (navigation as any)?.setParams?.({ openAddMember: false }); } catch {}
+      try {
+        (navigation as any)?.setParams?.({ openAddMember: false });
+      } catch {}
     }
   }, [route?.params, project]);
 
   // Switch tab if requested via route params
   useEffect(() => {
-    const openTab = (route.params as any)?.openTab as typeof activeTab | undefined;
+    const openTab = (route.params as any)?.openTab as
+      | typeof activeTab
+      | undefined;
     if (openTab) {
       setActiveTab(openTab);
-      try { (navigation as any)?.setParams?.({ openTab: undefined }); } catch {}
+      try {
+        (navigation as any)?.setParams?.({ openTab: undefined });
+      } catch {}
     }
   }, [route?.params]);
 
@@ -223,13 +260,17 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
       if (project?.id) {
         loadProjectTasks(project.id);
       }
-    }, [project?.id, loadProjectTasks])
+    }, [project?.id, loadProjectTasks]),
   );
 
   const canDeleteTask = (task: Task): boolean => {
     const ids = projectMembers.map(m => m.userId);
-    const usernames = projectMembers.map(m => m.user?.username).filter(Boolean) as string[];
-    const emails = projectMembers.map(m => m.user?.email).filter(Boolean) as string[];
+    const usernames = projectMembers
+      .map(m => m.user?.username)
+      .filter(Boolean) as string[];
+    const emails = projectMembers
+      .map(m => m.user?.email)
+      .filter(Boolean) as string[];
     if (currentUserId && ids.includes(currentUserId)) return true;
     if (currentUsername && usernames.includes(currentUsername)) return true;
     if (currentEmail && emails.includes(currentEmail)) return true;
@@ -256,11 +297,13 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
             }
           },
         },
-      ]
+      ],
     );
   };
 
-  const convertStatusToString = (status?: string): 'todo'|'in_progress'|'completed' => {
+  const convertStatusToString = (
+    status?: string,
+  ): 'todo' | 'in_progress' | 'completed' => {
     const s = (status || '').toLowerCase();
     if (s.includes('progress')) return 'in_progress';
     if (s.includes('done') || s.includes('complete')) return 'completed';
@@ -270,19 +313,33 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
   const handleAddMember = async (userId: number, role: ProjectMemberRole) => {
     try {
       // Map UI role to backend ProjectRole id
-      const desiredRoleName = role === ProjectMemberRole.ADMIN ? 'Admin' : 'Member';
-      let roleId: number | undefined = projectRoles?.find((r: any) => r.roleName === desiredRoleName)?.id;
+      const desiredRoleName =
+        role === ProjectMemberRole.ADMIN ? 'Admin' : 'Member';
+      let roleId: number | undefined = projectRoles?.find(
+        (r: any) => r.roleName === desiredRoleName,
+      )?.id;
 
       // Create role if missing (edge case)
       if (!roleId && project?.id) {
-        const created = await projectService.createProjectRole(project.id, desiredRoleName, undefined, undefined);
+        const created = await projectService.createProjectRole(
+          project.id,
+          desiredRoleName,
+          undefined,
+          undefined,
+        );
         roleId = created?.id;
       }
 
-      const response = await projectService.addMemberToProject(project!.id, userId, roleId);
-      
+      const response = await projectService.addMemberToProject(
+        project!.id,
+        userId,
+        roleId,
+      );
+
       if (response.success) {
-        showSuccess(`Đã thêm thành viên${desiredRoleName === 'Admin' ? ' (Admin)' : ''}`);
+        showSuccess(
+          `Đã thêm thành viên${desiredRoleName === 'Admin' ? ' (Admin)' : ''}`,
+        );
         // Reload project data
         if (project?.id) {
           await loadInitialData(project.id);
@@ -299,8 +356,9 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
   const confirmComplete = (task: Task) => {
     // Check if task is already completed
     const taskStatus = (task.status || '').toLowerCase();
-    const isCompleted = taskStatus.includes('done') || taskStatus.includes('complete');
-    
+    const isCompleted =
+      taskStatus.includes('done') || taskStatus.includes('complete');
+
     if (isCompleted) {
       showSuccess('Task này đã được đánh dấu hoàn thành');
       return;
@@ -309,9 +367,10 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     const isCreator = currentUserId && task.createdBy === currentUserId;
     const isAssignee = currentUserId && task.assignedTo === currentUserId;
     const role = projectMembers.find(m => m.userId === currentUserId)?.role;
-    const isOwnerAdmin = role === ProjectMemberRole.OWNER || role === ProjectMemberRole.ADMIN;
+    const isOwnerAdmin =
+      role === ProjectMemberRole.OWNER || role === ProjectMemberRole.ADMIN;
     const canUpdate = Boolean(isCreator || isAssignee || isOwnerAdmin);
-    
+
     if (!canUpdate) {
       showError('Bạn không có quyền cập nhật trạng thái task này');
       return;
@@ -326,18 +385,26 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
           text: 'Đồng ý',
           onPress: async () => {
             const prev = task.status;
-            setProjectTasks(prevTasks => prevTasks.map(t => t.id === task.id ? { ...t, status: 'Done' } : t));
-              try {
-                await taskService.updateTask(Number(task.id), { status: 'Done' });
-                showSuccess('Đã hoàn thành task');
-              } catch (e: any) {
-                const msg = String(e?.message || '');
-                setProjectTasks(prevTasks => prevTasks.map(t => t.id === task.id ? { ...t, status: prev } : t));
-                showError(msg || 'Cập nhật trạng thái thất bại');
-              }
+            setProjectTasks(prevTasks =>
+              prevTasks.map(t =>
+                t.id === task.id ? { ...t, status: 'Done' } : t,
+              ),
+            );
+            try {
+              await taskService.updateTask(Number(task.id), { status: 'Done' });
+              showSuccess('Đã hoàn thành task');
+            } catch (e: any) {
+              const msg = String(e?.message || '');
+              setProjectTasks(prevTasks =>
+                prevTasks.map(t =>
+                  t.id === task.id ? { ...t, status: prev } : t,
+                ),
+              );
+              showError(msg || 'Cập nhật trạng thái thất bại');
+            }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -394,66 +461,86 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
 
   const renderTabContent = () => {
     if (activeTab === 'tasks') {
-      const filteredTasks = projectTasks.filter(task => {
-        const matchesSearch =
-          task.taskName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (task.description && task.description.toLowerCase().includes(searchQuery.toLowerCase()));
+      const filteredTasks = projectTasks
+        .filter(task => {
+          const matchesSearch =
+            task.taskName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (task.description &&
+              task.description
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase()));
 
-        if (!matchesSearch) return false;
+          if (!matchesSearch) return false;
 
-        const now = new Date();
-        now.setHours(0, 0, 0, 0);
+          const now = new Date();
+          now.setHours(0, 0, 0, 0);
 
-        // Base filter (All/Upcoming/Overdue/Completed)
-        let matchesBaseFilter = false;
-        switch (activeTaskFilter) {
-          case 'Upcoming':
-            matchesBaseFilter = task.status !== 'Done' && !!task.endTime && new Date(task.endTime) >= now;
-            break;
-          case 'Overdue':
-            matchesBaseFilter = task.status !== 'Done' && !!task.endTime && new Date(task.endTime) < now;
-            break;
-          case 'Completed':
-            matchesBaseFilter = task.status === 'Done';
-            break;
-          case 'All':
-          default:
-            matchesBaseFilter = true;
-            break;
-        }
+          // Base filter (All/Upcoming/Overdue/Completed)
+          let matchesBaseFilter = false;
+          switch (activeTaskFilter) {
+            case 'Upcoming':
+              matchesBaseFilter =
+                task.status !== 'Done' &&
+                !!task.endTime &&
+                new Date(task.endTime) >= now;
+              break;
+            case 'Overdue':
+              matchesBaseFilter =
+                task.status !== 'Done' &&
+                !!task.endTime &&
+                new Date(task.endTime) < now;
+              break;
+            case 'Completed':
+              matchesBaseFilter = task.status === 'Done';
+              break;
+            case 'All':
+            default:
+              matchesBaseFilter = true;
+              break;
+          }
 
-        if (!matchesBaseFilter) return false;
+          if (!matchesBaseFilter) return false;
 
-        // Status filter
-        if (statusFilter !== 'all') {
-          const s = String(task.status || '').toLowerCase();
-          let matchesStatus = false;
-          if (statusFilter === 'todo') matchesStatus = s.includes('to do') || s.includes('todo');
-          else if (statusFilter === 'in_progress') matchesStatus = s.includes('progress');
-          else if (statusFilter === 'review') matchesStatus = s.includes('review');
-          else if (statusFilter === 'done') matchesStatus = s.includes('done') || s.includes('complete');
-          if (!matchesStatus) return false;
-        }
+          // Status filter
+          if (statusFilter !== 'all') {
+            const s = String(task.status || '').toLowerCase();
+            let matchesStatus = false;
+            if (statusFilter === 'todo')
+              matchesStatus = s.includes('to do') || s.includes('todo');
+            else if (statusFilter === 'in_progress')
+              matchesStatus = s.includes('progress');
+            else if (statusFilter === 'review')
+              matchesStatus = s.includes('review');
+            else if (statusFilter === 'done')
+              matchesStatus = s.includes('done') || s.includes('complete');
+            if (!matchesStatus) return false;
+          }
 
-        // Assignee filter
-        if (assigneeFilter !== 'all') {
-          const matchesAssignee = String(task.assignedTo ?? '') === assigneeFilter;
-          if (!matchesAssignee) return false;
-        }
+          // Assignee filter
+          if (assigneeFilter !== 'all') {
+            const matchesAssignee =
+              String(task.assignedTo ?? '') === assigneeFilter;
+            if (!matchesAssignee) return false;
+          }
 
-        return true;
-      })
-      .sort((a, b) => {
-        // Sort by created date (newest first)
-        const aTime = a.dateCreated ? new Date(a.dateCreated).getTime() : 0;
-        const bTime = b.dateCreated ? new Date(b.dateCreated).getTime() : 0;
-        return bTime - aTime;
-      });
+          return true;
+        })
+        .sort((a, b) => {
+          // Sort by created date (newest first)
+          const aTime = a.dateCreated ? new Date(a.dateCreated).getTime() : 0;
+          const bTime = b.dateCreated ? new Date(b.dateCreated).getTime() : 0;
+          return bTime - aTime;
+        });
 
       return (
         <ScrollView
           style={styles.tabContent}
-          refreshControl={<RefreshControl refreshing={loadingTasks} onRefresh={() => loadProjectTasks(project.id)} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={loadingTasks}
+              onRefresh={() => loadProjectTasks(project.id)}
+            />
+          }
         >
           <View style={styles.taskHeader}>
             <View style={styles.taskSearchContainer}>
@@ -464,7 +551,12 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
                 mode="outlined"
                 style={styles.searchInput}
                 outlineStyle={styles.searchOutline}
-                left={<TextInput.Icon icon="magnify" color={Colors.neutral.medium} />}
+                left={
+                  <TextInput.Icon
+                    icon="magnify"
+                    color={Colors.neutral.medium}
+                  />
+                }
                 theme={{
                   colors: {
                     primary: Colors.primary,
@@ -480,7 +572,12 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
             {/* Status & Assignee Filters */}
             <View style={styles.dropdownFiltersRow}>
               {/* Status Filter */}
-              <View style={[styles.dropdownFilterWrap, { zIndex: showStatusDropdown ? 100 : 1 }]}>
+              <View
+                style={[
+                  styles.dropdownFilterWrap,
+                  { zIndex: showStatusDropdown ? 100 : 1 },
+                ]}
+              >
                 <TouchableOpacity
                   style={styles.dropdownFilterBtn}
                   onPress={() => {
@@ -488,11 +585,31 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
                     setShowAssigneeDropdown(false);
                   }}
                 >
-                  <MaterialIcons name="filter-list" size={16} color={Colors.neutral.dark} />
+                  <MaterialIcons
+                    name="filter-list"
+                    size={16}
+                    color={Colors.neutral.dark}
+                  />
                   <Text style={styles.dropdownFilterText}>
-                    {statusFilter === 'all' ? 'Status' : statusFilter === 'todo' ? 'To Do' : statusFilter === 'in_progress' ? 'In Progress' : statusFilter === 'review' ? 'Review' : 'Done'}
+                    {statusFilter === 'all'
+                      ? 'Status'
+                      : statusFilter === 'todo'
+                      ? 'To Do'
+                      : statusFilter === 'in_progress'
+                      ? 'In Progress'
+                      : statusFilter === 'review'
+                      ? 'Review'
+                      : 'Done'}
                   </Text>
-                  <MaterialIcons name={showStatusDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={18} color={Colors.neutral.medium} />
+                  <MaterialIcons
+                    name={
+                      showStatusDropdown
+                        ? 'keyboard-arrow-up'
+                        : 'keyboard-arrow-down'
+                    }
+                    size={18}
+                    color={Colors.neutral.medium}
+                  />
                 </TouchableOpacity>
                 {showStatusDropdown && (
                   <View style={styles.dropdownFilterMenu}>
@@ -511,10 +628,22 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
                           setShowStatusDropdown(false);
                         }}
                       >
-                        <Text style={[styles.dropdownFilterOptionText, statusFilter === opt.value && styles.dropdownFilterOptionTextActive]}>
+                        <Text
+                          style={[
+                            styles.dropdownFilterOptionText,
+                            statusFilter === opt.value &&
+                              styles.dropdownFilterOptionTextActive,
+                          ]}
+                        >
                           {opt.label}
                         </Text>
-                        {statusFilter === opt.value && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                        {statusFilter === opt.value && (
+                          <MaterialIcons
+                            name="check"
+                            size={18}
+                            color={Colors.primary}
+                          />
+                        )}
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -522,7 +651,12 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
               </View>
 
               {/* Assignee Filter */}
-              <View style={[styles.dropdownFilterWrap, { zIndex: showAssigneeDropdown ? 100 : 1 }]}>
+              <View
+                style={[
+                  styles.dropdownFilterWrap,
+                  { zIndex: showAssigneeDropdown ? 100 : 1 },
+                ]}
+              >
                 <TouchableOpacity
                   style={styles.dropdownFilterBtn}
                   onPress={() => {
@@ -530,11 +664,27 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
                     setShowStatusDropdown(false);
                   }}
                 >
-                  <MaterialIcons name="person" size={16} color={Colors.neutral.dark} />
+                  <MaterialIcons
+                    name="person"
+                    size={16}
+                    color={Colors.neutral.dark}
+                  />
                   <Text style={styles.dropdownFilterText}>
-                    {assigneeFilter === 'all' ? 'Assignee' : (projectMembers.find(m => String(m.userId) === assigneeFilter)?.user?.username || 'Assignee')}
+                    {assigneeFilter === 'all'
+                      ? 'Assignee'
+                      : projectMembers.find(
+                          m => String(m.userId) === assigneeFilter,
+                        )?.user?.username || 'Assignee'}
                   </Text>
-                  <MaterialIcons name={showAssigneeDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={18} color={Colors.neutral.medium} />
+                  <MaterialIcons
+                    name={
+                      showAssigneeDropdown
+                        ? 'keyboard-arrow-up'
+                        : 'keyboard-arrow-down'
+                    }
+                    size={18}
+                    color={Colors.neutral.medium}
+                  />
                 </TouchableOpacity>
                 {showAssigneeDropdown && (
                   <View style={styles.dropdownFilterMenu}>
@@ -546,10 +696,22 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
                           setShowAssigneeDropdown(false);
                         }}
                       >
-                        <Text style={[styles.dropdownFilterOptionText, assigneeFilter === 'all' && styles.dropdownFilterOptionTextActive]}>
+                        <Text
+                          style={[
+                            styles.dropdownFilterOptionText,
+                            assigneeFilter === 'all' &&
+                              styles.dropdownFilterOptionTextActive,
+                          ]}
+                        >
                           All Assignees
                         </Text>
-                        {assigneeFilter === 'all' && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                        {assigneeFilter === 'all' && (
+                          <MaterialIcons
+                            name="check"
+                            size={18}
+                            color={Colors.primary}
+                          />
+                        )}
                       </TouchableOpacity>
                       {projectMembers.map(m => (
                         <TouchableOpacity
@@ -562,13 +724,29 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
                         >
                           <View style={styles.assigneeOptionContent}>
                             <View style={styles.assigneeAvatar}>
-                              <Text style={styles.assigneeAvatarText}>{(m.user?.username || 'U').charAt(0).toUpperCase()}</Text>
+                              <Text style={styles.assigneeAvatarText}>
+                                {(m.user?.username || 'U')
+                                  .charAt(0)
+                                  .toUpperCase()}
+                              </Text>
                             </View>
-                            <Text style={[styles.dropdownFilterOptionText, assigneeFilter === String(m.userId) && styles.dropdownFilterOptionTextActive]}>
+                            <Text
+                              style={[
+                                styles.dropdownFilterOptionText,
+                                assigneeFilter === String(m.userId) &&
+                                  styles.dropdownFilterOptionTextActive,
+                              ]}
+                            >
                               {m.user?.username || m.user?.email || m.userId}
                             </Text>
                           </View>
-                          {assigneeFilter === String(m.userId) && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                          {assigneeFilter === String(m.userId) && (
+                            <MaterialIcons
+                              name="check"
+                              size={18}
+                              color={Colors.primary}
+                            />
+                          )}
                         </TouchableOpacity>
                       ))}
                     </ScrollView>
@@ -578,17 +756,28 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
             </View>
 
             <View style={styles.taskFilterContainer}>
-              {(['All', 'Upcoming', 'Overdue', 'Completed'] as const).map((filter) => (
-                <TouchableOpacity
-                  key={filter}
-                  style={[styles.filterChip, activeTaskFilter === filter && styles.activeFilterChip]}
-                  onPress={() => setActiveTaskFilter(filter)}
-                >
-                  <Text style={[styles.filterChipText, activeTaskFilter === filter && styles.activeFilterChipText]}>
-                    {filter}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {(['All', 'Upcoming', 'Overdue', 'Completed'] as const).map(
+                filter => (
+                  <TouchableOpacity
+                    key={filter}
+                    style={[
+                      styles.filterChip,
+                      activeTaskFilter === filter && styles.activeFilterChip,
+                    ]}
+                    onPress={() => setActiveTaskFilter(filter)}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        activeTaskFilter === filter &&
+                          styles.activeFilterChipText,
+                      ]}
+                    >
+                      {filter}
+                    </Text>
+                  </TouchableOpacity>
+                ),
+              )}
             </View>
           </View>
 
@@ -599,15 +788,23 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
             </View>
           ) : filteredTasks.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <MaterialIcons name={searchQuery ? 'search-off' : 'check-circle-outline'} size={32} color={Colors.neutral.medium} />
-              <Text style={styles.emptyTitle}>{searchQuery ? 'No tasks match' : 'No tasks yet'}</Text>
+              <MaterialIcons
+                name={searchQuery ? 'search-off' : 'check-circle-outline'}
+                size={32}
+                color={Colors.neutral.medium}
+              />
+              <Text style={styles.emptyTitle}>
+                {searchQuery ? 'No tasks match' : 'No tasks yet'}
+              </Text>
               <Text style={styles.emptySubtitle}>
-                {searchQuery ? 'Try adjusting your filter' : 'Create a new task to get started'}
+                {searchQuery
+                  ? 'Try adjusting your filter'
+                  : 'Create a new task to get started'}
               </Text>
             </View>
           ) : (
             <View style={styles.tasksList}>
-              {filteredTasks.map((task) => renderTaskCard(task))}
+              {filteredTasks.map(task => renderTaskCard(task))}
             </View>
           )}
         </ScrollView>
@@ -615,9 +812,18 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     }
     // Other tabs remain the same for now
     else if (activeTab === 'calendar') {
-      return <CalendarScreen navigation={navigation} contentTopSpacing={12} safeAreaEdges={[]} />;
+      return (
+        <CalendarScreen
+          navigation={navigation}
+          contentTopSpacing={12}
+          safeAreaEdges={[]}
+          projectId={project?.id}
+        />
+      );
     } else if (activeTab === 'settings') {
-      return <ProjectSettingsScreen navigation={navigation} route={route as any} />;
+      return (
+        <ProjectSettingsScreen navigation={navigation} route={route as any} />
+      );
     } else {
       // Members Tab
       return (
@@ -627,14 +833,21 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
             <View style={styles.membersSectionHeader}>
               <View>
                 <Text style={styles.membersSectionTitle}>Members</Text>
-                <Text style={styles.membersSectionCount}>{projectMembers.length} member{projectMembers.length !== 1 ? 's' : ''}</Text>
+                <Text style={styles.membersSectionCount}>
+                  {projectMembers.length} member
+                  {projectMembers.length !== 1 ? 's' : ''}
+                </Text>
               </View>
               {canManageMembers && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.addMemberButton}
                   onPress={() => setShowAddMemberModal(true)}
                 >
-                  <MaterialIcons name="person-add" size={18} color={Colors.neutral.white} />
+                  <MaterialIcons
+                    name="person-add"
+                    size={18}
+                    color={Colors.neutral.white}
+                  />
                   <Text style={styles.addMemberButtonText}>Add</Text>
                 </TouchableOpacity>
               )}
@@ -642,21 +855,33 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
 
             {projectMembers.length === 0 ? (
               <View style={styles.emptyMembersContainer}>
-                <MaterialIcons name="group-outline" size={48} color={Colors.neutral.medium} />
+                <MaterialIcons
+                  name="group-outline"
+                  size={48}
+                  color={Colors.neutral.medium}
+                />
                 <Text style={styles.emptyMembersTitle}>No members yet</Text>
-                <Text style={styles.emptyMembersSubtitle}>Add members to collaborate on this project</Text>
+                <Text style={styles.emptyMembersSubtitle}>
+                  Add members to collaborate on this project
+                </Text>
               </View>
             ) : (
               <View style={styles.membersList}>
                 {/* Separate members by role - Leaders first */}
                 {projectMembers
-                  .filter(m => m.role === ProjectMemberRole.OWNER || m.role === ProjectMemberRole.ADMIN)
-                  .map((member) => (
+                  .filter(
+                    m =>
+                      m.role === ProjectMemberRole.OWNER ||
+                      m.role === ProjectMemberRole.ADMIN,
+                  )
+                  .map(member => (
                     <View key={member.id} style={styles.memberCard}>
                       <View style={styles.memberCardContent}>
                         <View style={styles.memberAvatar}>
                           <Text style={styles.memberAvatarText}>
-                            {(member.user?.name || member.user?.username || 'U').charAt(0).toUpperCase()}
+                            {(member.user?.name || member.user?.username || 'U')
+                              .charAt(0)
+                              .toUpperCase()}
                           </Text>
                         </View>
                         <View style={styles.memberInfo}>
@@ -664,34 +889,45 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
                             <Text style={styles.memberName} numberOfLines={1}>
                               {member.user?.name || member.user?.username}
                             </Text>
-
                           </View>
                           <Text style={styles.memberEmail} numberOfLines={1}>
                             {member.user?.email}
                           </Text>
                           <Text style={styles.memberJoinedDate}>
-                            Joined {new Date(member.joinedAt).toLocaleDateString('en-US', { 
-                              month: 'short', 
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}
+                            Joined{' '}
+                            {new Date(member.joinedAt).toLocaleDateString(
+                              'en-US',
+                              {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              },
+                            )}
                           </Text>
                         </View>
                       </View>
                       <View style={styles.memberCardRight}>
-                        <View style={[
-                          styles.roleBadge,
-                          member.role === ProjectMemberRole.OWNER 
-                            ? styles.ownerBadge 
-                            : styles.adminBadge
-                        ]}>
-                          <MaterialIcons 
-                            name={member.role === ProjectMemberRole.OWNER ? 'admin-panel-settings' : 'verified-user'} 
-                            size={14} 
-                            color={Colors.neutral.white} 
+                        <View
+                          style={[
+                            styles.roleBadge,
+                            member.role === ProjectMemberRole.OWNER
+                              ? styles.ownerBadge
+                              : styles.adminBadge,
+                          ]}
+                        >
+                          <MaterialIcons
+                            name={
+                              member.role === ProjectMemberRole.OWNER
+                                ? 'admin-panel-settings'
+                                : 'verified-user'
+                            }
+                            size={14}
+                            color={Colors.neutral.white}
                           />
                           <Text style={styles.roleBadgeText}>
-                            {member.role === ProjectMemberRole.OWNER ? 'Owner' : 'Admin'}
+                            {member.role === ProjectMemberRole.OWNER
+                              ? 'Owner'
+                              : 'Admin'}
                           </Text>
                         </View>
                       </View>
@@ -701,12 +937,14 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
                 {/* Regular members */}
                 {projectMembers
                   .filter(m => m.role === ProjectMemberRole.MEMBER)
-                  .map((member) => (
+                  .map(member => (
                     <View key={member.id} style={styles.memberCard}>
                       <View style={styles.memberCardContent}>
                         <View style={styles.memberAvatar}>
                           <Text style={styles.memberAvatarText}>
-                            {(member.user?.name || member.user?.username || 'U').charAt(0).toUpperCase()}
+                            {(member.user?.name || member.user?.username || 'U')
+                              .charAt(0)
+                              .toUpperCase()}
                           </Text>
                         </View>
                         <View style={styles.memberInfo}>
@@ -714,26 +952,29 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
                             <Text style={styles.memberName} numberOfLines={1}>
                               {member.user?.name || member.user?.username}
                             </Text>
-
                           </View>
                           <Text style={styles.memberEmail} numberOfLines={1}>
                             {member.user?.email}
                           </Text>
                           <Text style={styles.memberJoinedDate}>
-                            Joined {new Date(member.joinedAt).toLocaleDateString('en-US', { 
-                              month: 'short', 
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}
+                            Joined{' '}
+                            {new Date(member.joinedAt).toLocaleDateString(
+                              'en-US',
+                              {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              },
+                            )}
                           </Text>
                         </View>
                       </View>
                       <View style={styles.memberCardRight}>
                         <View style={styles.memberBadge}>
-                          <MaterialIcons 
-                            name="person" 
-                            size={14} 
-                            color={Colors.neutral.white} 
+                          <MaterialIcons
+                            name="person"
+                            size={14}
+                            color={Colors.neutral.white}
                           />
                           <Text style={styles.roleBadgeText}>Member</Text>
                         </View>
@@ -752,17 +993,32 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={Colors.neutral.dark} />
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <MaterialIcons
+            name="arrow-back"
+            size={24}
+            color={Colors.neutral.dark}
+          />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-        <Text style={styles.headerTitle} numberOfLines={1}>{project?.projectName || 'Project'}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {project?.projectName || 'Project'}
+          </Text>
           {workspaceInfo?.name && (
-            <Text style={styles.headerSubtitle} numberOfLines={1}>{workspaceInfo.name}</Text>
+            <Text style={styles.headerSubtitle} numberOfLines={1}>
+              {workspaceInfo.name}
+            </Text>
           )}
         </View>
         <TouchableOpacity style={styles.headerActionButton}>
-          <MaterialIcons name="more-vert" size={24} color={Colors.neutral.dark} />
+          <MaterialIcons
+            name="more-vert"
+            size={24}
+            color={Colors.neutral.dark}
+          />
         </TouchableOpacity>
       </View>
 
@@ -771,39 +1027,134 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
 
       {/* Footer Tab Navigator */}
       <View style={styles.footerTabSection}>
-        <TouchableOpacity style={styles.footerTabButton} onPress={() => setActiveTab('tasks')}>
-          <View style={[styles.iconContainer, activeTab === 'tasks' && styles.activeIconContainer]}>
-            <MaterialIcons name="home" size={20} color={activeTab === 'tasks' ? Colors.neutral.white : Colors.neutral.medium} />
+        <TouchableOpacity
+          style={styles.footerTabButton}
+          onPress={() => setActiveTab('tasks')}
+        >
+          <View
+            style={[
+              styles.iconContainer,
+              activeTab === 'tasks' && styles.activeIconContainer,
+            ]}
+          >
+            <MaterialIcons
+              name="home"
+              size={20}
+              color={
+                activeTab === 'tasks'
+                  ? Colors.neutral.white
+                  : Colors.neutral.medium
+              }
+            />
           </View>
-          <Text style={[styles.footerTabButtonText, activeTab === 'tasks' && styles.activeFooterTabButtonText]}>Home</Text>
+          <Text
+            style={[
+              styles.footerTabButtonText,
+              activeTab === 'tasks' && styles.activeFooterTabButtonText,
+            ]}
+          >
+            Home
+          </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.footerTabButton} onPress={() => setActiveTab('calendar')}>
-          <View style={[styles.iconContainer, activeTab === 'calendar' && styles.activeIconContainer]}>
-            <MaterialIcons name="event" size={20} color={activeTab === 'calendar' ? Colors.neutral.white : Colors.neutral.medium} />
+        <TouchableOpacity
+          style={styles.footerTabButton}
+          onPress={() => setActiveTab('calendar')}
+        >
+          <View
+            style={[
+              styles.iconContainer,
+              activeTab === 'calendar' && styles.activeIconContainer,
+            ]}
+          >
+            <MaterialIcons
+              name="event"
+              size={20}
+              color={
+                activeTab === 'calendar'
+                  ? Colors.neutral.white
+                  : Colors.neutral.medium
+              }
+            />
           </View>
-          <Text style={[styles.footerTabButtonText, activeTab === 'calendar' && styles.activeFooterTabButtonText]}>Calendar</Text>
+          <Text
+            style={[
+              styles.footerTabButtonText,
+              activeTab === 'calendar' && styles.activeFooterTabButtonText,
+            ]}
+          >
+            Calendar
+          </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.footerTabButton} onPress={() => setShowCreateDropdown(true)}>
+        <TouchableOpacity
+          style={styles.footerTabButton}
+          onPress={() => setShowCreateDropdown(true)}
+        >
           <View style={styles.iconContainer}>
             <MaterialIcons name="add" size={20} color={Colors.neutral.medium} />
           </View>
           <Text style={styles.footerTabButtonText}>Create</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.footerTabButton} onPress={() => setActiveTab('members')}>
-          <View style={[styles.iconContainer, activeTab === 'members' && styles.activeIconContainer]}>
-            <MaterialIcons name="group" size={20} color={activeTab === 'members' ? Colors.neutral.white : Colors.neutral.medium} />
+        <TouchableOpacity
+          style={styles.footerTabButton}
+          onPress={() => setActiveTab('members')}
+        >
+          <View
+            style={[
+              styles.iconContainer,
+              activeTab === 'members' && styles.activeIconContainer,
+            ]}
+          >
+            <MaterialIcons
+              name="group"
+              size={20}
+              color={
+                activeTab === 'members'
+                  ? Colors.neutral.white
+                  : Colors.neutral.medium
+              }
+            />
           </View>
-          <Text style={[styles.footerTabButtonText, activeTab === 'members' && styles.activeFooterTabButtonText]}>Members</Text>
+          <Text
+            style={[
+              styles.footerTabButtonText,
+              activeTab === 'members' && styles.activeFooterTabButtonText,
+            ]}
+          >
+            Members
+          </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.footerTabButton} onPress={() => setActiveTab('settings')}>
-          <View style={[styles.iconContainer, activeTab === 'settings' && styles.activeIconContainer]}>
-            <MaterialIcons name="settings" size={20} color={activeTab === 'settings' ? Colors.neutral.white : Colors.neutral.medium} />
+        <TouchableOpacity
+          style={styles.footerTabButton}
+          onPress={() => setActiveTab('settings')}
+        >
+          <View
+            style={[
+              styles.iconContainer,
+              activeTab === 'settings' && styles.activeIconContainer,
+            ]}
+          >
+            <MaterialIcons
+              name="settings"
+              size={20}
+              color={
+                activeTab === 'settings'
+                  ? Colors.neutral.white
+                  : Colors.neutral.medium
+              }
+            />
           </View>
-          <Text style={[styles.footerTabButtonText, activeTab === 'settings' && styles.activeFooterTabButtonText]}>{canManageMembers ? 'Manage' : 'Info'}</Text>
+          <Text
+            style={[
+              styles.footerTabButtonText,
+              activeTab === 'settings' && styles.activeFooterTabButtonText,
+            ]}
+          >
+            {canManageMembers ? 'Manage' : 'Info'}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -821,15 +1172,17 @@ const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ navigation, r
           visible={isTaskDetailVisible}
           onClose={() => setIsTaskDetailVisible(false)}
           showProjectChip={false}
-          onUpdateTask={async (updatedTask) => {
+          onUpdateTask={async updatedTask => {
             // Reload project data to update progress bar and task list
             if (project?.id) {
               await loadInitialData(project.id);
             }
             setIsTaskDetailVisible(false);
           }}
-          onDeleteTask={(taskId) => {
-            setProjectTasks(prevTasks => prevTasks.filter(t => t.id !== taskId));
+          onDeleteTask={taskId => {
+            setProjectTasks(prevTasks =>
+              prevTasks.filter(t => t.id !== taskId),
+            );
             showSuccess('Task deleted');
           }}
         />

@@ -34,8 +34,12 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
-  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<number | null>(null);
-  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<number | null>(
+    null,
+  );
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>(
+    [],
+  );
   const [reloadKey, setReloadKey] = useState(0);
 
   // Load current workspace and members
@@ -44,17 +48,21 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
       try {
         let workspaceId = workspace?.id;
         if (!workspaceId) {
-          const storedWorkspace = await AsyncStorage.getItem('currentWorkspace');
+          const storedWorkspace = await AsyncStorage.getItem(
+            'currentWorkspace',
+          );
           if (storedWorkspace) {
             const ws = JSON.parse(storedWorkspace);
             workspaceId = ws?.id;
           }
         }
-        
+
         if (workspaceId) {
           setCurrentWorkspaceId(Number(workspaceId));
-          
-          const membersResponse = await workspaceService.getWorkspaceMembers(Number(workspaceId));
+
+          const membersResponse = await workspaceService.getWorkspaceMembers(
+            Number(workspaceId),
+          );
           if (membersResponse.success && membersResponse.data) {
             setWorkspaceMembers(membersResponse.data);
           }
@@ -63,7 +71,7 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
         console.error('Error loading workspace data:', error);
       }
     };
-    
+
     loadWorkspaceData();
   }, [workspace]);
 
@@ -117,19 +125,36 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
         return (
           <WorkspaceDashboardModern
             navigation={navigation}
-            route={{ params: { workspace, onViewAllTasks: handleViewAllTasks, reloadKey } }}
+            route={{
+              params: {
+                workspace,
+                onViewAllTasks: handleViewAllTasks,
+                reloadKey,
+              },
+            }}
             onSwitchWorkspace={onSwitchWorkspace}
             onLogout={onLogout}
           />
         );
       case 'calendar':
-        return <CalendarScreen navigation={navigation} />;
+        return (
+          <CalendarScreen
+            navigation={navigation}
+            route={{ params: { workspace } }}
+          />
+        );
       case 'tasks':
         return (
-          <TaskListScreen 
-            key="tasks" 
+          <TaskListScreen
+            key="tasks"
             navigation={navigation}
-            route={{ params: { workspace, showAllTasks, workspaceId: currentWorkspaceId?.toString() || '1' } }} 
+            route={{
+              params: {
+                workspace,
+                showAllTasks,
+                workspaceId: currentWorkspaceId?.toString() || '1',
+              },
+            }}
             onViewAllTasksComplete={() => setShowAllTasks(false)}
           />
         );
@@ -149,9 +174,7 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.screenContainer}>
-        {renderActiveScreen()}
-      </View>
+      <View style={styles.screenContainer}>{renderActiveScreen()}</View>
       <CustomFooter activeTab={activeTab} onTabPress={handleTabPress} />
 
       {/* Create Options Modal */}
@@ -168,8 +191,8 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
         workspaceId={Number(currentWorkspaceId || 0)}
         onProjectCreated={(createdProject: any, hasMembers: boolean) => {
           setShowCreateProjectModal(false);
-          setReloadKey((k) => k + 1);
-          
+          setReloadKey(k => k + 1);
+
           // Navigate to project detail screen
           if (createdProject) {
             // If no members selected, go to members tab; otherwise go to tasks tab
