@@ -13,6 +13,7 @@ import { CreateProjectModal, TaskCardModern } from '../components';
 import { Colors } from '../constants/Colors';
 import WorkspaceMembersTab from '../components/WorkspaceMembersTab';
 import InviteMemberModal from '../components/InviteMemberModal';
+import WorkspaceSettingsScreen from './WorkspaceSettingsScreen';
 
 import { projectService } from '../services/projectService';
 import { useToastContext } from '../context/ToastContext';
@@ -1028,14 +1029,17 @@ const WorkspaceDashboardScreen = ({
         />
         <Tab.Screen
           name="Settings"
-          component={SettingsScreenExt}
           options={{
             title: 'Settings',
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="settings" size={size} color={color} />
             ),
           }}
-        />
+        >
+          {() => (
+            <WorkspaceSettingsScreen navigation={navigation} route={route} />
+          )}
+        </Tab.Screen>
       </Tab.Navigator>
 
       {/* Modals */}

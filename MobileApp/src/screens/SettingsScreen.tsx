@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Switch,
   ActivityIndicator,
   StatusBar,
+  Alert,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../hooks/useTheme';
@@ -18,40 +19,104 @@ import { Colors } from '../constants/Colors';
 import { workspaceService } from '../services/workspaceService';
 import { useToastContext } from '../context/ToastContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { MemberRole } from '../types/Workspace';
+import { MemberRole, WorkspaceMember } from '../types/Workspace';
 
 interface SettingsScreenProps {
   navigation?: any;
   workspace?: any;
 }
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }) => {
+const SettingsScreen: React.FC<SettingsScreenProps> = ({
+  navigation,
+  workspace,
+}) => {
   const { colors } = useTheme();
   const { showSuccess, showError } = useToastContext();
-  
+
   // Notification settings
   const [notificationInApp, setNotificationInApp] = useState(true);
   const [notificationPush, setNotificationPush] = useState(true);
-  
+
   // Modals
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
-  
+
   // Rename workspace states
   const [workspaceName, setWorkspaceName] = useState('');
+  const [workspaceDescription, setWorkspaceDescription] = useState('');
   const [renameLoading, setRenameLoading] = useState(false);
-  
+
   // Invite member states
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteMessage, setInviteMessage] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
-  
-  // Check if user is owner
-  const isOwner = workspace?.userRole === 'OWNER' || workspace?.userRole === MemberRole.OWNER;
+
+  // Workspace data
+  const [loading, setLoading] = useState(false);
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [workspaceDetails, setWorkspaceDetails] = useState<any>(null);
+
+  // Check if user is owner or admin
+  const meMember = useMemo(() => {
+    if (!currentUserId) return null;
+    const member = members.find(m => m.userId === currentUserId) || null;
+    console.log(
+      '[SettingsScreen] meMember:',
+      member,
+      'currentUserId:',
+      currentUserId,
+    );
+    return member;
+  }, [members, currentUserId]);
+
+  const isOwner = useMemo(() => {
+    // Check if user is owner via member role
+    if (meMember?.role === MemberRole.OWNER || meMember?.role === 'OWNER') {
+      return true;
+    }
+    // Fallback: check if current user is the workspace creator
+    if (
+      currentUserId &&
+      (workspaceDetails?.userId === currentUserId ||
+        workspace?.userId === currentUserId)
+    ) {
+      console.log('[SettingsScreen] User is owner (creator)');
+      return true;
+    }
+    return false;
+  }, [meMember, currentUserId, workspaceDetails, workspace]);
+
+  const isAdmin = useMemo(
+    () =>
+      meMember?.role === MemberRole.ADMIN ||
+      meMember?.role === MemberRole.OWNER ||
+      meMember?.role === 'ADMIN' ||
+      meMember?.role === 'OWNER' ||
+      isOwner,
+    [meMember, isOwner],
+  );
+
+  // Display role - show OWNER if user is creator even if not in members list
+  const displayRole = useMemo(() => {
+    if (isOwner) return 'OWNER';
+    if (meMember?.role) return meMember.role;
+    return 'MEMBER';
+  }, [isOwner, meMember]);
+
+  const ownerName = useMemo(() => {
+    const ownerMember = members.find(
+      m => m.role === MemberRole.OWNER || m.role === 'OWNER',
+    );
+    return (
+      ownerMember?.user?.username || workspaceDetails?.creator?.username || ''
+    );
+  }, [members, workspaceDetails]);
 
   // Load notification settings from storage
   useEffect(() => {
     loadNotificationSettings();
+    loadWorkspaceDetails();
   }, []);
 
   // Set workspace name when workspace changes
@@ -59,13 +124,104 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
     if (workspace?.workspaceName) {
       setWorkspaceName(workspace.workspaceName);
     }
+    if (workspace?.description) {
+      setWorkspaceDescription(workspace.description);
+    }
   }, [workspace]);
+
+  const loadWorkspaceDetails = async () => {
+    try {
+      setLoading(true);
+      const stored = await AsyncStorage.getItem('user');
+      let userId = null;
+      if (stored) {
+        const u = JSON.parse(stored);
+        userId = Number(u?.id);
+        setCurrentUserId(userId);
+        console.log('[SettingsScreen] Current user ID:', userId);
+      }
+
+      if (workspace?.id) {
+        console.log(
+          '[SettingsScreen] Loading workspace details for ID:',
+          workspace.id,
+        );
+
+        // Load workspace details
+        const details = await workspaceService.getWorkspaceDetails(
+          workspace.id,
+        );
+        console.log('[SettingsScreen] Workspace details response:', details);
+
+        // Load workspace members separately
+        const membersResponse = await workspaceService.getWorkspaceMembers(
+          workspace.id,
+        );
+        console.log('[SettingsScreen] Members response:', membersResponse);
+
+        if (details.success && details.data) {
+          setWorkspaceDetails(details.data);
+
+          // Get members from separate API call
+          let apiMembers = [];
+          if (membersResponse.success && membersResponse.data) {
+            apiMembers = membersResponse.data;
+            console.log(
+              '[SettingsScreen] Members from API:',
+              apiMembers.length,
+            );
+          } else {
+            // Fallback: try to get from workspace details
+            apiMembers = (details.data as any).members || [];
+            console.log(
+              '[SettingsScreen] Members from details:',
+              apiMembers.length,
+            );
+          }
+
+          // If no members but we have workspace data, create owner member from workspace info
+          if (apiMembers.length === 0) {
+            console.log(
+              '[SettingsScreen] No members from API, checking workspace userId:',
+              details.data.userId,
+            );
+            // If current user is the creator, add them as owner
+            if (userId && details.data.userId === userId) {
+              const ownerMember = {
+                userId: userId,
+                role: MemberRole.OWNER,
+                user: {
+                  id: userId,
+                  username: (details.data as any).creator?.username || 'You',
+                },
+              };
+              apiMembers = [ownerMember as any];
+              console.log(
+                '[SettingsScreen] Created owner member:',
+                ownerMember,
+              );
+            }
+          }
+
+          setMembers(apiMembers);
+          setWorkspaceName(
+            details.data.workspaceName || details.data.name || '',
+          );
+          setWorkspaceDescription(details.data.description || '');
+        }
+      }
+    } catch (error) {
+      console.error('[SettingsScreen] Error loading workspace details:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadNotificationSettings = async () => {
     try {
       const inApp = await AsyncStorage.getItem('notificationInApp');
       const push = await AsyncStorage.getItem('notificationPush');
-      
+
       if (inApp !== null) {
         setNotificationInApp(inApp === 'true');
       }
@@ -77,7 +233,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
     }
   };
 
-  const saveNotificationSettings = async (type: 'inApp' | 'push', value: boolean) => {
+  const saveNotificationSettings = async (
+    type: 'inApp' | 'push',
+    value: boolean,
+  ) => {
     try {
       if (type === 'inApp') {
         setNotificationInApp(value);
@@ -99,6 +258,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
       return;
     }
 
+    if (!isOwner) {
+      showError('Only the workspace owner can edit workspace details');
+      return;
+    }
+
     if (!workspace?.id) {
       showError('Workspace not found');
       return;
@@ -108,19 +272,19 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
       setRenameLoading(true);
       const response = await workspaceService.updateWorkspace(workspace.id, {
         workspaceName: workspaceName.trim(),
+        description: workspaceDescription.trim(),
       });
 
       if (response.success) {
-        showSuccess('Workspace renamed successfully');
+        showSuccess('Workspace updated successfully');
         setShowRenameModal(false);
-        // Reload workspace data if there's a callback
-        // navigation?.goBack() or trigger refresh
+        loadWorkspaceDetails();
       } else {
-        showError(response.message || 'Failed to rename workspace');
+        showError(response.message || 'Failed to update workspace');
       }
     } catch (error) {
-      console.error('Error renaming workspace:', error);
-      showError('Failed to rename workspace. Please try again.');
+      console.error('Error updating workspace:', error);
+      showError('Failed to update workspace. Please try again.');
     } finally {
       setRenameLoading(false);
     }
@@ -142,6 +306,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
       return;
     }
 
+    if (!isOwner) {
+      showError('Only the workspace owner can invite members');
+      return;
+    }
+
     if (!workspace?.id) {
       showError('Workspace not found');
       return;
@@ -153,7 +322,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
         workspace.id,
         inviteEmail.trim(),
         'MEMBER',
-        inviteMessage.trim() || undefined
+        inviteMessage.trim() || undefined,
       );
 
       if (response.success) {
@@ -172,40 +341,141 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
     }
   };
 
+  const handleDeleteWorkspace = () => {
+    if (!isOwner) {
+      showError('Only the workspace owner can delete the workspace');
+      return;
+    }
+
+    Alert.alert(
+      'Delete Workspace',
+      'Are you sure you want to delete this workspace? This action cannot be undone and will delete all projects and tasks.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (workspace?.id) {
+                const res = await workspaceService.deleteWorkspace(
+                  workspace.id,
+                );
+                if (res.success) {
+                  showSuccess(res.message || 'Workspace deleted successfully');
+                  // Navigate back to workspace list
+                  if (navigation) {
+                    navigation.reset({
+                      index: 0,
+                      routes: [{ name: 'WorkspaceSelection' }],
+                    });
+                  }
+                } else {
+                  Alert.alert('Error', res.message || 'Delete failed');
+                }
+              }
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || 'Delete failed');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleLeaveWorkspace = () => {
+    if (isOwner) {
+      Alert.alert(
+        'Cannot Leave',
+        'As the workspace owner, you cannot leave the workspace. Please transfer ownership or delete the workspace instead.',
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Leave Workspace',
+      'Are you sure you want to leave this workspace? You will lose access to all projects and tasks.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              showSuccess('Left workspace successfully');
+              if (navigation) {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'WorkspaceSelection' }],
+                });
+              }
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || 'Failed to leave workspace');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const renderSettingItem = (item: {
     id: string;
     title: string;
+    subtitle?: string;
     icon: string;
     iconColor?: string;
     onPress?: () => void;
     showOnlyOwner?: boolean;
+    showOnlyAdmin?: boolean;
     rightComponent?: React.ReactNode;
   }) => {
     // Don't show owner-only items if user is not owner
     if (item.showOnlyOwner && !isOwner) {
       return null;
     }
+    // Don't show admin-only items if user is not admin
+    if (item.showOnlyAdmin && !isAdmin) {
+      return null;
+    }
 
     return (
       <TouchableOpacity
         key={item.id}
-        style={[styles.settingItem, { borderBottomColor: Colors.neutral.light }]}
+        style={[
+          styles.settingItem,
+          { borderBottomColor: Colors.neutral.light },
+        ]}
         onPress={item.onPress}
         disabled={!item.onPress}
       >
-        <View style={[styles.iconContainer, { backgroundColor: (item.iconColor || Colors.primary) + '20' }]}>
+        <View
+          style={[
+            styles.iconContainer,
+            { backgroundColor: (item.iconColor || Colors.primary) + '20' },
+          ]}
+        >
           <MaterialIcons
             name={item.icon as any}
             size={20}
             color={item.iconColor || Colors.primary}
           />
         </View>
-        <Text style={[styles.settingTitle, { color: colors.text }]}>
-          {item.title}
-        </Text>
-        {item.rightComponent || (
-          item.onPress && <MaterialIcons name="chevron-right" size={20} color={Colors.neutral.medium} />
-        )}
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.settingTitle, { color: colors.text }]}>
+            {item.title}
+          </Text>
+          {!!item.subtitle && (
+            <Text style={styles.settingSubtitle}>{item.subtitle}</Text>
+          )}
+        </View>
+        {item.rightComponent ||
+          (item.onPress && (
+            <MaterialIcons
+              name="chevron-right"
+              size={20}
+              color={Colors.neutral.medium}
+            />
+          ))}
       </TouchableOpacity>
     );
   };
@@ -213,7 +483,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
   const settingsItems = [
     {
       id: 'rename-workspace',
-      title: 'Rename Workspace',
+      title: 'Workspace Name & Description',
+      subtitle: 'Update workspace title and description',
       icon: 'edit',
       iconColor: Colors.primary,
       showOnlyOwner: true,
@@ -221,34 +492,204 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
     },
     {
       id: 'add-member',
-      title: 'Add Member',
+      title: 'Invite Members',
+      subtitle: 'Add new members to this workspace',
       icon: 'person-add',
       iconColor: Colors.primary,
       showOnlyOwner: true,
       onPress: () => setShowInviteModal(true),
     },
+    {
+      id: 'leave-workspace',
+      title: 'Leave Workspace',
+      subtitle: 'Remove yourself from this workspace',
+      icon: 'exit-to-app',
+      iconColor: Colors.warning,
+      onPress: handleLeaveWorkspace,
+    },
+    {
+      id: 'delete-workspace',
+      title: 'Delete Workspace',
+      subtitle: 'Permanently delete this workspace and all its data',
+      icon: 'delete',
+      iconColor: Colors.semantic.error,
+      showOnlyOwner: true,
+      onPress: handleDeleteWorkspace,
+    },
   ];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar backgroundColor={Colors.neutral.white} barStyle="dark-content" />
-      
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      <StatusBar
+        backgroundColor={Colors.neutral.white}
+        barStyle="dark-content"
+      />
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Manage your preferences
+          {isOwner ? 'Manage your workspace' : 'View workspace information'}
         </Text>
       </View>
 
       {/* Scrollable Content */}
-      <ScrollView 
-        style={{ backgroundColor: colors.background }} 
+      <ScrollView
+        style={{ backgroundColor: colors.background }}
         contentContainerStyle={styles.content}
       >
-        <View style={styles.settingsContainer}>
-          {settingsItems.map(renderSettingItem)}
-        </View>
+        {loading ? (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+          </View>
+        ) : (
+          <>
+            {/* About Card */}
+            <View style={styles.aboutCard}>
+              <Text style={styles.sectionTitle}>About</Text>
+              <View style={styles.row}>
+                <MaterialIcons
+                  name="workspaces"
+                  size={18}
+                  color={Colors.neutral.medium}
+                />
+                <Text style={styles.rowLabel}>Name</Text>
+                <Text style={styles.rowValue} numberOfLines={1}>
+                  {workspaceDetails?.workspaceName ||
+                    workspaceDetails?.name ||
+                    workspace?.workspaceName ||
+                    '-'}
+                </Text>
+              </View>
+              {!!(workspaceDetails?.description || workspace?.description) && (
+                <View style={[styles.row, { alignItems: 'flex-start' }]}>
+                  <MaterialIcons
+                    name="description"
+                    size={18}
+                    color={Colors.neutral.medium}
+                  />
+                  <Text style={styles.rowLabel}>Description</Text>
+                  <Text style={styles.rowValue}>
+                    {workspaceDetails?.description || workspace?.description}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.row}>
+                <MaterialIcons
+                  name="category"
+                  size={18}
+                  color={Colors.neutral.medium}
+                />
+                <Text style={styles.rowLabel}>Type</Text>
+                <Text style={styles.rowValue} numberOfLines={1}>
+                  {workspaceDetails?.type ||
+                    workspace?.type ||
+                    workspace?.workspaceType ||
+                    'Personal'}
+                </Text>
+              </View>
+              {!!ownerName && (
+                <View style={styles.row}>
+                  <MaterialIcons
+                    name="person"
+                    size={18}
+                    color={Colors.neutral.medium}
+                  />
+                  <Text style={styles.rowLabel}>Owner</Text>
+                  <Text style={styles.rowValue} numberOfLines={1}>
+                    {ownerName}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.row}>
+                <MaterialIcons
+                  name="groups"
+                  size={18}
+                  color={Colors.neutral.medium}
+                />
+                <Text style={styles.rowLabel}>Members</Text>
+                <Text style={styles.rowValue}>{members?.length || 0}</Text>
+              </View>
+              <View style={styles.row}>
+                <MaterialIcons
+                  name="event"
+                  size={18}
+                  color={Colors.neutral.medium}
+                />
+                <Text style={styles.rowLabel}>Created</Text>
+                <Text style={styles.rowValue}>
+                  {workspaceDetails?.createdAt || workspace?.dateCreated
+                    ? new Date(
+                        workspaceDetails?.createdAt || workspace?.dateCreated,
+                      ).toLocaleDateString()
+                    : '-'}
+                </Text>
+              </View>
+              <View style={[styles.row, { borderBottomWidth: 0 }]}>
+                <MaterialIcons
+                  name="update"
+                  size={18}
+                  color={Colors.neutral.medium}
+                />
+                <Text style={styles.rowLabel}>Updated</Text>
+                <Text style={styles.rowValue}>
+                  {workspaceDetails?.updatedAt || workspace?.dateModified
+                    ? new Date(
+                        workspaceDetails?.updatedAt || workspace?.dateModified,
+                      ).toLocaleDateString()
+                    : '-'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Role Badge */}
+            <View style={styles.roleCard}>
+              <MaterialIcons
+                name="badge"
+                size={18}
+                color={Colors.neutral.medium}
+              />
+              <Text style={styles.roleLabel}>Your Role:</Text>
+              <View
+                style={[
+                  styles.roleBadge,
+                  {
+                    backgroundColor: isOwner
+                      ? Colors.semantic.error + '20'
+                      : isAdmin
+                      ? Colors.primary + '20'
+                      : Colors.neutral.light,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.roleBadgeText,
+                    {
+                      color: isOwner
+                        ? Colors.semantic.error
+                        : isAdmin
+                        ? Colors.primary
+                        : Colors.neutral.dark,
+                    },
+                  ]}
+                >
+                  {displayRole}
+                </Text>
+              </View>
+            </View>
+
+            {/* Settings Section */}
+            <View style={styles.settingsContainer}>
+              <Text style={styles.sectionTitle}>
+                {isOwner ? 'Manage' : 'Actions'}
+              </Text>
+              {settingsItems.map(renderSettingItem)}
+            </View>
+          </>
+        )}
       </ScrollView>
 
       {/* Rename Workspace Modal */}
@@ -266,19 +707,39 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
                 onPress={() => setShowRenameModal(false)}
                 style={styles.closeButton}
               >
-                <MaterialIcons name="close" size={24} color={Colors.neutral.dark} />
+                <MaterialIcons
+                  name="close"
+                  size={24}
+                  color={Colors.neutral.dark}
+                />
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalContent}>
-              <Text style={styles.modalLabel}>Workspace Name *</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={workspaceName}
-                onChangeText={setWorkspaceName}
-                placeholder="Enter workspace name"
-                placeholderTextColor={Colors.neutral.medium}
-              />
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>Workspace Name *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={workspaceName}
+                  onChangeText={setWorkspaceName}
+                  placeholder="Enter workspace name"
+                  placeholderTextColor={Colors.neutral.medium}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>Description</Text>
+                <TextInput
+                  style={[styles.modalInput, styles.modalTextArea]}
+                  value={workspaceDescription}
+                  onChangeText={setWorkspaceDescription}
+                  placeholder="Add a workspace description..."
+                  placeholderTextColor={Colors.neutral.medium}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+              </View>
             </View>
 
             <View style={styles.modalActions}>
@@ -289,14 +750,20 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
-                style={[styles.modalSaveButton, renameLoading && styles.modalButtonDisabled]}
+                style={[
+                  styles.modalSaveButton,
+                  renameLoading && styles.modalButtonDisabled,
+                ]}
                 onPress={handleRenameWorkspace}
                 disabled={renameLoading}
               >
                 {renameLoading ? (
-                  <ActivityIndicator size="small" color={Colors.neutral.white} />
+                  <ActivityIndicator
+                    size="small"
+                    color={Colors.neutral.white}
+                  />
                 ) : (
                   <Text style={styles.modalSaveText}>Save</Text>
                 )}
@@ -321,7 +788,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
                 onPress={() => setShowInviteModal(false)}
                 style={styles.closeButton}
               >
-                <MaterialIcons name="close" size={24} color={Colors.neutral.dark} />
+                <MaterialIcons
+                  name="close"
+                  size={24}
+                  color={Colors.neutral.dark}
+                />
               </TouchableOpacity>
             </View>
 
@@ -367,17 +838,27 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, workspace }
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
-                style={[styles.modalSaveButton, inviteLoading && styles.modalButtonDisabled]}
+                style={[
+                  styles.modalSaveButton,
+                  inviteLoading && styles.modalButtonDisabled,
+                ]}
                 onPress={handleInviteMember}
                 disabled={inviteLoading}
               >
                 {inviteLoading ? (
-                  <ActivityIndicator size="small" color={Colors.neutral.white} />
+                  <ActivityIndicator
+                    size="small"
+                    color={Colors.neutral.white}
+                  />
                 ) : (
                   <>
-                    <MaterialIcons name="send" size={16} color={Colors.neutral.white} />
+                    <MaterialIcons
+                      name="send"
+                      size={16}
+                      color={Colors.neutral.white}
+                    />
                     <Text style={styles.modalSaveText}>Send Invitation</Text>
                   </>
                 )}
@@ -447,8 +928,13 @@ const styles = StyleSheet.create({
   },
   settingTitle: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  settingSubtitle: {
+    fontSize: 13,
+    color: Colors.neutral.medium,
   },
   switchContainer: {
     flexDirection: 'row',
@@ -458,6 +944,74 @@ const styles = StyleSheet.create({
   switchLabel: {
     fontSize: 14,
     marginRight: 4,
+  },
+  // About & Role Cards
+  aboutCard: {
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  roleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    gap: 8,
+  },
+  roleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+    flex: 1,
+  },
+  roleBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  roleBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+    marginBottom: 12,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light + '40',
+    gap: 12,
+  },
+  rowLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.neutral.medium,
+    flex: 1,
+  },
+  rowValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.neutral.dark,
+    flex: 1,
+    textAlign: 'right',
   },
   // Modal styles
   modalOverlay: {
