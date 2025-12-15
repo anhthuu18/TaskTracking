@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';  
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TextInput } from 'react-native-paper';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import {
+  GoogleSignin,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
 import { Colors } from '../constants/Colors';
 import { ScreenLayout } from '../constants/Dimensions';
 import { Strings } from '../constants/Strings';
@@ -29,12 +32,16 @@ interface SignInScreenProps {
   onLoginSuccess?: () => void;
 }
 
-const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboarding, onLoginSuccess }) => {
+const SignInScreen: React.FC<SignInScreenProps> = ({
+  navigation,
+  onBackToOnboarding,
+  onLoginSuccess,
+}) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
-  const [touched, setTouched] = useState<{[key: string]: boolean}>({});
+  const [touched, setTouched] = useState<{ [key: string]: boolean }>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const { toast, showSuccess, showError, hideToast } = useToast();
@@ -43,7 +50,8 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
   useEffect(() => {
     GoogleSignin.configure({
       // Web client ID - phải khớp với google-services.json
-      webClientId: '17409044459-ubrnlg83ueqhhcnq7a7bfv8fp2g9jjcq.apps.googleusercontent.com',
+      webClientId:
+        '17409044459-ubrnlg83ueqhhcnq7a7bfv8fp2g9jjcq.apps.googleusercontent.com',
       offlineAccess: true,
       forceCodeForRefreshToken: true, // Force hiển thị account picker
     });
@@ -53,15 +61,15 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
   const getGoogleImage = () => {
     try {
       return require('../assets/images/google-logo.png');
-         } catch (error) {
-       return null;
-     }
+    } catch (error) {
+      return null;
+    }
   };
 
   const handleSignIn = async () => {
     // Validate form before submission
     const validation = validateSignInForm(username, password);
-    
+
     if (!validation.isValid) {
       setErrors(validation.errors);
       setTouched({ username: true, password: true });
@@ -71,23 +79,26 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
     // Clear errors if validation passes
     setErrors({});
     setIsLoading(true);
-    
+
     try {
       // Call authentication API
       const credentials: SignInCredentials = { username, password };
       const response: AuthResponse = await authService.signIn(credentials);
-      
+
       if (response.success && response.data) {
         // Success - save user data and navigate
 
-        
         // Save token to AsyncStorage for persistence
         await AsyncStorage.setItem('authToken', response.data.token);
         await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
-        
+
+        // Save login timestamp for session expiry (7 days)
+        const loginTime = new Date().getTime();
+        await AsyncStorage.setItem('loginTimestamp', loginTime.toString());
+
         // Show success toast
         showSuccess('Đăng nhập thành công!');
-        
+
         // Call onLoginSuccess to update app state
         if (onLoginSuccess) {
           onLoginSuccess();
@@ -108,7 +119,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
 
   const handleFieldBlur = (field: string) => {
     setTouched(prev => ({ ...prev, [field]: true }));
-    
+
     // Validate the specific field on blur
     const validation = validateSignInForm(username, password);
     setErrors(validation.errors);
@@ -139,40 +150,53 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
   const handleGoogleSignIn = async () => {
     try {
       setIsGoogleLoading(true);
-      
+
       // Check if your device supports Google Play
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
+
       // Sign out first to clear cached account and show account picker
       try {
         await GoogleSignin.signOut();
       } catch (error) {
         // Ignore sign out errors (user might not be signed in)
       }
-      
+
       // Get the users ID token
       const signInResult = await GoogleSignin.signIn();
       const idToken = signInResult.data?.idToken;
-      
-      
+
       if (idToken) {
         // Call your backend API with the ID token
-        const response: AuthResponse = await authService.signInWithGoogle(idToken);
-        
+        const response: AuthResponse = await authService.signInWithGoogle(
+          idToken,
+        );
+
         if (response.success && response.data) {
           // Success - save user data and navigate
           // Save token to AsyncStorage for persistence
           await AsyncStorage.setItem('authToken', response.data.token);
-          await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
-          
+          await AsyncStorage.setItem(
+            'user',
+            JSON.stringify(response.data.user),
+          );
+
+          // Save login timestamp for session expiry (7 days)
+          const loginTime = new Date();
+          await AsyncStorage.setItem(
+            'loginTimestamp',
+            loginTime.getTime().toString(),
+          );
+
           // Show success toast with short duration
           showSuccess('Đăng nhập Google thành công!');
-          
+
           // Call onLoginSuccess to update app state
           if (onLoginSuccess) {
             onLoginSuccess();
           }
-          
+
           // Navigation handled by AppNavigator once authentication state updates
         } else {
           showError(response.message || 'Đăng nhập Google thất bại');
@@ -180,7 +204,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
       }
     } catch (error: any) {
       console.error('Google Sign-In error:', error);
-      
+
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
         // User cancelled the login flow
         console.log('User cancelled Google Sign-In');
@@ -221,7 +245,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -248,22 +272,34 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
             onBlur={() => handleFieldBlur('username')}
             style={[
               styles.textInput,
-              errors.username && touched.username && styles.textInputError
+              errors.username && touched.username && styles.textInputError,
             ]}
             outlineStyle={[
               styles.inputOutline,
-              errors.username && touched.username && styles.inputOutlineError
+              errors.username && touched.username && styles.inputOutlineError,
             ]}
             theme={{
               colors: {
-                primary: errors.username && touched.username ? Colors.semantic.error : Colors.primary,
-                outline: errors.username && touched.username ? Colors.semantic.error : Colors.neutral.light,
+                primary:
+                  errors.username && touched.username
+                    ? Colors.semantic.error
+                    : Colors.primary,
+                outline:
+                  errors.username && touched.username
+                    ? Colors.semantic.error
+                    : Colors.neutral.light,
                 onSurface: Colors.text,
               },
             }}
             left={
-              <TextInput.Icon 
-                icon={() => <MaterialIcons name="person" size={20} color={Colors.neutral.medium} />}
+              <TextInput.Icon
+                icon={() => (
+                  <MaterialIcons
+                    name="person"
+                    size={20}
+                    color={Colors.neutral.medium}
+                  />
+                )}
               />
             }
           />
@@ -283,31 +319,43 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
             secureTextEntry={!showPassword}
             style={[
               styles.textInput,
-              errors.password && touched.password && styles.textInputError
+              errors.password && touched.password && styles.textInputError,
             ]}
             outlineStyle={[
               styles.inputOutline,
-              errors.password && touched.password && styles.inputOutlineError
+              errors.password && touched.password && styles.inputOutlineError,
             ]}
             theme={{
               colors: {
-                primary: errors.password && touched.password ? Colors.semantic.error : Colors.primary,
-                outline: errors.password && touched.password ? Colors.semantic.error : Colors.neutral.light,
+                primary:
+                  errors.password && touched.password
+                    ? Colors.semantic.error
+                    : Colors.primary,
+                outline:
+                  errors.password && touched.password
+                    ? Colors.semantic.error
+                    : Colors.neutral.light,
                 onSurface: Colors.text,
               },
             }}
             left={
-              <TextInput.Icon 
-                icon={() => <MaterialIcons name="lock" size={20} color={Colors.neutral.medium} />}
+              <TextInput.Icon
+                icon={() => (
+                  <MaterialIcons
+                    name="lock"
+                    size={20}
+                    color={Colors.neutral.medium}
+                  />
+                )}
               />
             }
             right={
-              <TextInput.Icon 
+              <TextInput.Icon
                 icon={() => (
-                  <MaterialIcons 
-                    name={showPassword ? "visibility-off" : "visibility"} 
-                    size={20} 
-                    color={Colors.neutral.medium} 
+                  <MaterialIcons
+                    name={showPassword ? 'visibility-off' : 'visibility'}
+                    size={20}
+                    color={Colors.neutral.medium}
                   />
                 )}
                 onPress={() => setShowPassword(!showPassword)}
@@ -320,20 +368,34 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
         </View>
 
         {/* Forgot Password */}
-        <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotPasswordContainer}>
-          <Text style={styles.forgotPasswordText}>{Strings.forgotPassword}</Text>
+        <TouchableOpacity
+          onPress={handleForgotPassword}
+          style={styles.forgotPasswordContainer}
+        >
+          <Text style={styles.forgotPasswordText}>
+            {Strings.forgotPassword}
+          </Text>
         </TouchableOpacity>
 
         {/* Sign In Button */}
-        <TouchableOpacity 
-          style={[styles.signInButton, isLoading && styles.signInButtonDisabled]} 
+        <TouchableOpacity
+          style={[
+            styles.signInButton,
+            isLoading && styles.signInButtonDisabled,
+          ]}
           onPress={handleSignIn}
           disabled={isLoading}
         >
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <MaterialIcons name="hourglass-empty" size={20} color={Colors.neutral.white} />
-              <Text style={[styles.signInButtonText, {marginLeft: 8}]}>Đang đăng nhập...</Text>
+              <MaterialIcons
+                name="hourglass-empty"
+                size={20}
+                color={Colors.neutral.white}
+              />
+              <Text style={[styles.signInButtonText, { marginLeft: 8 }]}>
+                Đang đăng nhập...
+              </Text>
             </View>
           ) : (
             <Text style={styles.signInButtonText}>{Strings.signIn}</Text>
@@ -342,25 +404,28 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation, onBackToOnboard
 
         {/* Social Login */}
         <Text style={styles.orText}>{Strings.orSignInWith}</Text>
-        
+
         <View style={styles.socialContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.socialButton}
             onPress={() => handleSocialLogin('facebook')}
           >
             <MaterialIcons name="facebook" size={24} color="#1877F2" />
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.socialButton, isGoogleLoading && styles.socialButtonDisabled]}
+
+          <TouchableOpacity
+            style={[
+              styles.socialButton,
+              isGoogleLoading && styles.socialButtonDisabled,
+            ]}
             onPress={() => handleSocialLogin('google')}
             disabled={isGoogleLoading}
           >
             {isGoogleLoading ? (
               <MaterialIcons name="hourglass-empty" size={20} color="#4285F4" />
             ) : getGoogleImage() ? (
-              <Image 
-                source={getGoogleImage()} 
+              <Image
+                source={getGoogleImage()}
                 style={styles.googleImage}
                 resizeMode="contain"
               />

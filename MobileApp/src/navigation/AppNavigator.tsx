@@ -21,7 +21,7 @@ import {
   CreateTaskScreen,
   CreateEventScreen,
   ProjectSettingsScreen,
-  ProfileScreen
+  ProfileScreen,
 } from '../screens';
 import TaskTrackingScreen from '../screens/TaskTrackingScreen';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
@@ -57,15 +57,15 @@ export type RootStackParamList = {
 
 const Stack = createStackNavigator<RootStackParamList>();
 
-
-const DEMO_ALWAYS_START_ONBOARDING = true;
+const DEMO_ALWAYS_START_ONBOARDING = false;
 
 const AppNavigator: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [lastUsedWorkspace, setLastUsedWorkspace] = useState<any>(null);
-  const [shouldNavigateToWorkspace, setShouldNavigateToWorkspace] = useState(false);
+  const [shouldNavigateToWorkspace, setShouldNavigateToWorkspace] =
+    useState(false);
   const [navigationKey, setNavigationKey] = useState(0);
 
   // Load app state from AsyncStorage on mount
@@ -74,14 +74,21 @@ const AppNavigator: React.FC = () => {
       try {
         // Demo mode: always start from onboarding and clear persisted session
         if (DEMO_ALWAYS_START_ONBOARDING) {
-          await AsyncStorage.multiRemove(['hasSeenOnboarding', 'authToken', 'user', 'lastUsedWorkspaceId']);
+          await AsyncStorage.multiRemove([
+            'hasSeenOnboarding',
+            'authToken',
+            'user',
+            'lastUsedWorkspaceId',
+          ]);
           setShowOnboarding(true);
           setIsAuthenticated(false);
           setIsLoading(false);
           return; // skip normal boot flow
         }
         // Load onboarding state
-        const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
+        const hasSeenOnboarding = await AsyncStorage.getItem(
+          'hasSeenOnboarding',
+        );
         if (hasSeenOnboarding === 'true') {
           setShowOnboarding(false);
         }
@@ -89,37 +96,68 @@ const AppNavigator: React.FC = () => {
         // Load authentication state
         const authToken = await AsyncStorage.getItem('authToken');
         const userData = await AsyncStorage.getItem('user');
+        const loginTimestamp = await AsyncStorage.getItem('loginTimestamp');
 
-        // Helper: validate token with backend (redirect to login if invalid/expired)
-        const validateToken = async (token: string) => {
-          try {
-            const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.USER.PROFILE);
-            const res = await fetch(url, {
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
-            });
-            if (res.status === 401) {
-              throw new Error('Unauthorized');
-            }
-            if (!res.ok) {
-              // On other errors, treat as unauthenticated if clearly auth-related
-              throw new Error(`HTTP ${res.status}`);
-            }
-            return true;
-          } catch (e) {
-            // Clear invalid creds
-            await AsyncStorage.multiRemove(['authToken', 'user', 'lastUsedWorkspaceId']);
-            return false;
-          }
+        // Check session expiry (7 days)
+        const isSessionExpired = () => {
+          if (!loginTimestamp) return false; // No timestamp, allow (for backwards compatibility)
+
+          const loginTime = parseInt(loginTimestamp, 10);
+          const currentTime = Date.now();
+          const daysSinceLogin =
+            (currentTime - loginTime) / (1000 * 60 * 60 * 24);
+
+          return daysSinceLogin >= 7;
         };
 
-        if (authToken && userData) {
-          const isValid = API_CONFIG.USE_MOCK_API ? true : await validateToken(authToken);
+        // If session expired, clear credentials
+        if (isSessionExpired()) {
+          await AsyncStorage.multiRemove([
+            'authToken',
+            'user',
+            'lastUsedWorkspaceId',
+            'loginTimestamp',
+          ]);
+          setIsAuthenticated(false);
+        } else if (authToken && userData) {
+          // Helper: validate token with backend (redirect to login if invalid/expired)
+          const validateToken = async (token: string) => {
+            try {
+              const url = buildApiUrl(
+                getCurrentApiConfig().ENDPOINTS.USER.PROFILE,
+              );
+              const res = await fetch(url, {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+              });
+              if (res.status === 401) {
+                throw new Error('Unauthorized');
+              }
+              if (!res.ok) {
+                // On other errors, treat as unauthenticated if clearly auth-related
+                throw new Error(`HTTP ${res.status}`);
+              }
+              return true;
+            } catch (e) {
+              // Clear invalid creds
+              await AsyncStorage.multiRemove([
+                'authToken',
+                'user',
+                'lastUsedWorkspaceId',
+                'loginTimestamp',
+              ]);
+              return false;
+            }
+          };
+
+          const isValid = API_CONFIG.USE_MOCK_API
+            ? true
+            : await validateToken(authToken);
           setIsAuthenticated(isValid);
-          
+
           // Note: We now always navigate to PersonalDashboard first
           // Users can navigate to specific workspaces from there
         }
@@ -165,11 +203,11 @@ const AppNavigator: React.FC = () => {
     try {
       // Clear last used workspace from AsyncStorage
       await AsyncStorage.removeItem('lastUsedWorkspaceId');
-      
+
       // Reset state
       setShouldNavigateToWorkspace(false);
       setLastUsedWorkspace(null);
-      
+
       // Force navigation re-render
       setNavigationKey(prev => prev + 1);
     } catch (error) {
@@ -184,8 +222,14 @@ const AppNavigator: React.FC = () => {
   const handleLogout = async () => {
     try {
       // Clear all stored data
-      await AsyncStorage.multiRemove(['authToken', 'user', 'lastUsedWorkspaceId', 'hasSeenOnboarding', 'activeTimer']);
-      
+      await AsyncStorage.multiRemove([
+        'authToken',
+        'user',
+        'lastUsedWorkspaceId',
+        'hasSeenOnboarding',
+        'activeTimer',
+      ]);
+
       // Reset state
       setIsAuthenticated(false);
       setShowOnboarding(true);
@@ -209,13 +253,19 @@ const AppNavigator: React.FC = () => {
           headerShown: false,
           gestureEnabled: false,
         }}
-        initialRouteName={isLoading ? "Splash" : showOnboarding ? "Onboarding" : isAuthenticated ? "HomeTabs" : "SignIn"}
+        initialRouteName={
+          isLoading
+            ? 'Splash'
+            : showOnboarding
+            ? 'Onboarding'
+            : isAuthenticated
+            ? 'HomeTabs'
+            : 'SignIn'
+        }
       >
         {isLoading ? (
           <Stack.Screen name="Splash">
-            {props => (
-              <SplashScreen {...props} onFinish={handleSplashFinish} />
-            )}
+            {props => <SplashScreen {...props} onFinish={handleSplashFinish} />}
           </Stack.Screen>
         ) : showOnboarding ? (
           <Stack.Screen name="Onboarding">
@@ -227,8 +277,8 @@ const AppNavigator: React.FC = () => {
           <>
             <Stack.Screen name="SignIn">
               {props => (
-                <SignInScreen 
-                  {...props} 
+                <SignInScreen
+                  {...props}
                   onBackToOnboarding={handleBackToOnboarding}
                   onLoginSuccess={handleLoginSuccess}
                 />
@@ -338,7 +388,7 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             >
-              {(props) => <TaskTrackingScreen {...props} />}
+              {props => <TaskTrackingScreen {...props} />}
             </Stack.Screen>
             <Stack.Screen
               name="PersonalSettings"
@@ -353,12 +403,7 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             >
-              {(props) => (
-                <ProfileScreen
-                  {...props}
-                  onLogout={handleLogout}
-            />
-              )}
+              {props => <ProfileScreen {...props} onLogout={handleLogout} />}
             </Stack.Screen>
           </>
         ) : (
@@ -369,7 +414,7 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             >
-              {(props) => <HomeTabNavigator {...props} onLogout={handleLogout} />}
+              {props => <HomeTabNavigator {...props} onLogout={handleLogout} />}
             </Stack.Screen>
             <Stack.Screen
               name="Main"
@@ -377,7 +422,16 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             >
-              {(props) => <MainNavigator {...props} workspace={props.route?.params?.workspace || lastUsedWorkspace} onSwitchWorkspace={handleSwitchWorkspace} onLogout={handleLogout} />}
+              {props => (
+                <MainNavigator
+                  {...props}
+                  workspace={
+                    props.route?.params?.workspace || lastUsedWorkspace
+                  }
+                  onSwitchWorkspace={handleSwitchWorkspace}
+                  onLogout={handleLogout}
+                />
+              )}
             </Stack.Screen>
             <Stack.Screen
               name="WorkspaceSelection"
@@ -448,7 +502,7 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             >
-              {(props) => <TaskTrackingScreen {...props} />}
+              {props => <TaskTrackingScreen {...props} />}
             </Stack.Screen>
             <Stack.Screen
               name="PersonalSettings"
@@ -463,12 +517,7 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             >
-              {(props) => (
-                <ProfileScreen
-                  {...props}
-                  onLogout={handleLogout}
-            />
-              )}
+              {props => <ProfileScreen {...props} onLogout={handleLogout} />}
             </Stack.Screen>
           </>
         )}
