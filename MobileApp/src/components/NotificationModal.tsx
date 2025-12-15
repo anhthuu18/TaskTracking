@@ -34,6 +34,8 @@ interface NotificationModalProps {
   onClose: () => void;
   onAcceptInvitation: (notificationId: number) => void;
   onDeclineInvitation: (notificationId: number) => void;
+  mode?: 'workspace' | 'project'; // 'workspace' for workspace invitations, 'project' for project notifications
+  workspaceId?: number; // Required when mode='project'
 }
 
 const NotificationModal: React.FC<NotificationModalProps> = ({
@@ -41,9 +43,12 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   onClose,
   onAcceptInvitation,
   onDeclineInvitation,
+  mode = 'workspace', // Default to workspace invitations
+  workspaceId,
 }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   // Mock data for testing
   const mockNotifications: Notification[] = [
@@ -53,7 +58,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
       workspaceName: 'Team Project Alpha',
       inviterName: 'John Doe',
       inviterEmail: 'john@example.com',
-      message: 'Welcome to our team! We\'d love to have you join our project.',
+      message: "Welcome to our team! We'd love to have you join our project.",
       createdAt: new Date('2024-01-20'),
       expiresAt: new Date('2024-01-27'),
       status: 'PENDING',
@@ -80,7 +85,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   const loadNotifications = async () => {
     try {
       setLoading(true);
-      
+
       // Check if user is authenticated before making the request
       const authToken = await AsyncStorage.getItem('authToken');
       if (!authToken) {
@@ -89,46 +94,56 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
         return;
       }
 
-      const response = await notificationService.getUserNotifications();
-      
-      if (response.success) {
-        // Transform API data to match our interface; support both workspace invites and project notifications
-        const transformedNotifications: Notification[] = response.data.map((n: any) => {
-          // New project notification shape
-          if (n.type === 'PROJECT_NOTIFICATION' || (!n.workspace && n.title)) {
-            const workspaceName = n.subtitle?.replace(/^Workspace:\s*/i, '') || n.workspace?.workspaceName || 'Workspace';
-            return {
-              id: n.id,
-              workspaceId: n.workspace?.id || n.workspaceId || 0,
-              workspaceName,
-              inviterName: (n.title?.split(' by ').pop()) || 'system',
-              inviterEmail: '',
-              message: n.message || n.title,
-              createdAt: new Date(n.createdAt || Date.now()),
-              status: 'PENDING',
-              hasActions: false,
-              receivedDate: n.receivedDate,
-              isProjectNotification: true,
-            };
-          }
+      let response;
+      if (mode === 'project' && workspaceId) {
+        // Get project notifications for workspace
+        response = await notificationService.getProjectNotifications(
+          workspaceId,
+        );
+      } else {
+        // Get workspace invitations (default)
+        response = await notificationService.getUserNotifications();
+      }
 
-          // Legacy workspace invitation shape
-          return {
-            id: n.id,
-            workspaceId: n.workspaceId,
-            workspaceName: n.workspace?.workspaceName || 'Workspace',
-            inviterName: n.inviter?.username || '',
-            inviterEmail: n.inviter?.email || '',
-            message: n.message,
-            createdAt: new Date(n.createdAt),
-            expiresAt: new Date(n.expiresAt),
-            status: n.status,
-            hasActions: true,
-            daysRemaining: n.daysRemaining,
-            receivedDate: n.receivedDate,
-            isProjectNotification: false,
-          };
-        });
+      if (response.success) {
+        // Transform API data to match our interface
+        const transformedNotifications: Notification[] = response.data.map(
+          (n: any) => {
+            if (mode === 'project') {
+              // Project notification shape
+              return {
+                id: n.id,
+                workspaceId: workspaceId || 0,
+                workspaceName: n.projectName || 'Project',
+                inviterName: n.type === 'TASK_REMINDER' ? 'System' : 'Admin',
+                inviterEmail: '',
+                message: n.message || n.title,
+                createdAt: new Date(n.createdAt || Date.now()),
+                status: 'PENDING',
+                hasActions: false, // Project notifications don't have Accept/Decline
+                receivedDate: n.receivedDate,
+                isProjectNotification: true,
+              };
+            } else {
+              // Workspace invitation shape
+              return {
+                id: n.id,
+                workspaceId: n.workspaceId,
+                workspaceName: n.workspace?.workspaceName || 'Workspace',
+                inviterName: n.inviter?.username || '',
+                inviterEmail: n.inviter?.email || '',
+                message: n.message,
+                createdAt: new Date(n.createdAt),
+                expiresAt: new Date(n.expiresAt),
+                status: n.status,
+                hasActions: true, // Workspace invitations have Accept/Decline
+                daysRemaining: n.daysRemaining,
+                receivedDate: n.receivedDate,
+                isProjectNotification: false,
+              };
+            }
+          },
+        );
         setNotifications(transformedNotifications);
       } else {
         console.error('Failed to load notifications:', response.message);
@@ -138,7 +153,10 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
       // Only log error if it's not an authentication issue
       // "Unauthorized" errors are expected when user is not logged in
       const errorMessage = error?.message || '';
-      if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
+      if (
+        errorMessage.includes('Unauthorized') ||
+        errorMessage.includes('401')
+      ) {
         // User is not authenticated or token expired, silently handle
         setNotifications([]);
       } else {
@@ -153,7 +171,9 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
 
   const handleAccept = async (notificationId: number) => {
     try {
-      const response = await notificationService.acceptInvitation(notificationId);
+      const response = await notificationService.acceptInvitation(
+        notificationId,
+      );
       if (response.success) {
         onAcceptInvitation(notificationId);
         // Remove from list
@@ -168,7 +188,9 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
 
   const handleDecline = async (notificationId: number) => {
     try {
-      const response = await notificationService.declineInvitation(notificationId);
+      const response = await notificationService.declineInvitation(
+        notificationId,
+      );
       if (response.success) {
         onDeclineInvitation(notificationId);
         // Remove from list
@@ -186,9 +208,9 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
     if (notification.isProjectNotification) {
       return null;
     }
-    
+
     const daysRemaining = notification.daysRemaining || 0;
-    
+
     if (daysRemaining <= 0) return 'Expired';
     if (daysRemaining === 1) return 'Expires tomorrow';
     return `Expires in ${daysRemaining} days`;
@@ -209,6 +231,33 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
     }
   };
 
+  const handleClearAll = async () => {
+    try {
+      setClearing(true);
+
+      let response;
+      if (mode === 'project' && workspaceId) {
+        // Delete project notifications for workspace
+        response = await notificationService.deleteAllProjectNotifications(
+          workspaceId,
+        );
+      } else {
+        // Decline all workspace invitations
+        response = await notificationService.deleteAllWorkspaceInvitations();
+      }
+
+      if (response.success) {
+        setNotifications([]);
+        // Notify parent component to update count
+        onAcceptInvitation(0); // Trigger refresh
+      }
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+    } finally {
+      setClearing(false);
+    }
+  };
+
   return (
     <Modal
       visible={visible}
@@ -221,9 +270,31 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Notifications</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <MaterialIcons name="close" size={24} color={Colors.neutral.dark} />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              {notifications.length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearAllButton}
+                  onPress={handleClearAll}
+                  disabled={clearing}
+                >
+                  {clearing ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={Colors.semantic.error}
+                    />
+                  ) : (
+                    <Text style={styles.clearAllText}>Clear All</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                <MaterialIcons
+                  name="close"
+                  size={24}
+                  color={Colors.neutral.dark}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Content */}
@@ -235,35 +306,61 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
               </View>
             ) : notifications.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <MaterialIcons name="notifications-none" size={48} color={Colors.neutral.medium} />
+                <MaterialIcons
+                  name="notifications-none"
+                  size={48}
+                  color={Colors.neutral.medium}
+                />
                 <Text style={styles.emptyTitle}>No notifications</Text>
                 <Text style={styles.emptySubtitle}>You're all caught up!</Text>
               </View>
             ) : (
-              <ScrollView style={styles.notificationsList} showsVerticalScrollIndicator={false}>
-                {notifications.map((notification) => (
+              <ScrollView
+                style={styles.notificationsList}
+                showsVerticalScrollIndicator={false}
+              >
+                {notifications.map(notification => (
                   <View key={notification.id} style={styles.notificationCard}>
                     <View style={styles.notificationHeader}>
                       <View style={styles.workspaceInfo}>
                         <View style={styles.workspaceIcon}>
-                          <MaterialIcons name="groups" size={20} color={Colors.neutral.white} />
+                          <MaterialIcons
+                            name="groups"
+                            size={20}
+                            color={Colors.neutral.white}
+                          />
                         </View>
                         <View style={styles.workspaceDetails}>
-                          <Text style={styles.workspaceName}>{notification.workspaceName}</Text>
+                          <Text style={styles.workspaceName}>
+                            {notification.workspaceName}
+                          </Text>
                           <Text style={styles.inviterText}>
                             Invited by {notification.inviterName}
                           </Text>
                         </View>
                       </View>
                       {notification.hasActions !== false && (
-                        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(notification.status) }]}>
-                          <Text style={styles.statusText}>{notification.status}</Text>
+                        <View
+                          style={[
+                            styles.statusBadge,
+                            {
+                              backgroundColor: getStatusColor(
+                                notification.status,
+                              ),
+                            },
+                          ]}
+                        >
+                          <Text style={styles.statusText}>
+                            {notification.status}
+                          </Text>
                         </View>
                       )}
                     </View>
 
                     {notification.message && (
-                      <Text style={styles.messageText}>{notification.message}</Text>
+                      <Text style={styles.messageText}>
+                        {notification.message}
+                      </Text>
                     )}
 
                     <View style={styles.notificationFooter}>
@@ -279,23 +376,31 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                           {notification.receivedDate}
                         </Text>
                       )}
-                      
-                      {notification.hasActions !== false && notification.status === 'PENDING' && (
-                        <View style={styles.actionButtons}>
-                          <TouchableOpacity
-                            style={[styles.actionButton, styles.declineButton]}
-                            onPress={() => handleDecline(notification.id)}
-                          >
-                            <Text style={styles.declineButtonText}>Decline</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.actionButton, styles.acceptButton]}
-                            onPress={() => handleAccept(notification.id)}
-                          >
-                            <Text style={styles.acceptButtonText}>Accept</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
+
+                      {notification.hasActions !== false &&
+                        notification.status === 'PENDING' && (
+                          <View style={styles.actionButtons}>
+                            <TouchableOpacity
+                              style={[
+                                styles.actionButton,
+                                styles.declineButton,
+                              ]}
+                              onPress={() => handleDecline(notification.id)}
+                            >
+                              <Text style={styles.declineButtonText}>
+                                Decline
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.actionButton, styles.acceptButton]}
+                              onPress={() => handleAccept(notification.id)}
+                            >
+                              <Text style={styles.acceptButtonText}>
+                                Accept
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
                     </View>
                   </View>
                 ))}
@@ -333,6 +438,25 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     color: Colors.neutral.dark,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  clearAllButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: Colors.semantic.error + '15',
+    minWidth: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearAllText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.semantic.error,
   },
   closeButton: {
     padding: 4,

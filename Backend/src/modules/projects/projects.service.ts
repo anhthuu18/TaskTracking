@@ -540,6 +540,7 @@ export class ProjectsService {
         data: {
           projectId,
           receiverUserId: newUserId,
+          type: "PROJECT_MEMBER_ADDED",
           title: "Added to project",
           message: `You were added to project "${project.projectName}" in workspace "${project.workspace.workspaceName}"`,
         },

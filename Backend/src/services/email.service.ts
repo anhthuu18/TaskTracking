@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
+import { Injectable } from "@nestjs/common";
+import * as nodemailer from "nodemailer";
 
 @Injectable()
 export class EmailService {
@@ -12,8 +12,8 @@ export class EmailService {
   private initializeTransporter() {
     // Sử dụng Gmail SMTP
     this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
+      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      port: parseInt(process.env.SMTP_PORT || "587"),
       secure: false, // true for 465, false for other ports
       auth: {
         user: process.env.SMTP_USER,
@@ -78,19 +78,37 @@ export class EmailService {
     await this.sendEmail(email, subject, html);
   }
 
-  private async sendEmail(to: string, subject: string, html: string): Promise<void> {
+  async sendTaskReminder(
+    email: string,
+    taskName: string,
+    projectName: string,
+    dueDate: Date
+  ): Promise<void> {
+    const subject = `⏰ Nhắc nhở: Task "${taskName}" sắp đến hạn`;
+    const html = this.generateTaskReminderHTML(taskName, projectName, dueDate);
+
+    await this.sendEmail(email, subject, html);
+  }
+
+  private async sendEmail(
+    to: string,
+    subject: string,
+    html: string
+  ): Promise<void> {
     try {
-      const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@tasktracking.com';
-      
+      const fromEmail =
+        process.env.SMTP_FROM ||
+        process.env.SMTP_USER ||
+        "noreply@tasktracking.com";
+
       await this.transporter.sendMail({
         from: fromEmail,
         to,
         subject,
         html,
       });
-
     } catch (error) {
-      console.error('Failed to send email:', error);
+      console.error("Failed to send email:", error);
       throw new Error(`Failed to send email: ${error.message}`);
     }
   }
@@ -124,7 +142,7 @@ export class EmailService {
           <div class="content">
             <p>Xin chào,</p>
             <p><strong>${inviterName}</strong> đã mời bạn tham gia workspace <strong>"${workspaceName}"</strong>.</p>
-            ${customMessage ? `<p><em>Tin nhắn: ${customMessage}</em></p>` : ''}
+            ${customMessage ? `<p><em>Tin nhắn: ${customMessage}</em></p>` : ""}
             <p>Nhấp vào nút bên dưới để chấp nhận lời mời:</p>
             <a href="${acceptUrl}" class="button">Chấp nhận lời mời</a>
             <p>Lời mời này sẽ hết hạn sau 7 ngày.</p>
@@ -168,7 +186,7 @@ export class EmailService {
           <div class="content">
             <p>Xin chào,</p>
             <p><strong>${inviterName}</strong> đã mời bạn tham gia project <strong>"${projectName}"</strong> trong workspace <strong>"${workspaceName}"</strong>.</p>
-            ${customMessage ? `<p><em>Tin nhắn: ${customMessage}</em></p>` : ''}
+            ${customMessage ? `<p><em>Tin nhắn: ${customMessage}</em></p>` : ""}
             <p><strong>Lưu ý:</strong> Bạn cần là thành viên của workspace "${workspaceName}" trước khi có thể tham gia project này.</p>
             <p>Nhấp vào nút bên dưới để chấp nhận lời mời:</p>
             <a href="${acceptUrl}" class="button">Chấp nhận lời mời</a>
@@ -190,7 +208,7 @@ export class EmailService {
     customMessage?: string
   ): string {
     const currentDate = new Date();
-    const sentDate = currentDate.toLocaleDateString('vi-VN');
+    const sentDate = currentDate.toLocaleDateString("vi-VN");
 
     return `
       <!DOCTYPE html>
@@ -216,8 +234,70 @@ export class EmailService {
           <div class="content">
             <p>Xin chào,</p>
             <p><strong>${inviterName}</strong> đã thêm bạn vào project <strong>"${projectName}"</strong> trong workspace <strong>"${workspaceName}"</strong>.</p>
-            ${customMessage ? `<p><em>Tin nhắn: ${customMessage}</em></p>` : ''}
+            ${customMessage ? `<p><em>Tin nhắn: ${customMessage}</em></p>` : ""}
             <p>Bạn có thể truy cập project này ngay bây giờ.</p>
+            
+            <div class="date-info">
+              <span class="sent-date">Gửi: ${sentDate}</span>
+            </div>
+          </div>
+          <div class="footer">
+            <p>© 2024 Task Tracking System. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  private generateTaskReminderHTML(
+    taskName: string,
+    projectName: string,
+    dueDate: Date
+  ): string {
+    const dueDateStr = dueDate.toLocaleDateString("vi-VN");
+    const dueTimeStr = dueDate.toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const currentDate = new Date();
+    const sentDate = currentDate.toLocaleDateString("vi-VN");
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Nhắc nhở Task</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #ff6b6b; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; background: #f9f9f9; }
+          .task-info { background: white; padding: 15px; border-left: 4px solid #ff6b6b; margin: 20px 0; }
+          .task-name { font-size: 18px; font-weight: bold; color: #ff6b6b; }
+          .due-date { font-size: 16px; color: #e63946; margin-top: 10px; }
+          .footer { padding: 20px; text-align: center; color: #666; font-size: 12px; }
+          .date-info { margin-top: 20px; padding: 10px; background: #e9ecef; border-radius: 5px; text-align: right; }
+          .sent-date { font-size: 14px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>⏰ Nhắc nhở Task</h1>
+          </div>
+          <div class="content">
+            <p>Xin chào,</p>
+            <p>Task của bạn sắp đến hạn!</p>
+            
+            <div class="task-info">
+              <div class="task-name">📋 ${taskName}</div>
+              <div>📁 Project: <strong>${projectName}</strong></div>
+              <div class="due-date">⏱️ Hạn chót: ${dueDateStr} lúc ${dueTimeStr}</div>
+            </div>
+            
+            <p>Hãy hoàn thành task trước khi hết hạn nhé!</p>
             
             <div class="date-info">
               <span class="sent-date">Gửi: ${sentDate}</span>

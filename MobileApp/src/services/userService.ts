@@ -74,5 +74,20 @@ export const userService = {
       message: 'No user data available',
     };
   },
-};
 
+  async updateFCMToken(userId: number, fcmToken: string): Promise<ApiResponse> {
+    if (!API_CONFIG.USE_MOCK_API) {
+      return request(buildApiUrl(`/users/${userId}/fcm-token`), {
+        method: 'PUT',
+        body: JSON.stringify({ fcmToken }),
+      });
+    }
+
+    // Mock response
+    return {
+      success: true,
+      message: 'FCM token updated (mock)',
+      data: { fcmToken },
+    };
+  },
+};

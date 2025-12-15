@@ -20,10 +20,11 @@ import { Colors } from '../constants/Colors';
 import { ScreenLayout } from '../constants/Dimensions';
 import { Strings } from '../constants/Strings';
 import { validateSignInForm, FormErrors } from '../utils/validation';
-import { authService } from '../services';
+import { authService, userService } from '../services';
 import { SignInCredentials, AuthResponse } from '../types/Auth';
 import Toast from '../components/Toast';
 import { useToast } from '../hooks';
+import fcmService from '../services/fcmService';
 
 interface SignInScreenProps {
   navigation: any;
@@ -95,6 +96,21 @@ const SignInScreen: React.FC<SignInScreenProps> = ({
         // Save login timestamp for session expiry (7 days)
         const loginTime = new Date().getTime();
         await AsyncStorage.setItem('loginTimestamp', loginTime.toString());
+
+        // Setup FCM and send token to backend
+        // TODO: Fix Firebase module loading issue
+        /*
+        try {
+          const fcmToken = await fcmService.getFCMToken();
+          if (fcmToken && response.data.user.id) {
+            await userService.updateFCMToken(response.data.user.id, fcmToken);
+            console.log('FCM token registered successfully');
+          }
+        } catch (fcmError) {
+          console.error('Failed to register FCM token:', fcmError);
+          // Don't block login if FCM fails
+        }
+        */
 
         // Show success toast
         showSuccess('Đăng nhập thành công!');
@@ -188,6 +204,21 @@ const SignInScreen: React.FC<SignInScreenProps> = ({
             'loginTimestamp',
             loginTime.getTime().toString(),
           );
+
+          // Setup FCM and send token to backend
+          // TODO: Fix Firebase module loading issue
+          /*
+          try {
+            const fcmToken = await fcmService.getFCMToken();
+            if (fcmToken && response.data.user.id) {
+              await userService.updateFCMToken(response.data.user.id, fcmToken);
+              console.log('FCM token registered successfully');
+            }
+          } catch (fcmError) {
+            console.error('Failed to register FCM token:', fcmError);
+            // Don't block login if FCM fails
+          }
+          */
 
           // Show success toast with short duration
           showSuccess('Đăng nhập Google thành công!');

@@ -1,12 +1,34 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, ParseIntPipe, HttpCode, HttpStatus } from '@nestjs/common';
-import { TasksService } from './tasks.service';
-import { CreateTaskDto, UpdateTaskDto, CreateTaskStatusDto, CreateTaskPriorityDto } from './dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+  ParseIntPipe,
+  HttpCode,
+  HttpStatus,
+} from "@nestjs/common";
+import { TasksService } from "./tasks.service";
+import {
+  CreateTaskDto,
+  UpdateTaskDto,
+  CreateTaskStatusDto,
+  CreateTaskPriorityDto,
+} from "./dto";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { TaskReminderScheduler } from "../../services/task-reminder.scheduler";
 
-@Controller('tasks')
+@Controller("tasks")
 @UseGuards(JwtAuthGuard)
 export class TasksController {
-  constructor(private readonly tasksService: TasksService) {}
+  constructor(
+    private readonly tasksService: TasksService,
+    private readonly taskReminderScheduler: TaskReminderScheduler
+  ) {}
 
   /**
    * Create a new task
@@ -22,8 +44,11 @@ export class TasksController {
    * Get tasks by project
    * GET /tasks/project/:projectId
    */
-  @Get('project/:projectId')
-  async getTasksByProject(@Param('projectId', ParseIntPipe) projectId: number, @Request() req) {
+  @Get("project/:projectId")
+  async getTasksByProject(
+    @Param("projectId", ParseIntPipe) projectId: number,
+    @Request() req
+  ) {
     return this.tasksService.getTasksByProject(projectId, req.user.userId);
   }
 
@@ -31,8 +56,11 @@ export class TasksController {
    * Get tasks by workspace
    * GET /tasks/workspace/:workspaceId
    */
-  @Get('workspace/:workspaceId')
-  async getTasksByWorkspace(@Param('workspaceId', ParseIntPipe) workspaceId: number, @Request() req) {
+  @Get("workspace/:workspaceId")
+  async getTasksByWorkspace(
+    @Param("workspaceId", ParseIntPipe) workspaceId: number,
+    @Request() req
+  ) {
     return this.tasksService.getTasksByWorkspace(workspaceId, req.user.userId);
   }
 
@@ -40,8 +68,11 @@ export class TasksController {
    * Get available assignees for a project
    * GET /tasks/project/:projectId/assignees
    */
-  @Get('project/:projectId/assignees')
-  async getAvailableAssignees(@Param('projectId', ParseIntPipe) projectId: number, @Request() req) {
+  @Get("project/:projectId/assignees")
+  async getAvailableAssignees(
+    @Param("projectId", ParseIntPipe) projectId: number,
+    @Request() req
+  ) {
     return this.tasksService.getAvailableAssignees(projectId, req.user.userId);
   }
 
@@ -58,8 +89,8 @@ export class TasksController {
    * Get task by ID
    * GET /tasks/:id
    */
-  @Get(':id')
-  async getTaskById(@Param('id', ParseIntPipe) id: number, @Request() req) {
+  @Get(":id")
+  async getTaskById(@Param("id", ParseIntPipe) id: number, @Request() req) {
     return this.tasksService.getTaskById(id, req.user.userId);
   }
 
@@ -67,9 +98,9 @@ export class TasksController {
    * Update task
    * PUT /tasks/:id
    */
-  @Put(':id')
+  @Put(":id")
   async updateTask(
-    @Param('id', ParseIntPipe) id: number,
+    @Param("id", ParseIntPipe) id: number,
     @Body() updateTaskDto: UpdateTaskDto,
     @Request() req
   ) {
@@ -80,9 +111,9 @@ export class TasksController {
    * Delete task
    * DELETE /tasks/:id
    */
-  @Delete(':id')
+  @Delete(":id")
   @HttpCode(HttpStatus.OK)
-  async deleteTask(@Param('id', ParseIntPipe) id: number, @Request() req) {
+  async deleteTask(@Param("id", ParseIntPipe) id: number, @Request() req) {
     return this.tasksService.deleteTask(id, req.user.userId);
   }
 
@@ -90,32 +121,45 @@ export class TasksController {
    * Create default task statuses for a project
    * POST /tasks/project/:projectId/statuses/default
    */
-  @Post('project/:projectId/statuses/default')
+  @Post("project/:projectId/statuses/default")
   @HttpCode(HttpStatus.CREATED)
-  async createDefaultTaskStatuses(@Param('projectId', ParseIntPipe) projectId: number, @Request() req) {
-    return this.tasksService.createDefaultTaskStatuses(projectId, req.user.userId);
+  async createDefaultTaskStatuses(
+    @Param("projectId", ParseIntPipe) projectId: number,
+    @Request() req
+  ) {
+    return this.tasksService.createDefaultTaskStatuses(
+      projectId,
+      req.user.userId
+    );
   }
 
   /**
    * Create custom task status for a project
    * POST /tasks/project/:projectId/statuses
    */
-  @Post('project/:projectId/statuses')
+  @Post("project/:projectId/statuses")
   @HttpCode(HttpStatus.CREATED)
   async createTaskStatus(
-    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param("projectId", ParseIntPipe) projectId: number,
     @Body() createStatusDto: CreateTaskStatusDto,
     @Request() req
   ) {
-    return this.tasksService.createTaskStatus(projectId, createStatusDto, req.user.userId);
+    return this.tasksService.createTaskStatus(
+      projectId,
+      createStatusDto,
+      req.user.userId
+    );
   }
 
   /**
    * Get task statuses for a project
    * GET /tasks/project/:projectId/statuses
    */
-  @Get('project/:projectId/statuses')
-  async getTaskStatuses(@Param('projectId', ParseIntPipe) projectId: number, @Request() req) {
+  @Get("project/:projectId/statuses")
+  async getTaskStatuses(
+    @Param("projectId", ParseIntPipe) projectId: number,
+    @Request() req
+  ) {
     return this.tasksService.getTaskStatuses(projectId, req.user.userId);
   }
 
@@ -123,22 +167,29 @@ export class TasksController {
    * Update task status
    * PUT /tasks/statuses/:statusId
    */
-  @Put('statuses/:statusId')
+  @Put("statuses/:statusId")
   async updateTaskStatus(
-    @Param('statusId', ParseIntPipe) statusId: number,
+    @Param("statusId", ParseIntPipe) statusId: number,
     @Body() updateData: Partial<CreateTaskStatusDto>,
     @Request() req
   ) {
-    return this.tasksService.updateTaskStatus(statusId, updateData, req.user.userId);
+    return this.tasksService.updateTaskStatus(
+      statusId,
+      updateData,
+      req.user.userId
+    );
   }
 
   /**
    * Delete task status
    * DELETE /tasks/statuses/:statusId
    */
-  @Delete('statuses/:statusId')
+  @Delete("statuses/:statusId")
   @HttpCode(HttpStatus.OK)
-  async deleteTaskStatus(@Param('statusId', ParseIntPipe) statusId: number, @Request() req) {
+  async deleteTaskStatus(
+    @Param("statusId", ParseIntPipe) statusId: number,
+    @Request() req
+  ) {
     return this.tasksService.deleteTaskStatus(statusId, req.user.userId);
   }
 
@@ -146,32 +197,45 @@ export class TasksController {
    * Create default task priorities for a project
    * POST /tasks/project/:projectId/priorities/default
    */
-  @Post('project/:projectId/priorities/default')
+  @Post("project/:projectId/priorities/default")
   @HttpCode(HttpStatus.CREATED)
-  async createDefaultTaskPriorities(@Param('projectId', ParseIntPipe) projectId: number, @Request() req) {
-    return this.tasksService.createDefaultTaskPriorities(projectId, req.user.userId);
+  async createDefaultTaskPriorities(
+    @Param("projectId", ParseIntPipe) projectId: number,
+    @Request() req
+  ) {
+    return this.tasksService.createDefaultTaskPriorities(
+      projectId,
+      req.user.userId
+    );
   }
 
   /**
    * Create custom task priority for a project
    * POST /tasks/project/:projectId/priorities
    */
-  @Post('project/:projectId/priorities')
+  @Post("project/:projectId/priorities")
   @HttpCode(HttpStatus.CREATED)
   async createTaskPriority(
-    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param("projectId", ParseIntPipe) projectId: number,
     @Body() createPriorityDto: CreateTaskPriorityDto,
     @Request() req
   ) {
-    return this.tasksService.createTaskPriority(projectId, createPriorityDto, req.user.userId);
+    return this.tasksService.createTaskPriority(
+      projectId,
+      createPriorityDto,
+      req.user.userId
+    );
   }
 
   /**
    * Get task priorities for a project
    * GET /tasks/project/:projectId/priorities
    */
-  @Get('project/:projectId/priorities')
-  async getTaskPriorities(@Param('projectId', ParseIntPipe) projectId: number, @Request() req) {
+  @Get("project/:projectId/priorities")
+  async getTaskPriorities(
+    @Param("projectId", ParseIntPipe) projectId: number,
+    @Request() req
+  ) {
     return this.tasksService.getTaskPriorities(projectId, req.user.userId);
   }
 
@@ -179,23 +243,43 @@ export class TasksController {
    * Update task priority
    * PUT /tasks/priorities/:priorityId
    */
-  @Put('priorities/:priorityId')
+  @Put("priorities/:priorityId")
   async updateTaskPriority(
-    @Param('priorityId', ParseIntPipe) priorityId: number,
+    @Param("priorityId", ParseIntPipe) priorityId: number,
     @Body() updateData: Partial<CreateTaskPriorityDto>,
     @Request() req
   ) {
-    return this.tasksService.updateTaskPriority(priorityId, updateData, req.user.userId);
+    return this.tasksService.updateTaskPriority(
+      priorityId,
+      updateData,
+      req.user.userId
+    );
   }
 
   /**
    * Delete task priority
    * DELETE /tasks/priorities/:priorityId
    */
-  @Delete('priorities/:priorityId')
+  @Delete("priorities/:priorityId")
   @HttpCode(HttpStatus.OK)
-  async deleteTaskPriority(@Param('priorityId', ParseIntPipe) priorityId: number, @Request() req) {
+  async deleteTaskPriority(
+    @Param("priorityId", ParseIntPipe) priorityId: number,
+    @Request() req
+  ) {
     return this.tasksService.deleteTaskPriority(priorityId, req.user.userId);
   }
-}
 
+  /**
+   * Manual trigger for task reminders (for testing)
+   * POST /tasks/reminders/send
+   */
+  @Post("reminders/send")
+  @HttpCode(HttpStatus.OK)
+  async sendTaskRemindersNow() {
+    await this.taskReminderScheduler.sendTaskRemindersNow();
+    return {
+      success: true,
+      message: "Task reminders sent successfully",
+    };
+  }
+}

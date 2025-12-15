@@ -15,6 +15,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { ToastProvider } from './src/context/ToastContext';
 import { appStateService } from './src/services/appStateService';
 import { localNotification } from './src/services/localNotification';
+import { localNotificationService } from './src/services/localNotificationService';
 
 // Custom theme colors
 const lightTheme = {
@@ -48,7 +49,11 @@ function App(): JSX.Element {
       try {
         console.log('[App] Initializing services');
 
-        // Initialize local notification service
+        // Initialize local notification service (new polling system)
+        await localNotificationService.initialize();
+        await localNotificationService.requestPermissions();
+
+        // Initialize legacy local notification service
         await localNotification.initialize();
 
         // Initialize app state service (includes background timer and notification handler)
@@ -64,6 +69,7 @@ function App(): JSX.Element {
 
     // Cleanup on app unmount
     return () => {
+      localNotificationService.stopPolling();
       appStateService.destroy();
     };
   }, []);
@@ -74,7 +80,9 @@ function App(): JSX.Element {
         <ToastProvider>
           <StatusBar
             barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-            backgroundColor={isDarkMode ? darkTheme.colors.surface : lightTheme.colors.surface}
+            backgroundColor={
+              isDarkMode ? darkTheme.colors.surface : lightTheme.colors.surface
+            }
           />
           <AppNavigator />
         </ToastProvider>

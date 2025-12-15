@@ -1,8 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { CreateUserDTO, CreateUserData } from '../dtos/create-user.dto';
-import { UpdateUserDTO } from '../dtos/update-user.dto';
-import { UserResponse } from '../model/user.model';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../../../prisma/prisma.service";
+import { CreateUserDTO, CreateUserData } from "../dtos/create-user.dto";
+import { UpdateUserDTO } from "../dtos/update-user.dto";
+import { UserResponse } from "../model/user.model";
 
 @Injectable()
 export class UsersService {
@@ -11,7 +11,7 @@ export class UsersService {
   async findAll(): Promise<UserResponse[]> {
     return this.prisma.user.findMany({
       where: {
-        dateDeleted: null
+        dateDeleted: null,
       },
       select: {
         id: true,
@@ -20,8 +20,8 @@ export class UsersService {
         phone: true,
         dateCreated: true,
         dateModified: true,
-        dateDeleted: true
-      }
+        dateDeleted: true,
+      },
     });
   }
 
@@ -29,7 +29,7 @@ export class UsersService {
     const user = await this.prisma.user.findFirst({
       where: {
         id,
-        dateDeleted: null
+        dateDeleted: null,
       },
       select: {
         id: true,
@@ -38,12 +38,12 @@ export class UsersService {
         phone: true,
         dateCreated: true,
         dateModified: true,
-        dateDeleted: true
-      }
+        dateDeleted: true,
+      },
     });
 
     if (!user) {
-      throw new NotFoundException('Không tìm thấy người dùng');
+      throw new NotFoundException("Không tìm thấy người dùng");
     }
 
     return user;
@@ -59,12 +59,15 @@ export class UsersService {
         phone: true,
         dateCreated: true,
         dateModified: true,
-        dateDeleted: true
-      }
+        dateDeleted: true,
+      },
     });
   }
 
-  async update(id: number, updateUserDto: UpdateUserDTO): Promise<UserResponse> {
+  async update(
+    id: number,
+    updateUserDto: UpdateUserDTO
+  ): Promise<UserResponse> {
     await this.findOne(id); // Kiểm tra user có tồn tại không
 
     return this.prisma.user.update({
@@ -77,8 +80,8 @@ export class UsersService {
         phone: true,
         dateCreated: true,
         dateModified: true,
-        dateDeleted: true
-      }
+        dateDeleted: true,
+      },
     });
   }
 
@@ -88,8 +91,8 @@ export class UsersService {
     await this.prisma.user.update({
       where: { id },
       data: {
-        dateDeleted: new Date()
-      }
+        dateDeleted: new Date(),
+      },
     });
   }
 
@@ -97,8 +100,8 @@ export class UsersService {
     return this.prisma.user.findFirst({
       where: {
         username,
-        dateDeleted: null
-      }
+        dateDeleted: null,
+      },
     });
   }
 
@@ -106,8 +109,8 @@ export class UsersService {
     return this.prisma.user.findFirst({
       where: {
         email,
-        dateDeleted: null
-      }
+        dateDeleted: null,
+      },
     });
   }
 
@@ -115,8 +118,8 @@ export class UsersService {
     return this.prisma.user.findFirst({
       where: {
         phone,
-        dateDeleted: null
-      }
+        dateDeleted: null,
+      },
     });
   }
 
@@ -124,8 +127,8 @@ export class UsersService {
     await this.prisma.user.update({
       where: { id },
       data: {
-        password: hashedPassword
-      }
+        password: hashedPassword,
+      },
     });
   }
 
@@ -134,14 +137,32 @@ export class UsersService {
     const user = await this.prisma.user.findFirst({
       where: {
         id,
-        dateDeleted: null
-      }
+        dateDeleted: null,
+      },
     });
 
     if (!user) {
-      throw new NotFoundException('Không tìm thấy người dùng');
+      throw new NotFoundException("Không tìm thấy người dùng");
     }
 
     return user;
+  }
+
+  async updateFcmToken(id: number, fcmToken: string): Promise<any> {
+    await this.findOne(id); // Check user exists
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { fcmToken },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        phone: true,
+        fcmToken: true,
+        dateCreated: true,
+        dateModified: true,
+      },
+    });
   }
 }

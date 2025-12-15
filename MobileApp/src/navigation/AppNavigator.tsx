@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, buildApiUrl, getCurrentApiConfig } from '../config/api';
+import fcmService from '../services/fcmService';
 
 import {
   SplashScreen,
@@ -158,6 +159,20 @@ const AppNavigator: React.FC = () => {
             : await validateToken(authToken);
           setIsAuthenticated(isValid);
 
+          // Setup FCM listeners if authenticated
+          // TODO: Fix Firebase module loading issue
+          /*
+          if (isValid) {
+            fcmService.setupNotificationListeners((notification) => {
+              console.log('Notification received in app:', notification);
+              // Handle notification tap - navigate to task
+              if (navigationRef.current && notification.data) {
+                fcmService.handleNotificationTap(notification, navigationRef.current);
+              }
+            });
+          }
+          */
+
           // Note: We now always navigate to PersonalDashboard first
           // Users can navigate to specific workspaces from there
         }
@@ -170,6 +185,50 @@ const AppNavigator: React.FC = () => {
 
     loadAppState();
   }, []);
+
+  // Check for pending navigation from notification tap
+  useEffect(() => {
+    const checkPendingNavigation = async () => {
+      try {
+        const pendingNav = await AsyncStorage.getItem('pending_navigation');
+        if (pendingNav && navigationRef.current) {
+          const data = JSON.parse(pendingNav);
+
+          // Clear pending navigation
+          await AsyncStorage.removeItem('pending_navigation');
+
+          // Navigate based on notification type
+          if (data.projectId && data.taskId) {
+            // Navigate to task detail (need to implement this route)
+            console.log(
+              '📍 Navigate to task:',
+              data.taskId,
+              'in project:',
+              data.projectId,
+            );
+            // TODO: Add navigation to task detail screen
+            // navigationRef.current.navigate('TaskDetail', { taskId: data.taskId });
+          } else if (data.projectId) {
+            // Navigate to project detail
+            console.log('📍 Navigate to project:', data.projectId);
+            // navigationRef.current.navigate('ProjectDetail', { projectId: data.projectId });
+          }
+        }
+      } catch (error) {
+        console.error('Error checking pending navigation:', error);
+      }
+    };
+
+    // Check every second when navigation is ready
+    const interval = setInterval(() => {
+      if (navigationRef.current && isAuthenticated) {
+        checkPendingNavigation();
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
 
   const handleSplashFinish = () => {
     setIsLoading(false);
