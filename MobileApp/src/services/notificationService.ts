@@ -103,6 +103,20 @@ class NotificationService {
     });
   }
 
+  // Get ALL user notifications (workspace invitations + project notifications across all workspaces)
+  async getAllUserNotifications(): Promise<NotificationResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return this.mockGetUserNotifications();
+    }
+
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL}/all`,
+    );
+    return this.request<NotificationResponse>(url, {
+      method: 'GET',
+    });
+  }
+
   // Get project notifications for a workspace (for Workspace Dashboard)
   async getProjectNotifications(
     workspaceId: number,
@@ -216,6 +230,81 @@ class NotificationService {
       `${
         getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL
       }/delete-all-project/${workspaceId}`,
+    );
+    return this.request<ActionResponse>(url, {
+      method: 'POST',
+    });
+  }
+
+  // Delete all project notifications for user (for Personal Dashboard - all mode)
+  async deleteAllProjectNotificationsForUser(): Promise<ActionResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return new Promise(resolve => {
+        setTimeout(
+          () =>
+            resolve({
+              success: true,
+              message: 'All project notifications deleted (mock)',
+            }),
+          API_CONFIG.MOCK_DELAY,
+        );
+      });
+    }
+
+    const url = buildApiUrl(
+      `${
+        getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL
+      }/delete-all-project`,
+    );
+    return this.request<ActionResponse>(url, {
+      method: 'POST',
+    });
+  }
+
+  // Mark all project notifications as read for user (Personal Dashboard - all mode)
+  async markAllProjectNotificationsAsRead(): Promise<ActionResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return new Promise(resolve => {
+        setTimeout(
+          () =>
+            resolve({
+              success: true,
+              message: 'All notifications marked as read (mock)',
+            }),
+          API_CONFIG.MOCK_DELAY,
+        );
+      });
+    }
+
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL}/mark-all-read`,
+    );
+    return this.request<ActionResponse>(url, {
+      method: 'POST',
+    });
+  }
+
+  // Mark all project notifications as read for workspace (Workspace Dashboard)
+  async markAllProjectNotificationsAsReadForWorkspace(
+    workspaceId: number,
+  ): Promise<ActionResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return new Promise(resolve => {
+        setTimeout(
+          () =>
+            resolve({
+              success: true,
+              message: 'All notifications marked as read (mock)',
+            }),
+          API_CONFIG.MOCK_DELAY,
+        );
+      });
+    }
+
+    const url = buildApiUrl(
+      `${
+        getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL
+      }/mark-all-read/${workspaceId}`,
     );
     return this.request<ActionResponse>(url, {
       method: 'POST',

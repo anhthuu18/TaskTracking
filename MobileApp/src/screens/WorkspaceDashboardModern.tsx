@@ -463,7 +463,9 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
         workspace.id,
       );
       if (response.success) {
-        setNotificationCount(response.data.length);
+        // Only count unread notifications
+        const unreadCount = response.data.filter((n: any) => !n.isRead).length;
+        setNotificationCount(unreadCount);
       }
     } catch (error: any) {
       const errorMessage = error?.message || '';
@@ -1266,6 +1268,7 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
           onDeclineInvitation={handleDeclineInvitation}
           mode="project"
           workspaceId={workspace?.id}
+          navigation={navigation}
         />
 
         <Toast

@@ -25,7 +25,10 @@ class LocalNotificationService {
     try {
       // Request permission
       const settings = await notifee.requestPermission();
-      console.log('[LocalNotification] Permission status:', settings.authorizationStatus);
+      console.log(
+        '[LocalNotification] Permission status:',
+        settings.authorizationStatus,
+      );
 
       // Create default channel for Android
       if (Platform.OS === 'android') {
@@ -109,7 +112,7 @@ class LocalNotificationService {
   async showNow(
     title: string,
     body: string,
-    options?: NotificationOptions
+    options?: NotificationOptions,
   ): Promise<NotificationId | null> {
     try {
       if (!this.notifeeReady) {
@@ -122,7 +125,6 @@ class LocalNotificationService {
         data: options?.data || {},
         android: {
           channelId: 'pomodoro',
-          smallIcon: 'ic_launcher',
           pressAction: {
             id: 'default',
           },
@@ -136,7 +138,8 @@ class LocalNotificationService {
         },
         ios: {
           sound: options?.sound === 'silent' ? undefined : 'default',
-          critical: options?.importance === 'max' || options?.importance === 'high',
+          critical:
+            options?.importance === 'max' || options?.importance === 'high',
           criticalVolume: 1.0,
           badge: 1,
         },
@@ -157,7 +160,7 @@ class LocalNotificationService {
     date: Date,
     title: string,
     body: string,
-    options?: NotificationOptions
+    options?: NotificationOptions,
   ): Promise<NotificationId | null> {
     try {
       if (!this.notifeeReady) {
@@ -171,7 +174,6 @@ class LocalNotificationService {
           data: options?.data || {},
           android: {
             channelId: 'pomodoro',
-            smallIcon: 'ic_launcher',
             pressAction: {
               id: 'default',
             },
@@ -187,7 +189,8 @@ class LocalNotificationService {
           },
           ios: {
             sound: options?.sound === 'silent' ? undefined : 'default',
-            critical: options?.importance === 'max' || options?.importance === 'high',
+            critical:
+              options?.importance === 'max' || options?.importance === 'high',
             criticalVolume: 1.0,
             badge: 1,
           },
@@ -196,10 +199,13 @@ class LocalNotificationService {
           type: TriggerType.TIMESTAMP,
           timestamp: date.getTime(),
           alarmManager: { allowWhileIdle: true },
-        }
+        },
       );
 
-      console.log('[LocalNotification] Scheduled notification:', notificationId);
+      console.log(
+        '[LocalNotification] Scheduled notification:',
+        notificationId,
+      );
       return notificationId;
     } catch (error) {
       console.error('[LocalNotification] Schedule error:', error);
@@ -219,7 +225,10 @@ class LocalNotificationService {
     try {
       if (!notificationId) return;
       await notifee.cancelNotification(notificationId);
-      console.log('[LocalNotification] Cancelled notification:', notificationId);
+      console.log(
+        '[LocalNotification] Cancelled notification:',
+        notificationId,
+      );
     } catch (error) {
       console.error('[LocalNotification] Cancel error:', error);
     }

@@ -5,7 +5,7 @@
  */
 
 import notifee, { EventType } from '@notifee/react-native';
-import { NavigationService } from './NavigationService';
+import { navigationRef } from './NavigationService';
 import { activeTimer } from './activeTimer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -13,15 +13,20 @@ const NOTIFICATION_STATE_KEY = 'notificationState';
 
 export interface NotificationState {
   pendingNotificationId: string | null;
-  sessionType: 'focus' | 'break' | 'longBreak';
+  type?: string; // 'task_reminder' or 'pomodoro'
+  sessionType?: 'focus' | 'break' | 'longBreak';
   taskId: number;
-  taskTitle: string;
+  taskTitle?: string;
+  taskName?: string;
+  projectId?: string;
+  projectName?: string;
   timestamp: number;
 }
 
 class NotificationEventHandler {
   private initialized = false;
-  private recurringNotificationInterval: ReturnType<typeof setInterval> | null = null;
+  private recurringNotificationInterval: ReturnType<typeof setInterval> | null =
+    null;
   private pendingNotificationId: string | null = null;
 
   /**
@@ -55,10 +60,16 @@ class NotificationEventHandler {
    */
   private setupForegroundHandler() {
     notifee.onForegroundEvent(async ({ type, notification }) => {
-      console.log('[NotificationEventHandler] Foreground event:', type, notification?.body);
+      console.log(
+        '[NotificationEventHandler] Foreground event:',
+        type,
+        notification?.body,
+      );
+      console.log('[NotificationEventHandler] Notification data:', notification?.data);
 
       if (type === EventType.PRESS) {
         // User tapped the notification
+        console.log('[NotificationEventHandler] Foreground PRESS - calling handleNotificationTap with data:', notification?.data);
         await this.handleNotificationTap(notification?.data);
       } else if (type === EventType.DISMISS) {
         // User dismissed the notification
@@ -74,13 +85,17 @@ class NotificationEventHandler {
   private setupBackgroundHandler() {
     notifee.onBackgroundEvent(async ({ type, notification }) => {
       console.log('[NotificationEventHandler] Background event:', type);
+      console.log('[NotificationEventHandler] Background notification data:', notification?.data);
 
       if (type === EventType.PRESS) {
-        // User tapped notification while app was closed
-        // Save state so we can handle it when app opens
+        // User explicitly tapped notification while app was closed
+        // Save state so we can handle it when app finishes opening
         if (notification?.data) {
+          console.log('[NotificationEventHandler] Background PRESS - saving state with data:', notification.data);
           await this.savePendingNotificationState(notification.data);
+          // Navigation will be handled by the saved state when app becomes ready
         }
+        // DO NOT call handleNotificationTap here - it causes app to open unexpectedly
       }
     });
   }
@@ -90,15 +105,84 @@ class NotificationEventHandler {
    */
   private async handleNotificationTap(data?: Record<string, string>) {
     try {
-      console.log('[NotificationEventHandler] Handling notification tap');
+      console.log('[NotificationEventHandler] Handling notification tap - received data:', JSON.stringify(data));
 
+      // Check notification type
+      const notificationType = data?.type;
+      console.log('[NotificationEventHandler] Notification type:', notificationType);
+
+      if (notificationType === 'task_reminder') {
+        // Task reminder notification - navigate to TaskTracking screen
+        console.log('[NotificationEventHandler] Routing to handleTaskReminderTap');
+        await this.handleTaskReminderTap(data);
+        return;
+      }
+
+      // Default: Pomodoro session completion notification
+      console.log('[NotificationEventHandler] Routing to handlePomodoroTap');
+      await this.handlePomodoroTap(data);
+    } catch (error) {
+      console.error('[NotificationEventHandler] Tap handler error:', error);
+    }
+  }
+
+  /**
+   * Handle task reminder notification tap
+   */
+  private async handleTaskReminderTap(data?: Record<string, string>) {
+    try {
+      console.log('[NotificationEventHandler] Task reminder tap - raw data:', JSON.stringify(data));
+      
+      const taskId = data?.taskId ? parseInt(data.taskId, 10) : 0;
+      const taskName = data?.taskName || '';
+      const projectId = data?.projectId || '';
+      const projectName = data?.projectName || '';
+
+      console.log('[NotificationEventHandler] Parsed values:', {
+        taskId,
+        taskName,
+        projectId,
+        projectName,
+        dataTaskId: data?.taskId,
+        dataTaskName: data?.taskName,
+      });
+
+      if (taskId && navigationRef.current) {
+        console.log('[NotificationEventHandler] Navigating to TaskTracking with params:', {
+          taskId: taskId.toString(),
+          projectId,
+          projectName,
+        });
+        navigationRef.current.navigate('TaskTracking' as never, {
+          taskId: taskId.toString(),
+          projectId: projectId,
+          projectName: projectName,
+        } as never);
+        console.log('[NotificationEventHandler] Navigation called successfully');
+      } else {
+        console.warn('[NotificationEventHandler] Cannot navigate - missing taskId or navigation not ready', {
+          hasTaskId: !!taskId,
+          hasNavigation: !!navigationRef.current,
+          dataKeys: data ? Object.keys(data) : [],
+        });
+      }
+    } catch (error) {
+      console.error('[NotificationEventHandler] Task reminder tap error:', error);
+    }
+  }
+
+  /**
+   * Handle pomodoro session notification tap
+   */
+  private async handlePomodoroTap(data?: Record<string, string>) {
+    try {
       // Cancel recurring notification if any
       await this.stopRecurringNotification();
 
       // Decide whether session actually completed
       let showDialog = true;
       try {
-        const st = activeTimer.get() || await activeTimer.load();
+        const st = activeTimer.get() || (await activeTimer.load());
         if (st?.expectedEndTs) {
           const deltaMs = st.expectedEndTs - Date.now();
           // Treat as completed if within 1.5s late or already past
@@ -120,17 +204,19 @@ class NotificationEventHandler {
       await this.clearNotificationState();
 
       // Navigate to TaskTrackingScreen - prefer active timer's taskId for accuracy
-      const st2 = activeTimer.get() || await activeTimer.load();
-      const taskId = st2?.taskId ?? (data?.taskId ? parseInt(data.taskId, 10) : 0);
+      const st2 = activeTimer.get() || (await activeTimer.load());
+      const taskId =
+        st2?.taskId ?? (data?.taskId ? parseInt(data.taskId, 10) : 0);
       const taskTitle = st2?.taskTitle || data?.taskTitle || '';
-      if (taskId) {
-        NavigationService.navigate('TaskTracking', {
+      
+      if (taskId && navigationRef.current) {
+        navigationRef.current.navigate('TaskTracking' as never, {
           task: { id: taskId, title: taskTitle },
           showSessionCompleteDialog: showDialog,
-        });
+        } as never);
       }
     } catch (error) {
-      console.error('[NotificationEventHandler] Tap handler error:', error);
+      console.error('[NotificationEventHandler] Pomodoro tap error:', error);
     }
   }
 
@@ -154,13 +240,20 @@ class NotificationEventHandler {
     try {
       const state: NotificationState = {
         pendingNotificationId: data.notificationId || null,
+        type: data.type || 'pomodoro',
         sessionType: (data.sessionType as any) || 'focus',
         taskId: parseInt(data.taskId, 10) || 0,
         taskTitle: data.taskTitle || '',
+        taskName: data.taskName || '',
+        projectId: data.projectId || '',
+        projectName: data.projectName || '',
         timestamp: Date.now(),
       };
       await AsyncStorage.setItem(NOTIFICATION_STATE_KEY, JSON.stringify(state));
-      console.log('[NotificationEventHandler] Saved pending notification state');
+      console.log(
+        '[NotificationEventHandler] Saved pending notification state',
+        state,
+      );
     } catch (error) {
       console.error('[NotificationEventHandler] Save state error:', error);
     }
@@ -168,25 +261,41 @@ class NotificationEventHandler {
 
   /**
    * Load pending notification state
+   * Processes navigation if user tapped notification while app was in background
    */
   private async loadPendingNotificationState() {
     try {
       const raw = await AsyncStorage.getItem(NOTIFICATION_STATE_KEY);
       if (raw) {
         const state = JSON.parse(raw) as NotificationState;
-        console.log('[NotificationEventHandler] Found pending notification state');
+        console.log(
+          '[NotificationEventHandler] Found pending notification state',
+          state,
+        );
 
-        // If state is recent (within 5 minutes), handle it
-        if (Date.now() - state.timestamp < 5 * 60 * 1000) {
-          await this.handleNotificationTap({
-            taskId: String(state.taskId),
-            taskTitle: state.taskTitle,
-            sessionType: state.sessionType,
-          });
-        }
-
-        // Clear the state
+        // Clear the state first
         await this.clearNotificationState();
+
+        // Wait a bit for navigation to be ready
+        setTimeout(() => {
+          if (state.type === 'task_reminder') {
+            // Task reminder notification
+            this.handleTaskReminderTap({
+              taskId: state.taskId.toString(),
+              taskName: state.taskName || state.taskTitle || '',
+              projectId: state.projectId || '',
+              projectName: state.projectName || '',
+              type: 'task_reminder',
+            });
+          } else {
+            // Pomodoro notification
+            this.handlePomodoroTap({
+              taskId: state.taskId.toString(),
+              taskTitle: state.taskTitle || '',
+              sessionType: state.sessionType || 'focus',
+            });
+          }
+        }, 500); // Wait 500ms for navigation to be ready
       }
     } catch (error) {
       console.error('[NotificationEventHandler] Load state error:', error);
@@ -213,7 +322,7 @@ class NotificationEventHandler {
     title: string,
     body: string,
     data: Record<string, string>,
-    intervalSeconds: number = 7
+    intervalSeconds: number = 7,
   ) {
     try {
       console.log('[NotificationEventHandler] Starting recurring notification');
@@ -222,16 +331,25 @@ class NotificationEventHandler {
       await this.stopRecurringNotification();
 
       // Show initial notification
-      const notificationId = await this.showNotificationWithData(title, body, data);
+      const notificationId = await this.showNotificationWithData(
+        title,
+        body,
+        data,
+      );
       this.pendingNotificationId = notificationId;
 
       // Schedule recurring notifications
       this.recurringNotificationInterval = setInterval(async () => {
         try {
-          console.log('[NotificationEventHandler] Sending recurring notification');
+          console.log(
+            '[NotificationEventHandler] Sending recurring notification',
+          );
           await this.showNotificationWithData(title, body, data);
         } catch (error) {
-          console.error('[NotificationEventHandler] Recurring notification error:', error);
+          console.error(
+            '[NotificationEventHandler] Recurring notification error:',
+            error,
+          );
         }
       }, intervalSeconds * 1000);
 
@@ -270,7 +388,7 @@ class NotificationEventHandler {
   private async showNotificationWithData(
     title: string,
     body: string,
-    data: Record<string, string>
+    data: Record<string, string>,
   ): Promise<string> {
     try {
       const notificationId = await notifee.displayNotification({
@@ -279,7 +397,6 @@ class NotificationEventHandler {
         data,
         android: {
           channelId: 'pomodoro',
-          smallIcon: 'ic_launcher',
           pressAction: {
             id: 'default',
           },
@@ -303,7 +420,10 @@ class NotificationEventHandler {
 
       return notificationId;
     } catch (error) {
-      console.error('[NotificationEventHandler] Show notification error:', error);
+      console.error(
+        '[NotificationEventHandler] Show notification error:',
+        error,
+      );
       throw error;
     }
   }
@@ -322,6 +442,40 @@ class NotificationEventHandler {
   }
 
   /**
+   * Handle pending notification manually
+   * Should be called when app is ready and user explicitly opened via notification
+   */
+  async handlePendingNotificationIfExists() {
+    try {
+      const raw = await AsyncStorage.getItem(NOTIFICATION_STATE_KEY);
+      if (raw) {
+        const state = JSON.parse(raw) as NotificationState;
+        console.log(
+          '[NotificationEventHandler] Processing pending notification',
+        );
+
+        // Check if state is recent (within 5 minutes)
+        if (Date.now() - state.timestamp < 5 * 60 * 1000) {
+          await this.handleNotificationTap({
+            taskId: String(state.taskId),
+            taskTitle: state.taskTitle,
+            sessionType: state.sessionType,
+          });
+        } else {
+          console.log(
+            '[NotificationEventHandler] Pending notification too old, ignoring',
+          );
+        }
+
+        // Clear the state
+        await this.clearNotificationState();
+      }
+    } catch (error) {
+      console.error('[NotificationEventHandler] Handle pending error:', error);
+    }
+  }
+
+  /**
    * Cleanup
    */
   destroy() {
@@ -332,5 +486,3 @@ class NotificationEventHandler {
 }
 
 export const notificationEventHandler = new NotificationEventHandler();
-
-

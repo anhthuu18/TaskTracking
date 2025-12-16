@@ -109,15 +109,57 @@ export class NotificationService {
     });
   }
 
+  // Get all project notifications for user (across all workspaces) - for Personal Dashboard
+  async getAllProjectNotificationsByUser(userId: number): Promise<any[]> {
+    try {
+      // Calculate date 10 days ago
+      const tenDaysAgo = new Date();
+      tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+
+      const notifications = await this.prisma.projectNotification.findMany({
+        where: {
+          receiverUserId: userId,
+          // Show both read and unread, but only from last 10 days
+          createdAt: {
+            gte: tenDaysAgo,
+          },
+        },
+        include: {
+          project: {
+            select: {
+              projectName: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 100, // Limit to 100 most recent notifications for performance
+      });
+
+      return notifications;
+    } catch (error) {
+      console.error("Error getting all project notifications:", error);
+      return [];
+    }
+  }
+
   // Project notifications filtered by workspace (for Workspace Dashboard)
   async getProjectNotificationsByWorkspace(
     userId: number,
     workspaceId: number
   ) {
+    // Calculate date 10 days ago
+    const tenDaysAgo = new Date();
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+
     return this.prisma.projectNotification.findMany({
       where: {
         receiverUserId: userId,
-        isRead: false, // Only unread notifications
+        // Show both read and unread, but only from last 10 days
+        createdAt: {
+          gte: tenDaysAgo,
+        },
         project: {
           workspaceId: workspaceId, // Filter by workspace
         },
@@ -292,6 +334,33 @@ export class NotificationService {
     }
   }
 
+  // Mark all project notifications as read for a workspace
+  async markAllProjectNotificationsAsReadForWorkspace(
+    userId: number,
+    workspaceId: number
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      await this.prisma.projectNotification.updateMany({
+        where: {
+          receiverUserId: userId,
+          isRead: false,
+          project: {
+            workspaceId: workspaceId,
+          },
+        },
+        data: { isRead: true },
+      });
+
+      return { success: true, message: "All notifications marked as read" };
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+      return {
+        success: false,
+        message: "Failed to mark all notifications as read",
+      };
+    }
+  }
+
   // Delete all project notifications for a workspace (for Workspace Dashboard)
   async deleteAllProjectNotificationsByWorkspace(
     userId: number,
@@ -316,6 +385,30 @@ export class NotificationService {
       return {
         success: false,
         message: "Failed to delete project notifications",
+      };
+    }
+  }
+
+  // Delete all project notifications for a user (for Personal Dashboard)
+  async deleteAllProjectNotificationsByUser(
+    userId: number
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const result = await this.prisma.projectNotification.deleteMany({
+        where: {
+          receiverUserId: userId,
+        },
+      });
+
+      return {
+        success: true,
+        message: `Deleted ${result.count} project notifications successfully`,
+      };
+    } catch (error) {
+      console.error("Error deleting all project notifications:", error);
+      return {
+        success: false,
+        message: "Failed to delete all project notifications",
       };
     }
   }

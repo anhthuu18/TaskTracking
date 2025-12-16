@@ -1,7 +1,16 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTimeTrackingSessionDto, UpdateTimeTrackingSessionDto, SessionTypeDto } from './dto';
-import { SessionType } from '@prisma/client';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from "@nestjs/common";
+import { PrismaService } from "../../prisma/prisma.service";
+import {
+  CreateTimeTrackingSessionDto,
+  UpdateTimeTrackingSessionDto,
+  SessionTypeDto,
+} from "./dto";
+import { SessionType } from "@prisma/client";
 
 @Injectable()
 export class TimeTrackingService {
@@ -10,22 +19,23 @@ export class TimeTrackingService {
   /**
    * Create a new time tracking session
    */
-  async createSession(createSessionDto: CreateTimeTrackingSessionDto, userId: number) {
-    const { taskId, sessionType, duration, startTime, endTime, isCompleted } = createSessionDto;
+  async createSession(
+    createSessionDto: CreateTimeTrackingSessionDto,
+    userId: number
+  ) {
+    const { taskId, sessionType, duration, startTime, endTime, isCompleted } =
+      createSessionDto;
 
     // Verify task exists and user has access
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
-        OR: [
-          { createdBy: userId },
-          { assignedTo: userId }
-        ]
-      }
+        OR: [{ createdBy: userId }, { assignedTo: userId }],
+      },
     });
 
     if (!task) {
-      throw new NotFoundException('Task not found or access denied');
+      throw new NotFoundException("Task not found or access denied");
     }
 
     // Map DTO enum to Prisma enum
@@ -53,17 +63,21 @@ export class TimeTrackingService {
   /**
    * Update a time tracking session
    */
-  async updateSession(sessionId: number, updateSessionDto: UpdateTimeTrackingSessionDto, userId: number) {
+  async updateSession(
+    sessionId: number,
+    updateSessionDto: UpdateTimeTrackingSessionDto,
+    userId: number
+  ) {
     // Verify session exists and user owns it
     const session = await this.prisma.timeTrackingSession.findFirst({
       where: {
         id: sessionId,
         userId,
-      }
+      },
     });
 
     if (!session) {
-      throw new NotFoundException('Session not found or access denied');
+      throw new NotFoundException("Session not found or access denied");
     }
 
     const sessionTypeMap: Record<SessionTypeDto, SessionType> = {
@@ -73,7 +87,7 @@ export class TimeTrackingService {
     };
 
     const updateData: any = {};
-    
+
     if (updateSessionDto.sessionType) {
       updateData.sessionType = sessionTypeMap[updateSessionDto.sessionType];
     }
@@ -114,11 +128,11 @@ export class TimeTrackingService {
       where: {
         id: sessionId,
         userId,
-      }
+      },
     });
 
     if (!session) {
-      throw new NotFoundException('Session not found or access denied');
+      throw new NotFoundException("Session not found or access denied");
     }
 
     const completedSession = await this.prisma.timeTrackingSession.update({
@@ -144,15 +158,12 @@ export class TimeTrackingService {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
-        OR: [
-          { createdBy: userId },
-          { assignedTo: userId }
-        ]
-      }
+        OR: [{ createdBy: userId }, { assignedTo: userId }],
+      },
     });
 
     if (!task) {
-      throw new NotFoundException('Task not found or access denied');
+      throw new NotFoundException("Task not found or access denied");
     }
 
     const sessions = await this.prisma.timeTrackingSession.findMany({
@@ -161,7 +172,7 @@ export class TimeTrackingService {
         userId,
       },
       orderBy: {
-        startTime: 'desc',
+        startTime: "desc",
       },
     });
 
@@ -176,15 +187,12 @@ export class TimeTrackingService {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
-        OR: [
-          { createdBy: userId },
-          { assignedTo: userId }
-        ]
-      }
+        OR: [{ createdBy: userId }, { assignedTo: userId }],
+      },
     });
 
     if (!task) {
-      throw new NotFoundException('Task not found or access denied');
+      throw new NotFoundException("Task not found or access denied");
     }
 
     const today = new Date();
@@ -199,10 +207,10 @@ export class TimeTrackingService {
         startTime: {
           gte: today,
           lt: tomorrow,
-        }
+        },
       },
       orderBy: {
-        startTime: 'desc',
+        startTime: "desc",
       },
     });
 
@@ -217,18 +225,18 @@ export class TimeTrackingService {
       where: {
         id: sessionId,
         userId,
-      }
+      },
     });
 
     if (!session) {
-      throw new NotFoundException('Session not found or access denied');
+      throw new NotFoundException("Session not found or access denied");
     }
 
     await this.prisma.timeTrackingSession.delete({
       where: { id: sessionId },
     });
 
-    return { message: 'Session deleted successfully' };
+    return { message: "Session deleted successfully" };
   }
 
   /**
@@ -239,22 +247,19 @@ export class TimeTrackingService {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
-        OR: [
-          { createdBy: userId },
-          { assignedTo: userId }
-        ]
-      }
+        OR: [{ createdBy: userId }, { assignedTo: userId }],
+      },
     });
 
     if (!task) {
-      throw new NotFoundException('Task not found or access denied');
+      throw new NotFoundException("Task not found or access denied");
     }
 
     let stats = await this.prisma.pomodoroStatistics.findFirst({
       where: {
         taskId,
         userId,
-      }
+      },
     });
 
     // If no stats exist, create default ones
@@ -267,7 +272,7 @@ export class TimeTrackingService {
           totalBreakTime: 0,
           completedSessions: 0,
           totalSessions: 0,
-        }
+        },
       });
     }
 
@@ -282,15 +287,12 @@ export class TimeTrackingService {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
-        OR: [
-          { createdBy: userId },
-          { assignedTo: userId }
-        ]
-      }
+        OR: [{ createdBy: userId }, { assignedTo: userId }],
+      },
     });
 
     if (!task) {
-      throw new NotFoundException('Task not found or access denied');
+      throw new NotFoundException("Task not found or access denied");
     }
 
     const startDate = new Date();
@@ -303,19 +305,19 @@ export class TimeTrackingService {
         userId,
         startTime: {
           gte: startDate,
-        }
+        },
       },
       orderBy: {
-        startTime: 'desc',
+        startTime: "desc",
       },
     });
 
     // Group by date
     const historyMap = new Map<string, any>();
 
-    sessions.forEach(session => {
+    sessions.forEach((session) => {
       const date = new Date(session.startTime);
-      const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+      const dateKey = date.toISOString().split("T")[0]; // YYYY-MM-DD
 
       if (!historyMap.has(dateKey)) {
         historyMap.set(dateKey, {
@@ -338,20 +340,30 @@ export class TimeTrackingService {
       }
     });
 
-    return Array.from(historyMap.values()).sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
+    return Array.from(historyMap.values()).sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
   }
 
   /**
    * Private method to update Pomodoro statistics
+   * Uses actual elapsed time (endTime - startTime) instead of configured duration
    */
-  private async updatePomodoroStats(taskId: number, userId: number, session: any) {
+  private async updatePomodoroStats(
+    taskId: number,
+    userId: number,
+    session: any
+  ) {
+    // Skip if session doesn't have valid time data
+    if (!session.startTime) {
+      return;
+    }
+
     let stats = await this.prisma.pomodoroStatistics.findFirst({
       where: {
         taskId,
         userId,
-      }
+      },
     });
 
     if (!stats) {
@@ -363,21 +375,44 @@ export class TimeTrackingService {
           totalBreakTime: 0,
           completedSessions: 0,
           totalSessions: 0,
-        }
+        },
       });
     }
 
-    // Update stats
+    // Calculate ACTUAL elapsed time in minutes from timestamps
+    let actualDurationMinutes = 0;
+    if (session.endTime && session.startTime) {
+      const startMs = new Date(session.startTime).getTime();
+      const endMs = new Date(session.endTime).getTime();
+      const elapsedMs = Math.max(0, endMs - startMs);
+      actualDurationMinutes = elapsedMs / (1000 * 60); // Convert to minutes
+    } else if (session.duration) {
+      // Fallback to configured duration if endTime not set
+      actualDurationMinutes = session.duration;
+    }
+
+    // Check if this session was already counted (prevent duplicate additions)
+    // We can check if completedSessions was already incremented for this session
+    // by checking if session has been updated before (has completedAt)
+    const isFirstTimeComplete =
+      !session.completedAt ||
+      new Date(session.completedAt).getTime() - new Date().getTime() < 5000; // Within 5 seconds means just completed
+
     const updateData: any = {
-      totalSessions: stats.totalSessions + 1,
-      completedSessions: stats.completedSessions + 1,
       lastTrackedDate: new Date(),
     };
 
+    // Only increment counters if this is the first time completing
+    if (isFirstTimeComplete) {
+      updateData.totalSessions = stats.totalSessions + 1;
+      updateData.completedSessions = stats.completedSessions + 1;
+    }
+
+    // Add actual elapsed time to totals
     if (session.sessionType === SessionType.FOCUS) {
-      updateData.totalFocusTime = stats.totalFocusTime + session.duration;
+      updateData.totalFocusTime = stats.totalFocusTime + actualDurationMinutes;
     } else {
-      updateData.totalBreakTime = stats.totalBreakTime + session.duration;
+      updateData.totalBreakTime = stats.totalBreakTime + actualDurationMinutes;
     }
 
     await this.prisma.pomodoroStatistics.update({
@@ -386,4 +421,3 @@ export class TimeTrackingService {
     });
   }
 }
-

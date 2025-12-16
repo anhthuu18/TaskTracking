@@ -27,6 +27,9 @@ interface Notification {
   daysRemaining?: number; // calculated days remaining
   receivedDate?: string; // formatted received date
   isProjectNotification?: boolean; // to distinguish project notifications
+  taskId?: number; // For task reminder notifications to enable navigation
+  projectId?: number; // For navigation to project
+  isRead?: boolean; // To show read/unread status with different styling
 }
 
 interface NotificationModalProps {
@@ -34,8 +37,9 @@ interface NotificationModalProps {
   onClose: () => void;
   onAcceptInvitation: (notificationId: number) => void;
   onDeclineInvitation: (notificationId: number) => void;
-  mode?: 'workspace' | 'project'; // 'workspace' for workspace invitations, 'project' for project notifications
+  mode?: 'workspace' | 'project' | 'all'; // 'workspace' for workspace invitations, 'project' for project notifications, 'all' for both
   workspaceId?: number; // Required when mode='project'
+  navigation?: any; // For navigating to task tracking screen
 }
 
 const NotificationModal: React.FC<NotificationModalProps> = ({
@@ -45,6 +49,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   onDeclineInvitation,
   mode = 'workspace', // Default to workspace invitations
   workspaceId,
+  navigation,
 }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
@@ -100,6 +105,9 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
         response = await notificationService.getProjectNotifications(
           workspaceId,
         );
+      } else if (mode === 'all') {
+        // Get ALL notifications (workspace invitations + project notifications)
+        response = await notificationService.getAllUserNotifications();
       } else {
         // Get workspace invitations (default)
         response = await notificationService.getUserNotifications();
@@ -109,13 +117,16 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
         // Transform API data to match our interface
         const transformedNotifications: Notification[] = response.data.map(
           (n: any) => {
-            if (mode === 'project') {
-              // Project notification shape
+            // Check notification type from API response
+            const isProjectNoti = n.notificationType === 'project_notification';
+
+            if (isProjectNoti) {
+              // Project notification shape (from ALL endpoint or project endpoint)
               return {
                 id: n.id,
-                workspaceId: workspaceId || 0,
+                workspaceId: n.projectId || 0,
                 workspaceName: n.projectName || 'Project',
-                inviterName: n.type === 'TASK_REMINDER' ? 'System' : 'Admin',
+                inviterName: '', // Don't show inviter for project notifications
                 inviterEmail: '',
                 message: n.message || n.title,
                 createdAt: new Date(n.createdAt || Date.now()),
@@ -123,9 +134,12 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                 hasActions: false, // Project notifications don't have Accept/Decline
                 receivedDate: n.receivedDate,
                 isProjectNotification: true,
+                taskId: n.taskId, // For task reminder navigation
+                projectId: n.projectId, // For project context
+                isRead: n.isRead, // For visual styling
               };
             } else {
-              // Workspace invitation shape
+              // Workspace invitation shape (from ALL endpoint or workspace endpoint)
               return {
                 id: n.id,
                 workspaceId: n.workspaceId,
@@ -217,6 +231,8 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   };
 
   const getStatusColor = (status: string) => {
+    if (!status) return Colors.neutral.medium;
+
     switch (status.toUpperCase()) {
       case 'PENDING':
         return Colors.semantic.warning;
@@ -237,12 +253,17 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
 
       let response;
       if (mode === 'project' && workspaceId) {
-        // Delete project notifications for workspace
-        response = await notificationService.deleteAllProjectNotifications(
-          workspaceId,
-        );
+        // Mark all project notifications as read for specific workspace
+        response =
+          await notificationService.markAllProjectNotificationsAsReadForWorkspace(
+            workspaceId,
+          );
+      } else if (mode === 'all') {
+        // Mark all project notifications as read for user (Personal Dashboard - all mode)
+        response =
+          await notificationService.markAllProjectNotificationsAsRead();
       } else {
-        // Decline all workspace invitations
+        // Decline all workspace invitations (Personal Dashboard - workspace mode)
         response = await notificationService.deleteAllWorkspaceInvitations();
       }
 
@@ -255,6 +276,23 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
       console.error('Error clearing notifications:', error);
     } finally {
       setClearing(false);
+    }
+  };
+
+  const handleNotificationClick = (notification: Notification) => {
+    // If it's a task reminder notification with taskId, navigate to task tracking
+    if (
+      notification.isProjectNotification &&
+      notification.taskId &&
+      navigation
+    ) {
+      onClose(); // Close modal first
+      // Navigate to TaskTracking screen
+      navigation.navigate('TaskTracking', {
+        taskId: notification.taskId.toString(),
+        projectId: notification.projectId?.toString() || '',
+        projectName: notification.workspaceName,
+      });
     }
   };
 
@@ -283,7 +321,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                       color={Colors.semantic.error}
                     />
                   ) : (
-                    <Text style={styles.clearAllText}>Clear All</Text>
+                    <Text style={styles.clearAllText}>Mark as Read</Text>
                   )}
                 </TouchableOpacity>
               )}
@@ -320,7 +358,23 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                 showsVerticalScrollIndicator={false}
               >
                 {notifications.map(notification => (
-                  <View key={notification.id} style={styles.notificationCard}>
+                  <TouchableOpacity
+                    key={notification.id}
+                    style={[
+                      styles.notificationCard,
+                      notification.isRead && styles.notificationCardRead,
+                    ]}
+                    onPress={() => handleNotificationClick(notification)}
+                    activeOpacity={
+                      notification.isProjectNotification && notification.taskId
+                        ? 0.7
+                        : 1
+                    }
+                    disabled={
+                      !notification.isProjectNotification ||
+                      !notification.taskId
+                    }
+                  >
                     <View style={styles.notificationHeader}>
                       <View style={styles.workspaceInfo}>
                         <View style={styles.workspaceIcon}>
@@ -331,12 +385,21 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                           />
                         </View>
                         <View style={styles.workspaceDetails}>
-                          <Text style={styles.workspaceName}>
-                            {notification.workspaceName}
-                          </Text>
-                          <Text style={styles.inviterText}>
-                            Invited by {notification.inviterName}
-                          </Text>
+                          <View style={styles.workspaceNameRow}>
+                            <Text style={styles.workspaceName}>
+                              {notification.workspaceName}
+                            </Text>
+                            {notification.isRead && (
+                              <View style={styles.readBadge}>
+                                <Text style={styles.readBadgeText}>Read</Text>
+                              </View>
+                            )}
+                          </View>
+                          {notification.inviterName && (
+                            <Text style={styles.inviterText}>
+                              Invited by {notification.inviterName}
+                            </Text>
+                          )}
                         </View>
                       </View>
                       {notification.hasActions !== false && (
@@ -402,7 +465,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                           </View>
                         )}
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </ScrollView>
             )}
@@ -505,6 +568,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.neutral.light,
   },
+  notificationCardRead: {
+    backgroundColor: Colors.neutral.light,
+    opacity: 0.7,
+    borderColor: Colors.neutral.medium,
+  },
   notificationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -528,11 +596,27 @@ const styles = StyleSheet.create({
   workspaceDetails: {
     flex: 1,
   },
+  workspaceNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   workspaceName: {
     fontSize: 16,
     fontWeight: '600',
     color: Colors.neutral.dark,
-    marginBottom: 4,
+  },
+  readBadge: {
+    marginLeft: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: Colors.neutral.medium,
+  },
+  readBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.neutral.white,
   },
   inviterText: {
     fontSize: 14,

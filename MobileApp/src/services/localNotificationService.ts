@@ -210,7 +210,7 @@ class LocalNotificationService {
           pressAction: {
             id: 'default',
           },
-          smallIcon: 'ic_notification', // Make sure this icon exists in android/app/src/main/res/
+          // Use default app icon (don't specify smallIcon to avoid missing icon errors)
           color: isTaskReminder ? '#EF4444' : '#3B82F6', // Red for reminders, blue for updates
         },
         data: {
