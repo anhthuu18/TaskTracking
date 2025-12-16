@@ -126,29 +126,28 @@ export class EmailService {
         <meta charset="utf-8">
         <title>Lời mời tham gia Workspace</title>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #007bff; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background: #f9f9f9; }
-          .button { display: inline-block; padding: 12px 24px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .footer { padding: 20px; text-align: center; color: #666; font-size: 12px; }
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
+          .container { max-width: 600px; margin: 20px auto; background: white; border: 1px solid #ddd; }
+          .header { background: #ffd966; padding: 15px 20px; border-bottom: 2px solid #f1c232; }
+          .header h2 { margin: 0; color: #333; font-size: 18px; }
+          .content { padding: 20px; }
+          .button { display: inline-block; padding: 10px 20px; background: #4caf50; color: white; text-decoration: none; border-radius: 3px; margin: 15px 0; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>Lời mời tham gia Workspace</h1>
+            <h2>Lời mời tham gia Workspace</h2>
           </div>
           <div class="content">
             <p>Xin chào,</p>
             <p><strong>${inviterName}</strong> đã mời bạn tham gia workspace <strong>"${workspaceName}"</strong>.</p>
-            ${customMessage ? `<p><em>Tin nhắn: ${customMessage}</em></p>` : ""}
+            ${customMessage ? `<p>Tin nhắn: <em>${customMessage}</em></p>` : ""}
             <p>Nhấp vào nút bên dưới để chấp nhận lời mời:</p>
             <a href="${acceptUrl}" class="button">Chấp nhận lời mời</a>
+            <p>Hoặc copy link sau vào trình duyệt:</p>
+            <p style="word-break: break-all; color: #666; font-size: 12px;">${acceptUrl}</p>
             <p>Lời mời này sẽ hết hạn sau 7 ngày.</p>
-          </div>
-          <div class="footer">
-            <p>© 2024 Task Tracking System. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -170,30 +169,29 @@ export class EmailService {
         <meta charset="utf-8">
         <title>Lời mời tham gia Project</title>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #17a2b8; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background: #f9f9f9; }
-          .button { display: inline-block; padding: 12px 24px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .footer { padding: 20px; text-align: center; color: #666; font-size: 12px; }
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
+          .container { max-width: 600px; margin: 20px auto; background: white; border: 1px solid #ddd; }
+          .header { background: #ffd966; padding: 15px 20px; border-bottom: 2px solid #f1c232; }
+          .header h2 { margin: 0; color: #333; font-size: 18px; }
+          .content { padding: 20px; }
+          .button { display: inline-block; padding: 10px 20px; background: #4caf50; color: white; text-decoration: none; border-radius: 3px; margin: 15px 0; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>Lời mời tham gia Project</h1>
+            <h2>Lời mời tham gia Project</h2>
           </div>
           <div class="content">
             <p>Xin chào,</p>
             <p><strong>${inviterName}</strong> đã mời bạn tham gia project <strong>"${projectName}"</strong> trong workspace <strong>"${workspaceName}"</strong>.</p>
-            ${customMessage ? `<p><em>Tin nhắn: ${customMessage}</em></p>` : ""}
+            ${customMessage ? `<p>Tin nhắn: <em>${customMessage}</em></p>` : ""}
             <p><strong>Lưu ý:</strong> Bạn cần là thành viên của workspace "${workspaceName}" trước khi có thể tham gia project này.</p>
             <p>Nhấp vào nút bên dưới để chấp nhận lời mời:</p>
             <a href="${acceptUrl}" class="button">Chấp nhận lời mời</a>
+            <p>Hoặc copy link sau vào trình duyệt:</p>
+            <p style="word-break: break-all; color: #666; font-size: 12px;">${acceptUrl}</p>
             <p>Lời mời này sẽ hết hạn sau 7 ngày.</p>
-          </div>
-          <div class="footer">
-            <p>© 2024 Task Tracking System. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -215,34 +213,26 @@ export class EmailService {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Thông báo Project</title>
+        <title>Lời mời tham gia Project</title>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #17a2b8; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background: #f9f9f9; }
-          .footer { padding: 20px; text-align: center; color: #666; font-size: 12px; }
-          .date-info { margin-top: 20px; padding: 10px; background: #e9ecef; border-radius: 5px; text-align: right; }
-          .sent-date { font-size: 14px; color: #666; }
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
+          .container { max-width: 600px; margin: 20px auto; background: white; border: 1px solid #ddd; }
+          .header { background: #ffd966; padding: 15px 20px; border-bottom: 2px solid #f1c232; }
+          .header h2 { margin: 0; color: #333; font-size: 18px; }
+          .content { padding: 20px; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>Thông báo Project</h1>
+            <h2>Lời mời tham gia project</h2>
           </div>
           <div class="content">
             <p>Xin chào,</p>
-            <p><strong>${inviterName}</strong> đã thêm bạn vào project <strong>"${projectName}"</strong> trong workspace <strong>"${workspaceName}"</strong>.</p>
-            ${customMessage ? `<p><em>Tin nhắn: ${customMessage}</em></p>` : ""}
-            <p>Bạn có thể truy cập project này ngay bây giờ.</p>
-            
-            <div class="date-info">
-              <span class="sent-date">Gửi: ${sentDate}</span>
-            </div>
-          </div>
-          <div class="footer">
-            <p>© 2024 Task Tracking System. All rights reserved.</p>
+            <p><strong>${inviterName}</strong> đã mời bạn tham gia project <strong>"${projectName}"</strong> trong workspace <strong>"${workspaceName}"</strong>.</p>
+            ${customMessage ? `<p>Tin nhắn: <em>${customMessage}</em></p>` : ""}
+            <p><strong>Lưu ý:</strong> Bạn cần là thành viên của workspace "${workspaceName}" trước khi có thể tham gia project này.</p>
+            <p style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; font-size: 14px; color: #666;">Gửi: ${sentDate}</p>
           </div>
         </div>
       </body>
@@ -268,43 +258,32 @@ export class EmailService {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Nhắc nhở Task</title>
+        <title>Task sắp đến deadline</title>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #ff6b6b; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background: #f9f9f9; }
-          .task-info { background: white; padding: 15px; border-left: 4px solid #ff6b6b; margin: 20px 0; }
-          .task-name { font-size: 18px; font-weight: bold; color: #ff6b6b; }
-          .due-date { font-size: 16px; color: #e63946; margin-top: 10px; }
-          .footer { padding: 20px; text-align: center; color: #666; font-size: 12px; }
-          .date-info { margin-top: 20px; padding: 10px; background: #e9ecef; border-radius: 5px; text-align: right; }
-          .sent-date { font-size: 14px; color: #666; }
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
+          .container { max-width: 600px; margin: 20px auto; background: white; border: 1px solid #ddd; }
+          .header { background: #ffd966; padding: 15px 20px; border-bottom: 2px solid #f1c232; }
+          .header h2 { margin: 0; color: #333; font-size: 18px; }
+          .content { padding: 20px; }
+          .task-info { background: #fffbf0; padding: 15px; border-left: 3px solid #f1c232; margin: 15px 0; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>⏰ Nhắc nhở Task</h1>
+            <h2>Task sắp đến deadline</h2>
           </div>
           <div class="content">
             <p>Xin chào,</p>
-            <p>Task của bạn sắp đến hạn!</p>
+            <p>Task <strong>${taskName}</strong> sắp đến deadline.</p>
             
             <div class="task-info">
-              <div class="task-name">📋 ${taskName}</div>
-              <div>📁 Project: <strong>${projectName}</strong></div>
-              <div class="due-date">⏱️ Hạn chót: ${dueDateStr} lúc ${dueTimeStr}</div>
+              <p style="margin: 5px 0;">📋 <strong>${taskName}</strong></p>
+              <p style="margin: 5px 0;">📁 Project: ${projectName}</p>
+              <p style="margin: 5px 0;">⏱️ Hạn chót: ${dueDateStr} lúc ${dueTimeStr}</p>
             </div>
             
-            <p>Hãy hoàn thành task trước khi hết hạn nhé!</p>
-            
-            <div class="date-info">
-              <span class="sent-date">Gửi: ${sentDate}</span>
-            </div>
-          </div>
-          <div class="footer">
-            <p>© 2024 Task Tracking System. All rights reserved.</p>
+            <p style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; font-size: 14px; color: #666;">Gửi: ${sentDate}</p>
           </div>
         </div>
       </body>

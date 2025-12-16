@@ -165,4 +165,56 @@ export class UsersService {
       },
     });
   }
+
+  async getNotificationPreferences(userId: number): Promise<any> {
+    // Find or create user settings
+    let settings = await this.prisma.userSettings.findUnique({
+      where: { userId },
+    });
+
+    if (!settings) {
+      // Create default settings if not exists
+      settings = await this.prisma.userSettings.create({
+        data: {
+          userId,
+          notifyByEmail: true,
+          notifyByPush: true,
+          dailyWorkMinutes: 480,
+        },
+      });
+    }
+
+    return {
+      notifyByEmail: settings.notifyByEmail,
+      notifyByPush: settings.notifyByPush,
+    };
+  }
+
+  async updateNotificationPreferences(
+    userId: number,
+    notifyByEmail?: boolean,
+    notifyByPush?: boolean
+  ): Promise<any> {
+    await this.findOne(userId);
+
+    // Upsert user settings
+    const settings = await this.prisma.userSettings.upsert({
+      where: { userId },
+      update: {
+        ...(notifyByEmail !== undefined && { notifyByEmail }),
+        ...(notifyByPush !== undefined && { notifyByPush }),
+      },
+      create: {
+        userId,
+        notifyByEmail: notifyByEmail ?? true,
+        notifyByPush: notifyByPush ?? true,
+        dailyWorkMinutes: 480,
+      },
+    });
+
+    return {
+      notifyByEmail: settings.notifyByEmail,
+      notifyByPush: settings.notifyByPush,
+    };
+  }
 }

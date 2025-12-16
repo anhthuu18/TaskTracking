@@ -22,7 +22,7 @@ import Toast from '../components/Toast';
 import { useToast } from '../hooks/useToast';
 import { TaskSummary, useWorkspaceData } from '../hooks/useWorkspaceData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { projectService, taskService } from '../services';
+import { projectService, taskService, workspaceService } from '../services';
 import { activeTimer } from '../services/activeTimer';
 
 interface TaskListScreenProps {
@@ -31,7 +31,11 @@ interface TaskListScreenProps {
   onViewAllTasksComplete?: () => void;
 }
 
-const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onViewAllTasksComplete }) => {
+const TaskListScreen: React.FC<TaskListScreenProps> = ({
+  navigation,
+  route,
+  onViewAllTasksComplete,
+}) => {
   const { colors } = useTheme();
   const { toast, showSuccess, showError, hideToast } = useToast();
   const [filteredTasks, setFilteredTasks] = useState<TaskSummary[]>([]);
@@ -46,15 +50,37 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   const [currentEmail, setCurrentEmail] = useState<string | null>(null);
-  type ProjectMemberCache = { ids: number[]; usernames: string[]; emails: string[]; rolesById: Record<number, string>; rolesByUsername: Record<string, string>; rolesByEmail: Record<string, string> };
-  const [membersByProject, setMembersByProject] = useState<Record<string, ProjectMemberCache>>({});
-  const [allowedDeleteProjects, setAllowedDeleteProjects] = useState<Set<string>>(new Set());
+  type ProjectMemberCache = {
+    ids: number[];
+    usernames: string[];
+    emails: string[];
+    rolesById: Record<number, string>;
+    rolesByUsername: Record<string, string>;
+    rolesByEmail: Record<string, string>;
+  };
+  const [membersByProject, setMembersByProject] = useState<
+    Record<string, ProjectMemberCache>
+  >({});
+  const [allowedDeleteProjects, setAllowedDeleteProjects] = useState<
+    Set<string>
+  >(new Set());
   const [hiddenTaskIds, setHiddenTaskIds] = useState<Set<string>>(new Set());
-  const [statusOverrides, setStatusOverrides] = useState<Record<string, 'todo'|'in_progress'|'completed'>>({});
+  const [statusOverrides, setStatusOverrides] = useState<
+    Record<string, 'todo' | 'in_progress' | 'completed'>
+  >({});
+  const [workspaceMembers, setWorkspaceMembers] = useState<
+    Array<{ id: number; username: string }>
+  >([]);
   const showAllTasks = route?.params?.showAllTasks || false;
   const workspaceId = route?.params?.workspaceId || '1';
 
-  const { data: workspaceData, loading, error, refreshing, refresh } = useWorkspaceData(workspaceId);
+  const {
+    data: workspaceData,
+    loading,
+    error,
+    refreshing,
+    refresh,
+  } = useWorkspaceData(workspaceId);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [activeIsRunning, setActiveIsRunning] = useState<boolean>(false);
 
@@ -69,7 +95,11 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
       isFirstMountRef.current = false;
       if (onViewAllTasksComplete) setTimeout(onViewAllTasksComplete, 500);
     } else {
-      if (isFirstMountRef.current && !filterSetFromViewAllRef.current && selectedFilter !== 'all') {
+      if (
+        isFirstMountRef.current &&
+        !filterSetFromViewAllRef.current &&
+        selectedFilter !== 'all'
+      ) {
         setSelectedFilter('all');
       }
       if (isFirstMountRef.current) isFirstMountRef.current = false;
@@ -98,11 +128,40 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
     loadUser();
   }, []);
 
+  // Load workspace members for assignee filter
+  useEffect(() => {
+    const loadMembers = async () => {
+      try {
+        const response = await workspaceService.getWorkspaceMembers(
+          Number(workspaceId),
+        );
+        if (response.success && response.data) {
+          setWorkspaceMembers(
+            response.data.map((m: any) => ({
+              id: m.user?.id || m.userId,
+              username:
+                m.user?.username || m.user?.name || m.user?.email || 'Unknown',
+            })),
+          );
+        }
+      } catch (error) {
+        console.error('Failed to load workspace members:', error);
+      }
+    };
+    if (workspaceId) loadMembers();
+  }, [workspaceId]);
+
   useEffect(() => {
     const fetchMembers = async () => {
       if (!workspaceData?.allTasks) return;
-      const projectIds = Array.from(new Set((workspaceData.allTasks || []).map(t => t.projectId).filter(Boolean)));
-      const newMap: Record<string, ProjectMemberCache> = { ...membersByProject };
+      const projectIds = Array.from(
+        new Set(
+          (workspaceData.allTasks || []).map(t => t.projectId).filter(Boolean),
+        ),
+      );
+      const newMap: Record<string, ProjectMemberCache> = {
+        ...membersByProject,
+      };
       let changed = false;
       for (const pid of projectIds) {
         if (!newMap[pid]) {
@@ -111,18 +170,54 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
             if (res?.success && Array.isArray(res.data)) {
               newMap[pid] = {
                 ids: res.data.map(m => m.userId),
-                usernames: res.data.map(m => m.user?.username).filter(Boolean) as string[],
-                emails: res.data.map(m => m.user?.email).filter(Boolean) as string[],
-                rolesById: res.data.reduce((acc: Record<number, string>, m: any) => { acc[m.userId] = m.role; return acc; }, {}),
-                rolesByUsername: res.data.reduce((acc: Record<string, string>, m: any) => { if (m.user?.username) acc[m.user.username] = m.role; return acc; }, {}),
-                rolesByEmail: res.data.reduce((acc: Record<string, string>, m: any) => { if (m.user?.email) acc[m.user.email] = m.role; return acc; }, {}),
+                usernames: res.data
+                  .map(m => m.user?.username)
+                  .filter(Boolean) as string[],
+                emails: res.data
+                  .map(m => m.user?.email)
+                  .filter(Boolean) as string[],
+                rolesById: res.data.reduce(
+                  (acc: Record<number, string>, m: any) => {
+                    acc[m.userId] = m.role;
+                    return acc;
+                  },
+                  {},
+                ),
+                rolesByUsername: res.data.reduce(
+                  (acc: Record<string, string>, m: any) => {
+                    if (m.user?.username) acc[m.user.username] = m.role;
+                    return acc;
+                  },
+                  {},
+                ),
+                rolesByEmail: res.data.reduce(
+                  (acc: Record<string, string>, m: any) => {
+                    if (m.user?.email) acc[m.user.email] = m.role;
+                    return acc;
+                  },
+                  {},
+                ),
               };
             } else {
-              newMap[pid] = { ids: [], usernames: [], emails: [], rolesById: {}, rolesByUsername: {}, rolesByEmail: {} };
+              newMap[pid] = {
+                ids: [],
+                usernames: [],
+                emails: [],
+                rolesById: {},
+                rolesByUsername: {},
+                rolesByEmail: {},
+              };
             }
             changed = true;
           } catch {
-            newMap[pid] = { ids: [], usernames: [], emails: [], rolesById: {}, rolesByUsername: {}, rolesByEmail: {} };
+            newMap[pid] = {
+              ids: [],
+              usernames: [],
+              emails: [],
+              rolesById: {},
+              rolesByUsername: {},
+              rolesByEmail: {},
+            };
             changed = true;
           }
         }
@@ -133,7 +228,11 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
   }, [workspaceData?.allTasks]);
 
   useEffect(() => {
-    const tasks = (workspaceData?.allTasks || []).filter(t => !hiddenTaskIds.has(t.id)).map(t => statusOverrides[t.id] ? { ...t, status: statusOverrides[t.id] } : t);
+    const tasks = (workspaceData?.allTasks || [])
+      .filter(t => !hiddenTaskIds.has(t.id))
+      .map(t =>
+        statusOverrides[t.id] ? { ...t, status: statusOverrides[t.id] } : t,
+      );
     let filtered = tasks;
     const now = new Date();
     const sevenDaysLater = new Date(now);
@@ -141,19 +240,45 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
 
     switch (selectedFilter) {
       case 'upcoming':
-        filtered = tasks.filter(t => t.dueDate && t.status !== 'completed' && t.dueDate.getTime() > now.getTime() && t.dueDate.getTime() <= sevenDaysLater.getTime());
-        filtered.sort((a, b) => (!a.dueDate ? 1 : !b.dueDate ? -1 : a.dueDate.getTime() - b.dueDate.getTime()));
+        filtered = tasks.filter(
+          t =>
+            t.dueDate &&
+            t.status !== 'completed' &&
+            t.dueDate.getTime() > now.getTime() &&
+            t.dueDate.getTime() <= sevenDaysLater.getTime(),
+        );
+        filtered.sort((a, b) =>
+          !a.dueDate
+            ? 1
+            : !b.dueDate
+            ? -1
+            : a.dueDate.getTime() - b.dueDate.getTime(),
+        );
         break;
       case 'overdue':
-        filtered = tasks.filter(t => t.dueDate && t.status !== 'completed' && t.dueDate < now);
-        filtered.sort((a, b) => (!a.dueDate ? 1 : !b.dueDate ? -1 : a.dueDate.getTime() - b.dueDate.getTime()));
+        filtered = tasks.filter(
+          t => t.dueDate && t.status !== 'completed' && t.dueDate < now,
+        );
+        filtered.sort((a, b) =>
+          !a.dueDate
+            ? 1
+            : !b.dueDate
+            ? -1
+            : a.dueDate.getTime() - b.dueDate.getTime(),
+        );
         break;
       case 'completed':
         filtered = tasks.filter(t => t.status === 'completed');
         break;
       case 'all':
       default:
-        filtered.sort((a, b) => (!a.dueDate ? 1 : !b.dueDate ? -1 : a.dueDate.getTime() - b.dueDate.getTime()));
+        filtered.sort((a, b) =>
+          !a.dueDate
+            ? 1
+            : !b.dueDate
+            ? -1
+            : a.dueDate.getTime() - b.dueDate.getTime(),
+        );
         break;
     }
 
@@ -161,26 +286,44 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
     if (statusFilter !== 'all') {
       filtered = filtered.filter(t => {
         const s = String(t.status || '').toLowerCase();
-        if (statusFilter === 'todo') return s.includes('to do') || s.includes('todo');
+        if (statusFilter === 'todo')
+          return s.includes('to do') || s.includes('todo');
         if (statusFilter === 'in_progress') return s.includes('progress');
         if (statusFilter === 'review') return s.includes('review');
-        if (statusFilter === 'done') return s.includes('done') || s.includes('complete');
+        if (statusFilter === 'done')
+          return s.includes('done') || s.includes('complete');
         return true;
       });
     }
 
     // Apply assignee filter
     if (assigneeFilter !== 'all') {
-      filtered = filtered.filter(t => String(t.assigneeId || '') === assigneeFilter || t.assigneeName === assigneeFilter);
+      filtered = filtered.filter(
+        t =>
+          String(t.assigneeId || '') === assigneeFilter ||
+          t.assigneeName === assigneeFilter,
+      );
     }
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(t => t.title.toLowerCase().includes(query) || t.description.toLowerCase().includes(query));
+      filtered = filtered.filter(
+        t =>
+          t.title.toLowerCase().includes(query) ||
+          t.description.toLowerCase().includes(query),
+      );
     }
 
     setFilteredTasks(filtered);
-  }, [workspaceData?.allTasks, searchQuery, selectedFilter, statusFilter, assigneeFilter, hiddenTaskIds, statusOverrides]);
+  }, [
+    workspaceData?.allTasks,
+    searchQuery,
+    selectedFilter,
+    statusFilter,
+    assigneeFilter,
+    hiddenTaskIds,
+    statusOverrides,
+  ]);
 
   const canDeleteTask = (task: TaskSummary) => {
     const cache = membersByProject[task.projectId];
@@ -191,7 +334,6 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
     if (roleNorm === 'owner' || roleNorm === 'admin') return true;
     return false;
   };
-
 
   const confirmAndDeleteTask = (task: TaskSummary) => {
     if (!canDeleteTask(task)) return;
@@ -222,7 +364,7 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -239,7 +381,13 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
     if (navigation) {
       const project = workspaceData?.projects.find(p => p.id === projectId);
       if (project) {
-        navigation.navigate('ProjectDetail', { project: { id: projectId, name: project.name, description: project.description } });
+        navigation.navigate('ProjectDetail', {
+          project: {
+            id: projectId,
+            name: project.name,
+            description: project.description,
+          },
+        });
       }
     }
     setIsTaskDetailVisible(false);
@@ -258,8 +406,10 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
     const cache = membersByProject[task.projectId];
     const role = cache?.rolesById?.[currentUserId ?? -999];
     const roleNorm = role ? String(role).toLowerCase() : '';
-    const isCreator = task.createdById && currentUserId && task.createdById === currentUserId;
-    const isAssignee = assigneeNum && currentUserId && assigneeNum === currentUserId;
+    const isCreator =
+      task.createdById && currentUserId && task.createdById === currentUserId;
+    const isAssignee =
+      assigneeNum && currentUserId && assigneeNum === currentUserId;
     const isOwnerAdmin = roleNorm === 'owner' || roleNorm === 'admin';
     const canUpdate = Boolean(isCreator || isAssignee || isOwnerAdmin);
 
@@ -278,7 +428,11 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
           onPress: async () => {
             // Optimistic update
             setStatusOverrides(prev => ({ ...prev, [task.id]: 'completed' }));
-            setFilteredTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'completed' } : t));
+            setFilteredTasks(prev =>
+              prev.map(t =>
+                t.id === task.id ? { ...t, status: 'completed' } : t,
+              ),
+            );
             try {
               await taskService.updateTask(Number(task.id), { status: 'Done' });
               // Auto switch to Completed tab
@@ -287,13 +441,21 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
               showSuccess('Đã hoàn thành task');
             } catch (e: any) {
               const msg = String(e?.message || '');
-              setStatusOverrides(prev => { const n = { ...prev }; delete n[task.id]; return n; });
-              setFilteredTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: task.status } : t));
+              setStatusOverrides(prev => {
+                const n = { ...prev };
+                delete n[task.id];
+                return n;
+              });
+              setFilteredTasks(prev =>
+                prev.map(t =>
+                  t.id === task.id ? { ...t, status: task.status } : t,
+                ),
+              );
               showError(msg || 'Cập nhật trạng thái thất bại');
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -305,19 +467,28 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
         setActiveTaskId(g?.taskId ?? null);
         setActiveIsRunning(Boolean(g?.isRunning));
       } catch {}
-      unsubscribe = activeTimer.subscribe((s) => {
+      unsubscribe = activeTimer.subscribe(s => {
         setActiveTaskId(s?.taskId ?? null);
         setActiveIsRunning(Boolean(s?.isRunning));
       });
     })();
-    return () => { try { unsubscribe && unsubscribe(); } catch {} };
+    return () => {
+      try {
+        unsubscribe && unsubscribe();
+      } catch {}
+    };
   }, []);
 
   const renderTaskItem = ({ item }: { item: TaskSummary }) => {
-    const effective = statusOverrides[item.id] ? { ...item, status: statusOverrides[item.id] } : item;
-    const isActive = activeIsRunning && activeTaskId !== null && String(activeTaskId) === String(effective.id);
+    const effective = statusOverrides[item.id]
+      ? { ...item, status: statusOverrides[item.id] }
+      : item;
+    const isActive =
+      activeIsRunning &&
+      activeTaskId !== null &&
+      String(activeTaskId) === String(effective.id);
     return (
-    <TaskCardModern
+      <TaskCardModern
         task={effective}
         showProjectName={true}
         canDelete={canDeleteTask(effective)}
@@ -330,25 +501,41 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
             navigation.navigate('TaskTracking', { task: effective });
           }
         }}
-    />
-  );
+      />
+    );
   };
 
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
-      <MaterialIcons name="assignment" size={48} color={Colors.neutral.medium} />
-      <Text style={[styles.emptyText, { color: colors.text }]}>No tasks found</Text>
-      <Text style={[styles.emptySubText, { color: colors.textSecondary }]}>Try changing the filter or creating a new task.</Text>
+      <MaterialIcons
+        name="assignment"
+        size={48}
+        color={Colors.neutral.medium}
+      />
+      <Text style={[styles.emptyText, { color: colors.text }]}>
+        No tasks found
+      </Text>
+      <Text style={[styles.emptySubText, { color: colors.textSecondary }]}>
+        Try changing the filter or creating a new task.
+      </Text>
     </View>
   );
 
   if (loading && !workspaceData) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <StatusBar backgroundColor={Colors.neutral.white} barStyle="dark-content" />
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
+        <StatusBar
+          backgroundColor={Colors.neutral.white}
+          barStyle="dark-content"
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>Loading tasks...</Text>
+          <Text style={[styles.loadingText, { color: colors.text }]}>
+            Loading tasks...
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -356,12 +543,26 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
 
   if (error && !workspaceData) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <StatusBar backgroundColor={Colors.neutral.white} barStyle="dark-content" />
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
+        <StatusBar
+          backgroundColor={Colors.neutral.white}
+          barStyle="dark-content"
+        />
         <View style={styles.errorContainer}>
-          <MaterialIcons name="error-outline" size={48} color={Colors.semantic.error} />
-          <Text style={[styles.errorText, { color: colors.text }]}>Error loading tasks</Text>
-          <Text style={[styles.errorSubText, { color: colors.textSecondary }]}>{error}</Text>
+          <MaterialIcons
+            name="error-outline"
+            size={48}
+            color={Colors.semantic.error}
+          />
+          <Text style={[styles.errorText, { color: colors.text }]}>
+            Error loading tasks
+          </Text>
+          <Text style={[styles.errorSubText, { color: colors.textSecondary }]}>
+            {error}
+          </Text>
           <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
@@ -371,10 +572,18 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <StatusBar backgroundColor={Colors.neutral.white} barStyle="dark-content" />
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
+      <StatusBar
+        backgroundColor={Colors.neutral.white}
+        barStyle="dark-content"
+      />
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>All Tasks</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          All Tasks
+        </Text>
       </View>
 
       <View style={styles.searchAndFilterContainer}>
@@ -396,11 +605,16 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
             },
           }}
         />
-        
+
         {/* Status & Assignee Filters */}
         <View style={styles.dropdownFiltersRow}>
           {/* Status Filter */}
-          <View style={[styles.dropdownFilterWrap, { zIndex: showStatusDropdown ? 100 : 1 }]}>
+          <View
+            style={[
+              styles.dropdownFilterWrap,
+              { zIndex: showStatusDropdown ? 100 : 1 },
+            ]}
+          >
             <TouchableOpacity
               style={styles.dropdownFilterBtn}
               onPress={() => {
@@ -408,11 +622,31 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
                 setShowAssigneeDropdown(false);
               }}
             >
-              <MaterialIcons name="filter-list" size={16} color={Colors.neutral.dark} />
+              <MaterialIcons
+                name="filter-list"
+                size={16}
+                color={Colors.neutral.dark}
+              />
               <Text style={styles.dropdownFilterText}>
-                {statusFilter === 'all' ? 'Status' : statusFilter === 'todo' ? 'To Do' : statusFilter === 'in_progress' ? 'In Progress' : statusFilter === 'review' ? 'Review' : 'Done'}
+                {statusFilter === 'all'
+                  ? 'Status'
+                  : statusFilter === 'todo'
+                  ? 'To Do'
+                  : statusFilter === 'in_progress'
+                  ? 'In Progress'
+                  : statusFilter === 'review'
+                  ? 'Review'
+                  : 'Done'}
               </Text>
-              <MaterialIcons name={showStatusDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={18} color={Colors.neutral.medium} />
+              <MaterialIcons
+                name={
+                  showStatusDropdown
+                    ? 'keyboard-arrow-up'
+                    : 'keyboard-arrow-down'
+                }
+                size={18}
+                color={Colors.neutral.medium}
+              />
             </TouchableOpacity>
             {showStatusDropdown && (
               <View style={styles.dropdownFilterMenu}>
@@ -431,10 +665,22 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
                       setShowStatusDropdown(false);
                     }}
                   >
-                    <Text style={[styles.dropdownFilterOptionText, statusFilter === opt.value && styles.dropdownFilterOptionTextActive]}>
+                    <Text
+                      style={[
+                        styles.dropdownFilterOptionText,
+                        statusFilter === opt.value &&
+                          styles.dropdownFilterOptionTextActive,
+                      ]}
+                    >
                       {opt.label}
                     </Text>
-                    {statusFilter === opt.value && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                    {statusFilter === opt.value && (
+                      <MaterialIcons
+                        name="check"
+                        size={18}
+                        color={Colors.primary}
+                      />
+                    )}
                   </TouchableOpacity>
                 ))}
               </View>
@@ -442,7 +688,12 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
           </View>
 
           {/* Assignee Filter */}
-          <View style={[styles.dropdownFilterWrap, { zIndex: showAssigneeDropdown ? 100 : 1 }]}>
+          <View
+            style={[
+              styles.dropdownFilterWrap,
+              { zIndex: showAssigneeDropdown ? 100 : 1 },
+            ]}
+          >
             <TouchableOpacity
               style={styles.dropdownFilterBtn}
               onPress={() => {
@@ -450,11 +701,29 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
                 setShowStatusDropdown(false);
               }}
             >
-              <MaterialIcons name="person" size={16} color={Colors.neutral.dark} />
+              <MaterialIcons
+                name="person"
+                size={16}
+                color={Colors.neutral.dark}
+              />
               <Text style={styles.dropdownFilterText}>
-                {assigneeFilter === 'all' ? 'Assignee' : (workspaceData?.allTasks.find(t => String(t.assigneeId) === assigneeFilter || t.assigneeName === assigneeFilter)?.assigneeName || 'Assignee')}
+                {assigneeFilter === 'all'
+                  ? 'Assignee'
+                  : workspaceData?.allTasks.find(
+                      t =>
+                        String(t.assigneeId) === assigneeFilter ||
+                        t.assigneeName === assigneeFilter,
+                    )?.assigneeName || 'Assignee'}
               </Text>
-              <MaterialIcons name={showAssigneeDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={18} color={Colors.neutral.medium} />
+              <MaterialIcons
+                name={
+                  showAssigneeDropdown
+                    ? 'keyboard-arrow-up'
+                    : 'keyboard-arrow-down'
+                }
+                size={18}
+                color={Colors.neutral.medium}
+              />
             </TouchableOpacity>
             {showAssigneeDropdown && (
               <View style={styles.dropdownFilterMenu}>
@@ -466,29 +735,55 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
                       setShowAssigneeDropdown(false);
                     }}
                   >
-                    <Text style={[styles.dropdownFilterOptionText, assigneeFilter === 'all' && styles.dropdownFilterOptionTextActive]}>
+                    <Text
+                      style={[
+                        styles.dropdownFilterOptionText,
+                        assigneeFilter === 'all' &&
+                          styles.dropdownFilterOptionTextActive,
+                      ]}
+                    >
                       All Assignees
                     </Text>
-                    {assigneeFilter === 'all' && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                    {assigneeFilter === 'all' && (
+                      <MaterialIcons
+                        name="check"
+                        size={18}
+                        color={Colors.primary}
+                      />
+                    )}
                   </TouchableOpacity>
-                  {Array.from(new Set((workspaceData?.allTasks || []).map(t => t.assigneeName).filter(Boolean))).map(name => (
+                  {workspaceMembers.map(member => (
                     <TouchableOpacity
-                      key={name}
+                      key={member.id}
                       style={styles.dropdownFilterOption}
                       onPress={() => {
-                        setAssigneeFilter(name || 'all');
+                        setAssigneeFilter(member.username || 'all');
                         setShowAssigneeDropdown(false);
                       }}
                     >
                       <View style={styles.assigneeOptionContent}>
                         <View style={styles.assigneeAvatar}>
-                          <Text style={styles.assigneeAvatarText}>{(name || 'U').charAt(0).toUpperCase()}</Text>
+                          <Text style={styles.assigneeAvatarText}>
+                            {(member.username || 'U').charAt(0).toUpperCase()}
+                          </Text>
                         </View>
-                        <Text style={[styles.dropdownFilterOptionText, assigneeFilter === name && styles.dropdownFilterOptionTextActive]}>
-                          {name}
+                        <Text
+                          style={[
+                            styles.dropdownFilterOptionText,
+                            assigneeFilter === member.username &&
+                              styles.dropdownFilterOptionTextActive,
+                          ]}
+                        >
+                          {member.username}
                         </Text>
                       </View>
-                      {assigneeFilter === name && <MaterialIcons name="check" size={18} color={Colors.primary} />}
+                      {assigneeFilter === member.username && (
+                        <MaterialIcons
+                          name="check"
+                          size={18}
+                          color={Colors.primary}
+                        />
+                      )}
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -499,17 +794,30 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
       </View>
 
       <View style={styles.filterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 20 }}
+        >
           {filterButtons.map(button => (
             <TouchableOpacity
               key={button.value}
-              style={[styles.filterButton, selectedFilter === button.value && styles.activeFilterButton]}
+              style={[
+                styles.filterButton,
+                selectedFilter === button.value && styles.activeFilterButton,
+              ]}
               onPress={() => {
                 setSelectedFilter(button.value);
                 filterSetFromViewAllRef.current = false;
               }}
             >
-              <Text style={[styles.filterButtonText, selectedFilter === button.value && styles.activeFilterButtonText]}>
+              <Text
+                style={[
+                  styles.filterButtonText,
+                  selectedFilter === button.value &&
+                    styles.activeFilterButtonText,
+                ]}
+              >
                 {button.label}
               </Text>
             </TouchableOpacity>
@@ -523,7 +831,13 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
         keyExtractor={item => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[Colors.primary]} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[Colors.primary]}
+          />
+        }
         ListEmptyComponent={renderEmptyList}
       />
 
@@ -533,53 +847,172 @@ const TaskListScreen: React.FC<TaskListScreenProps> = ({ navigation, route, onVi
         onClose={() => setIsTaskDetailVisible(false)}
         showProjectChip={true}
         onUpdateTask={() => {
-          try { refresh(); } catch {}
+          try {
+            refresh();
+          } catch {}
         }}
         onDeleteTask={() => {
           setIsTaskDetailVisible(false);
-          try { refresh(); } catch {}
+          try {
+            refresh();
+          } catch {}
         }}
         onNavigateToProject={handleNavigateToProject}
       />
 
-      <Toast visible={toast.visible} message={toast.message} type={toast.type} onHide={hideToast} />
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={hideToast}
+      />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingTop: 10, paddingBottom: 16, paddingHorizontal: 20, backgroundColor: Colors.neutral.white },
+  header: {
+    paddingTop: 10,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    backgroundColor: Colors.neutral.white,
+  },
   headerTitle: { fontSize: 24, fontWeight: 'bold' },
-  searchAndFilterContainer: { paddingHorizontal: 20, paddingVertical: 12, backgroundColor: Colors.neutral.white, borderBottomWidth: 1, borderBottomColor: Colors.neutral.light },
+  searchAndFilterContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: Colors.neutral.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light,
+  },
   searchInput: { fontSize: 15, backgroundColor: Colors.neutral.light + '50' },
   searchOutline: { borderRadius: 12, borderWidth: 1.5 },
   dropdownFiltersRow: { flexDirection: 'row', marginTop: 12, gap: 12 },
   dropdownFilterWrap: { flex: 1, position: 'relative' },
-  dropdownFilterBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.neutral.white, borderWidth: 1.5, borderColor: Colors.neutral.light, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
-  dropdownFilterText: { flex: 1, fontSize: 14, fontWeight: '500', color: Colors.neutral.dark },
-  dropdownFilterMenu: { position: 'absolute', top: 46, left: 0, right: 0, backgroundColor: Colors.neutral.white, borderRadius: 8, borderWidth: 1, borderColor: Colors.neutral.light, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5, maxHeight: 220, zIndex: 1000 },
-  dropdownFilterOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.neutral.light + '30' },
+  dropdownFilterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.neutral.white,
+    borderWidth: 1.5,
+    borderColor: Colors.neutral.light,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  dropdownFilterText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.neutral.dark,
+  },
+  dropdownFilterMenu: {
+    position: 'absolute',
+    top: 46,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    maxHeight: 220,
+    zIndex: 1000,
+  },
+  dropdownFilterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light + '30',
+  },
   dropdownFilterOptionText: { fontSize: 14, color: Colors.neutral.dark },
   dropdownFilterOptionTextActive: { fontWeight: '600', color: Colors.primary },
-  assigneeOptionContent: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  assigneeAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.primary + '20', justifyContent: 'center', alignItems: 'center' },
-  assigneeAvatarText: { fontSize: 12, fontWeight: '600', color: Colors.primary },
-  filterContainer: { paddingVertical: 12, backgroundColor: Colors.neutral.white, paddingHorizontal: 0 },
-  filterButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.neutral.light + '50', marginHorizontal: 4, height: 36, justifyContent: 'center' },
+  assigneeOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  assigneeAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  assigneeAvatarText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  filterContainer: {
+    paddingVertical: 12,
+    backgroundColor: Colors.neutral.white,
+    paddingHorizontal: 0,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.neutral.light + '50',
+    marginHorizontal: 4,
+    height: 36,
+    justifyContent: 'center',
+  },
   activeFilterButton: { backgroundColor: Colors.primary },
-  filterButtonText: { fontSize: 14, fontWeight: '600', color: Colors.neutral.dark },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+  },
   activeFilterButtonText: { color: Colors.neutral.white },
   listContent: { paddingHorizontal: 20, paddingBottom: 100 },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60, paddingHorizontal: 32 },
-  emptyText: { fontSize: 18, fontWeight: '600', marginTop: 16, marginBottom: 8, textAlign: 'center' },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 32,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
   emptySubText: { fontSize: 14, textAlign: 'center' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { fontSize: 16, marginTop: 16 },
-  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
-  errorText: { fontSize: 18, fontWeight: '600', marginTop: 16, marginBottom: 8, textAlign: 'center' },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
   errorSubText: { fontSize: 14, textAlign: 'center', marginBottom: 24 },
-  retryButton: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
+  retryButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
   retryButtonText: { color: Colors.neutral.white, fontWeight: '600' },
 });
 

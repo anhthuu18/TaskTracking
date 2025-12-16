@@ -15,10 +15,10 @@ export class TaskReminderScheduler {
   ) {}
 
   /**
-   * Chạy lúc 9h sáng mỗi ngày (timezone: Asia/Ho_Chi_Minh)
+   * Chạy lúc 5h chiều mỗi ngày (timezone: Asia/Ho_Chi_Minh)
    * Tìm tasks có due date = ngày mai và gửi thông báo
    */
-  @Cron("0 9 * * *", {
+  @Cron("0 17 * * *", {
     timeZone: "Asia/Ho_Chi_Minh",
   })
   async sendTaskReminders() {
@@ -123,8 +123,8 @@ export class TaskReminderScheduler {
           }
         }
 
-        // Lưu in-app notification
-        if (projectId) {
+        // Lưu in-app notification (notifyByPush controls in-app notifications)
+        if (notifyByPush && projectId) {
           try {
             await this.prisma.projectNotification.create({
               data: {

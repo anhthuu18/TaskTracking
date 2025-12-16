@@ -77,4 +77,31 @@ export class UsersController {
       data: user,
     };
   }
+
+  @Get(":id/notification-preferences")
+  async getNotificationPreferences(@Param("id") id: string) {
+    const preferences = await this.usersService.getNotificationPreferences(+id);
+    return {
+      success: true,
+      message: "Lấy cài đặt thông báo thành công",
+      data: preferences,
+    };
+  }
+
+  @Put(":id/notification-preferences")
+  async updateNotificationPreferences(
+    @Param("id") id: string,
+    @Body() body: { notifyByEmail?: boolean; notifyByPush?: boolean }
+  ) {
+    const preferences = await this.usersService.updateNotificationPreferences(
+      +id,
+      body.notifyByEmail,
+      body.notifyByPush
+    );
+    return {
+      success: true,
+      message: "Cập nhật cài đặt thông báo thành công",
+      data: preferences,
+    };
+  }
 }
