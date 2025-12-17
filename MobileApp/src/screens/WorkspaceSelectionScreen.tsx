@@ -292,7 +292,19 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({
 
       const response = await notificationService.getUserNotifications();
       if (response.success) {
-        setNotificationCount(response.data.length);
+        // Count only unread notifications (PENDING invitations and unread project notifications)
+        const unreadCount = response.data.filter((n: any) => {
+          // For workspace invitations, count only PENDING status
+          if (n.notificationType === 'workspace_invitation') {
+            return n.status === 'PENDING';
+          }
+          // For project notifications, count only unread ones
+          if (n.notificationType === 'project_notification') {
+            return !n.isRead;
+          }
+          return false;
+        }).length;
+        setNotificationCount(unreadCount);
       }
     } catch (error: any) {
       const msg = error?.message || '';
@@ -1036,26 +1048,20 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({
         visible={showNotificationModal}
         onClose={() => setShowNotificationModal(false)}
         onAcceptInvitation={async notificationId => {
-          try {
-            await notificationService.acceptInvitation(notificationId);
-            await loadNotificationCount();
-            await loadWorkspaces();
-          } catch (error) {
-            console.error('Error accepting invitation:', error);
-          } finally {
-            setShowNotificationModal(false);
-          }
+          // NotificationModal already handles accept internally
+          // Just reload data here
+          await loadNotificationCount();
+          await loadWorkspaces();
         }}
         onDeclineInvitation={async notificationId => {
-          try {
-            await notificationService.declineInvitation(notificationId);
-            await loadNotificationCount();
-            await loadWorkspaces();
-          } catch (error) {
-            console.error('Error declining invitation:', error);
-          } finally {
-            setShowNotificationModal(false);
-          }
+          // NotificationModal already handles decline internally
+          // Just reload data here
+          await loadNotificationCount();
+          await loadWorkspaces();
+        }}
+        onMarkAsRead={async () => {
+          // Reload notification count after marking all as read
+          await loadNotificationCount();
         }}
         navigation={navigation}
       />
@@ -1430,12 +1436,11 @@ const styles = StyleSheet.create({
   },
   // Removed viewMore and viewLess styles - no longer needed
   footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 16,
     paddingHorizontal: ScreenLayout.contentHorizontalPadding,
-    paddingTop: 0,
+    paddingVertical: 16,
+    backgroundColor: Colors.background,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral.light,
   },
   createButton: {
     borderColor: Colors.neutral.light,
@@ -1461,7 +1466,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContentContainer: {
-    paddingBottom: 100, // Increased padding for bottom tab navigator
+    paddingBottom: 120, // Increased padding for create button space
   },
   loadingContainer: {
     flex: 1,

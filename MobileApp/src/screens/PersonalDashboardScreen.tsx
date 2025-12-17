@@ -349,10 +349,18 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({
       // Use getAllUserNotifications to get both workspace invites and project notifications
       const response = await notificationService.getAllUserNotifications();
       if (response.success) {
-        // Only count unread notifications
-        const unreadCount = response.data.filter(
-          (n: any) => !n.isRead || n.status === 'PENDING',
-        ).length;
+        // Count only unread notifications (PENDING invitations and unread project notifications)
+        const unreadCount = response.data.filter((n: any) => {
+          // For workspace invitations, count only PENDING status
+          if (n.notificationType === 'workspace_invitation') {
+            return n.status === 'PENDING';
+          }
+          // For project notifications, count only unread ones
+          if (n.notificationType === 'project_notification') {
+            return !n.isRead;
+          }
+          return false;
+        }).length;
         setNotificationCount(unreadCount);
       }
     } catch (error: any) {
@@ -621,23 +629,21 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({
 
   const handleAcceptInvitation = async (notificationId: number) => {
     try {
-      // TODO: Implement invitation acceptance logic
-      console.log('Accept invitation:', notificationId);
+      // NotificationModal already handles accept internally
+      // Just reload notification count here
       await loadNotificationCount();
     } catch (error) {
-      console.error('Error accepting invitation:', error);
-      showError('Failed to accept invitation');
+      console.error('Error reloading after accept:', error);
     }
   };
 
   const handleDeclineInvitation = async (notificationId: number) => {
     try {
-      // TODO: Implement invitation decline logic
-      console.log('Decline invitation:', notificationId);
+      // NotificationModal already handles decline internally
+      // Just reload notification count here
       await loadNotificationCount();
     } catch (error) {
-      console.error('Error declining invitation:', error);
-      showError('Failed to decline invitation');
+      console.error('Error reloading after decline:', error);
     }
   };
 
@@ -893,6 +899,10 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({
         }}
         onAcceptInvitation={handleAcceptInvitation}
         onDeclineInvitation={handleDeclineInvitation}
+        onMarkAsRead={async () => {
+          // Reload notification count after marking all as read
+          await loadNotificationCount();
+        }}
         mode="all"
         navigation={navigation}
       />

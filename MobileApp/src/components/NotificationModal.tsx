@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -37,6 +38,7 @@ interface NotificationModalProps {
   onClose: () => void;
   onAcceptInvitation: (notificationId: number) => void;
   onDeclineInvitation: (notificationId: number) => void;
+  onMarkAsRead?: () => void; // Callback after marking all as read
   mode?: 'workspace' | 'project' | 'all'; // 'workspace' for workspace invitations, 'project' for project notifications, 'all' for both
   workspaceId?: number; // Required when mode='project'
   navigation?: any; // For navigating to task tracking screen
@@ -47,6 +49,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   onClose,
   onAcceptInvitation,
   onDeclineInvitation,
+  onMarkAsRead,
   mode = 'workspace', // Default to workspace invitations
   workspaceId,
   navigation,
@@ -150,7 +153,8 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                 createdAt: new Date(n.createdAt),
                 expiresAt: new Date(n.expiresAt),
                 status: n.status,
-                hasActions: true, // Workspace invitations have Accept/Decline
+                hasActions: n.status === 'PENDING', // Show buttons only for pending invitations
+                isRead: n.status !== 'PENDING', // Mark processed invitations as read
                 daysRemaining: n.daysRemaining,
                 receivedDate: n.receivedDate,
                 isProjectNotification: false,
@@ -158,7 +162,14 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
             }
           },
         );
-        setNotifications(transformedNotifications);
+
+        // Deduplicate by ID (in case same notification comes from multiple sources)
+        const uniqueNotifications = transformedNotifications.filter(
+          (notification, index, self) =>
+            index === self.findIndex(n => n.id === notification.id),
+        );
+
+        setNotifications(uniqueNotifications);
       } else {
         console.error('Failed to load notifications:', response.message);
         setNotifications([]);
@@ -189,14 +200,73 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
         notificationId,
       );
       if (response.success) {
+        // Update status, hide buttons, and mark as read
+        setNotifications(prev =>
+          prev.map(n =>
+            n.id === notificationId
+              ? { ...n, status: 'ACCEPTED', hasActions: false, isRead: true }
+              : n,
+          ),
+        );
         onAcceptInvitation(notificationId);
-        // Remove from list
-        setNotifications(prev => prev.filter(n => n.id !== notificationId));
       } else {
-        console.error('Failed to accept invitation:', response.message);
+        // Check if error is "already a member"
+        const errorMessage = response.message || '';
+        if (
+          errorMessage.toLowerCase().includes('already a member') ||
+          errorMessage.toLowerCase().includes('đã là thành viên')
+        ) {
+          // Update status, hide buttons, and mark as read
+          setNotifications(prev =>
+            prev.map(n =>
+              n.id === notificationId
+                ? { ...n, status: 'ACCEPTED', hasActions: false, isRead: true }
+                : n,
+            ),
+          );
+          // Then show alert
+          Alert.alert(
+            'Already a Member',
+            'You are already a member of this workspace. The invitation has been removed.',
+            [{ text: 'OK' }],
+          );
+        } else {
+          // Show error for other cases
+          Alert.alert(
+            'Failed to Accept',
+            errorMessage || 'Failed to accept invitation. Please try again.',
+            [{ text: 'OK' }],
+          );
+        }
       }
-    } catch (error) {
-      console.error('Error accepting invitation:', error);
+    } catch (error: any) {
+      const errorMessage =
+        error?.message || error?.toString() || 'Unknown error occurred';
+
+      // Check if error is "already a member"
+      if (
+        errorMessage.toLowerCase().includes('already a member') ||
+        errorMessage.toLowerCase().includes('đã là thành viên')
+      ) {
+        // Update status, hide buttons, and mark as read
+        setNotifications(prev =>
+          prev.map(n =>
+            n.id === notificationId
+              ? { ...n, status: 'ACCEPTED', hasActions: false, isRead: true }
+              : n,
+          ),
+        );
+        // Then show alert
+        Alert.alert(
+          'Already a Member',
+          'You are already a member of this workspace. The invitation has been removed.',
+          [{ text: 'OK' }],
+        );
+      } else {
+        Alert.alert('Error', `Failed to accept invitation: ${errorMessage}`, [
+          { text: 'OK' },
+        ]);
+      }
     }
   };
 
@@ -206,14 +276,30 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
         notificationId,
       );
       if (response.success) {
+        // Update status, hide buttons, and mark as read
+        setNotifications(prev =>
+          prev.map(n =>
+            n.id === notificationId
+              ? { ...n, status: 'REJECTED', hasActions: false, isRead: true }
+              : n,
+          ),
+        );
         onDeclineInvitation(notificationId);
-        // Remove from list
-        setNotifications(prev => prev.filter(n => n.id !== notificationId));
       } else {
+        Alert.alert(
+          'Failed to Decline',
+          response.message || 'Failed to decline invitation. Please try again.',
+          [{ text: 'OK' }],
+        );
         console.error('Failed to decline invitation:', response.message);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error declining invitation:', error);
+      const errorMessage =
+        error?.message || error?.toString() || 'Unknown error occurred';
+      Alert.alert('Error', `Failed to decline invitation: ${errorMessage}`, [
+        { text: 'OK' },
+      ]);
     }
   };
 
@@ -270,8 +356,10 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
       if (response.success) {
         // Reload notifications from server to get updated isRead status
         await loadNotifications();
-        // DON'T call onAcceptInvitation here - it causes modal to close/reopen
-        // Parent will reload count when modal closes
+        // Call parent callback to reload notification count
+        if (onMarkAsRead) {
+          onMarkAsRead();
+        }
       }
     } catch (error) {
       console.error('Error clearing notifications:', error);
