@@ -3,19 +3,19 @@ export const LightTheme = {
   // Primary Colors
   primary: '#643FDB',
   primaryContainer: '#837BE7',
-  
-  // Accent Colors  
+
+  // Accent Colors
   accent: '#FF8A00',
   accentContainer: '#FFE7CC',
-  
+
   // Neutral Colors
   neutral: {
     dark: '#1C1243',
-    medium: '#A29FB6', 
+    medium: '#A29FB6',
     light: '#EFF1F3',
     white: '#FFFFFF',
   },
-  
+
   // Semantic Colors
   semantic: {
     error: '#FF6A5D',
@@ -23,7 +23,7 @@ export const LightTheme = {
     warning: '#FF8A00',
     info: '#643FDB',
   },
-  
+
   // Overlay Colors
   overlay: {
     pink: '#E15A93',
@@ -34,7 +34,7 @@ export const LightTheme = {
     lightPink: '#F4D8E8',
     peach: '#FFD7D4',
   },
-  
+
   // Task status colors
   status: {
     todo: '#A29FB6',
@@ -42,7 +42,7 @@ export const LightTheme = {
     done: '#47C272',
     cancelled: '#FF6A5D',
   },
-  
+
   // Priority colors
   priority: {
     urgent: '#E15A93',
@@ -51,7 +51,7 @@ export const LightTheme = {
     low: '#47C272',
     lowest: '#A29FB6',
   },
-  
+
   // Common colors
   background: '#FFFFFF',
   surface: '#EFF1F3',
@@ -61,11 +61,11 @@ export const LightTheme = {
   textTertiary: '#1C1243CC', // 80% opacity
   border: '#EFF1F3',
   divider: '#A29FB6',
-  
+
   // Additional colors for better compatibility
   white: '#FFFFFF',
   black: '#1C1243',
-  
+
   // Aliases for backward compatibility
   error: '#FF6A5D',
   success: '#47C272',

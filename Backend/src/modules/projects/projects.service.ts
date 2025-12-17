@@ -1,11 +1,21 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { CreateProjectDto, UpdateProjectDto, AddMemberDto, CreateProjectRoleDto } from './dto';
-import { InviteProjectMemberDto } from './dto/invite-project-member.dto';
-import { ProjectInvitationResponseDto } from './dto/project-invitation-response.dto';
-import { EmailService } from '../../services/email.service';
-import { InviteType, InvitationStatus } from '@prisma/client';
-import * as crypto from 'crypto';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
+import { PrismaService } from "../../prisma/prisma.service";
+import {
+  CreateProjectDto,
+  UpdateProjectDto,
+  AddMemberDto,
+  CreateProjectRoleDto,
+} from "./dto";
+import { InviteProjectMemberDto } from "./dto/invite-project-member.dto";
+import { ProjectInvitationResponseDto } from "./dto/project-invitation-response.dto";
+import { EmailService } from "../../services/email.service";
+import { InviteType, InvitationStatus } from "@prisma/client";
+import * as crypto from "crypto";
 
 @Injectable()
 export class ProjectsService {
@@ -28,17 +38,17 @@ export class ProjectsService {
             workspaceMembers: {
               some: {
                 userId: userId,
-                dateDeleted: null
-              }
-            }
-          }
+                dateDeleted: null,
+              },
+            },
+          },
         ],
-        dateDeleted: null
-      }
+        dateDeleted: null,
+      },
     });
 
     if (!workspace) {
-      throw new ForbiddenException('You do not have access to this workspace');
+      throw new ForbiddenException("You do not have access to this workspace");
     }
 
     // Create project
@@ -47,25 +57,33 @@ export class ProjectsService {
         projectName,
         workspaceId,
         description,
-        createdBy: userId
+        createdBy: userId,
       },
       include: {
         creator: {
-          select: { id: true, username: true, email: true }
+          select: { id: true, username: true, email: true },
         },
         workspace: {
-          select: { id: true, workspaceName: true }
-        }
-      }
+          select: { id: true, workspaceName: true },
+        },
+      },
     });
 
-    // Create default admin role for this project
+    // Create default roles for this project
     const adminRole = await this.prisma.projectRole.create({
       data: {
         projectId: project.id,
-        roleName: 'Admin',
-        description: 'Project administrator with full permissions'
-      }
+        roleName: "Admin",
+        description: "Project administrator with full permissions",
+      },
+    });
+
+    const memberRole = await this.prisma.projectRole.create({
+      data: {
+        projectId: project.id,
+        roleName: "Member",
+        description: "Project member with standard permissions",
+      },
     });
 
     // Add creator as admin member
@@ -73,13 +91,14 @@ export class ProjectsService {
       data: {
         projectId: project.id,
         userId: userId,
-        projectRoleId: adminRole.id
-      }
+        projectRoleId: adminRole.id,
+      },
     });
 
     return {
       ...project,
-      adminRole
+      adminRole,
+      memberRole,
     };
   }
 
@@ -93,34 +112,34 @@ export class ProjectsService {
           {
             members: {
               some: {
-                userId: userId
-              }
-            }
-          }
-        ]
+                userId: userId,
+              },
+            },
+          },
+        ],
       },
       include: {
         creator: {
-          select: { id: true, username: true, email: true }
+          select: { id: true, username: true, email: true },
         },
         workspace: {
-          select: { id: true, workspaceName: true, workspaceType: true }
+          select: { id: true, workspaceName: true, workspaceType: true },
         },
         members: {
           include: {
             user: {
-              select: { id: true, username: true, email: true }
+              select: { id: true, username: true, email: true },
             },
             projectRole: {
-              select: { id: true, roleName: true }
-            }
-          }
+              select: { id: true, roleName: true },
+            },
+          },
         },
         _count: {
-          select: { members: true }
-        }
+          select: { members: true },
+        },
       },
-      orderBy: { dateCreated: 'desc' }
+      orderBy: { dateCreated: "desc" },
     });
   }
 
@@ -136,17 +155,17 @@ export class ProjectsService {
             workspaceMembers: {
               some: {
                 userId: userId,
-                dateDeleted: null
-              }
-            }
-          }
+                dateDeleted: null,
+              },
+            },
+          },
         ],
-        dateDeleted: null
-      }
+        dateDeleted: null,
+      },
     });
 
     if (!workspace) {
-      throw new ForbiddenException('You do not have access to this workspace');
+      throw new ForbiddenException("You do not have access to this workspace");
     }
 
     // Get projects in the workspace that user has access to
@@ -159,34 +178,34 @@ export class ProjectsService {
           {
             members: {
               some: {
-                userId: userId
-              }
-            }
-          }
-        ]
+                userId: userId,
+              },
+            },
+          },
+        ],
       },
       include: {
         creator: {
-          select: { id: true, username: true, email: true }
+          select: { id: true, username: true, email: true },
         },
         workspace: {
-          select: { id: true, workspaceName: true }
+          select: { id: true, workspaceName: true },
         },
         members: {
           include: {
             user: {
-              select: { id: true, username: true, email: true }
+              select: { id: true, username: true, email: true },
             },
             projectRole: {
-              select: { id: true, roleName: true }
-            }
-          }
+              select: { id: true, roleName: true },
+            },
+          },
         },
         _count: {
-          select: { members: true }
-        }
+          select: { members: true },
+        },
       },
-      orderBy: { dateCreated: 'desc' }
+      orderBy: { dateCreated: "desc" },
     });
 
     // Enhance projects with isStarred and lastOpened data
@@ -198,7 +217,7 @@ export class ProjectsService {
 
         const lastAccess = await this.prisma.projectAccessLog.findFirst({
           where: { userId, projectId: project.id },
-          orderBy: { accessedAt: 'desc' },
+          orderBy: { accessedAt: "desc" },
         });
 
         return {
@@ -223,50 +242,98 @@ export class ProjectsService {
           {
             members: {
               some: {
-                userId: userId
-              }
-            }
-          }
-        ]
+                userId: userId,
+              },
+            },
+          },
+        ],
       },
       include: {
         creator: {
-          select: { id: true, username: true, email: true }
+          select: { id: true, username: true, email: true },
         },
         workspace: {
-          select: { id: true, workspaceName: true }
+          select: { id: true, workspaceName: true },
         },
         members: {
           include: {
             user: {
-              select: { id: true, username: true, email: true }
+              select: { id: true, username: true, email: true },
             },
             projectRole: {
-              select: { id: true, roleName: true, description: true }
-            }
-          }
+              select: { id: true, roleName: true, description: true },
+            },
+          },
         },
         projectRoles: {
           include: {
             permissions: {
               include: {
-                permission: true
-              }
-            }
-          }
-        }
-      }
+                permission: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!project) {
-      throw new NotFoundException('Project not found or access denied');
+      throw new NotFoundException("Project not found or access denied");
+    }
+
+    // Ensure project creator is included in members list with OWNER role
+    const creatorIsInMembers = project.members.some(
+      (m) => m.userId === project.createdBy
+    );
+    if (!creatorIsInMembers && project.creator) {
+      // Find or create OWNER role
+      let ownerRole = project.projectRoles.find((r) => r.roleName === "Owner");
+      if (!ownerRole) {
+        ownerRole = await this.prisma.projectRole.create({
+          data: {
+            projectId: project.id,
+            roleName: "Owner",
+            description: "Project owner",
+          },
+          include: {
+            permissions: {
+              include: {
+                permission: true,
+              },
+            },
+          },
+        });
+      }
+
+      // Add creator as member with OWNER role
+      const creatorMember = await this.prisma.projectMember.create({
+        data: {
+          projectId: project.id,
+          userId: project.createdBy,
+          projectRoleId: ownerRole.id,
+        },
+        include: {
+          user: {
+            select: { id: true, username: true, email: true },
+          },
+          projectRole: {
+            select: { id: true, roleName: true, description: true },
+          },
+        },
+      });
+
+      project.members.push(creatorMember);
     }
 
     return project;
   }
 
   // Update project - only admins can update
-  async updateProject(projectId: number, updateProjectDto: UpdateProjectDto, userId: number) {
+  async updateProject(
+    projectId: number,
+    updateProjectDto: UpdateProjectDto,
+    userId: number
+  ) {
     await this.checkAdminPermission(projectId, userId);
 
     const updatedProject = await this.prisma.project.update({
@@ -274,12 +341,12 @@ export class ProjectsService {
       data: updateProjectDto,
       include: {
         creator: {
-          select: { id: true, username: true, email: true }
+          select: { id: true, username: true, email: true },
         },
         workspace: {
-          select: { id: true, workspaceName: true }
-        }
-      }
+          select: { id: true, workspaceName: true },
+        },
+      },
     });
 
     return updatedProject;
@@ -292,10 +359,10 @@ export class ProjectsService {
     // Soft delete
     await this.prisma.project.update({
       where: { id: projectId },
-      data: { dateDeleted: new Date() }
+      data: { dateDeleted: new Date() },
     });
 
-    return { message: 'Project deleted successfully' };
+    return { message: "Project deleted successfully" };
   }
 
   // Restore deleted project - only admins can restore
@@ -303,27 +370,29 @@ export class ProjectsService {
     const project = await this.prisma.project.findFirst({
       where: {
         id: projectId,
-        dateDeleted: { not: null }
-      }
+        dateDeleted: { not: null },
+      },
     });
 
     if (!project) {
-      throw new NotFoundException('Deleted project not found');
+      throw new NotFoundException("Deleted project not found");
     }
 
     // Check if user was admin before deletion
-    const wasAdmin = project.createdBy === userId || await this.prisma.projectMember.findFirst({
-      where: {
-        projectId,
-        userId,
-        projectRole: {
-          roleName: 'Admin'
-        }
-      }
-    });
+    const wasAdmin =
+      project.createdBy === userId ||
+      (await this.prisma.projectMember.findFirst({
+        where: {
+          projectId,
+          userId,
+          projectRole: {
+            roleName: "Admin",
+          },
+        },
+      }));
 
     if (!wasAdmin) {
-      throw new ForbiddenException('Only project admins can restore projects');
+      throw new ForbiddenException("Only project admins can restore projects");
     }
 
     const restoredProject = await this.prisma.project.update({
@@ -331,12 +400,12 @@ export class ProjectsService {
       data: { dateDeleted: null },
       include: {
         creator: {
-          select: { id: true, username: true, email: true }
+          select: { id: true, username: true, email: true },
         },
         workspace: {
-          select: { id: true, workspaceName: true }
-        }
-      }
+          select: { id: true, workspaceName: true },
+        },
+      },
     });
 
     return restoredProject;
@@ -354,30 +423,34 @@ export class ProjectsService {
               some: {
                 userId: userId,
                 projectRole: {
-                  roleName: 'Admin'
-                }
-              }
-            }
-          }
-        ]
+                  roleName: "Admin",
+                },
+              },
+            },
+          },
+        ],
       },
       include: {
         creator: {
-          select: { id: true, username: true, email: true }
+          select: { id: true, username: true, email: true },
         },
         workspace: {
-          select: { id: true, workspaceName: true }
+          select: { id: true, workspaceName: true },
         },
         _count: {
-          select: { members: true }
-        }
+          select: { members: true },
+        },
       },
-      orderBy: { dateDeleted: 'desc' }
+      orderBy: { dateDeleted: "desc" },
     });
   }
 
   // Add member to project - only admins can add members
-  async addMember(projectId: number, addMemberDto: AddMemberDto, userId: number) {
+  async addMember(
+    projectId: number,
+    addMemberDto: AddMemberDto,
+    userId: number
+  ) {
     await this.checkAdminPermission(projectId, userId);
 
     const { userId: newUserId, projectRoleId } = addMemberDto;
@@ -386,36 +459,62 @@ export class ProjectsService {
     const existingMember = await this.prisma.projectMember.findFirst({
       where: {
         projectId,
-        userId: newUserId
-      }
+        userId: newUserId,
+      },
     });
 
     if (existingMember) {
-      throw new BadRequestException('User is already a member of this project');
+      throw new BadRequestException("User is already a member of this project");
+    }
+
+    // Determine which role to use
+    let roleId = projectRoleId;
+
+    // If no role specified, find or create "Member" role
+    if (!roleId) {
+      let memberRole = await this.prisma.projectRole.findFirst({
+        where: {
+          projectId,
+          roleName: "Member",
+        },
+      });
+
+      // If Member role doesn't exist, create it
+      if (!memberRole) {
+        memberRole = await this.prisma.projectRole.create({
+          data: {
+            projectId,
+            roleName: "Member",
+            description: "Project member with standard permissions",
+          },
+        });
+      }
+
+      roleId = memberRole.id;
     }
 
     // Verify the role exists for this project
     const role = await this.prisma.projectRole.findFirst({
       where: {
-        id: projectRoleId,
-        projectId
-      }
+        id: roleId,
+        projectId,
+      },
     });
 
     if (!role) {
-      throw new NotFoundException('Project role not found');
+      throw new NotFoundException("Project role not found");
     }
 
     // Load project basic info for notifications/email
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
-      select: { 
-        projectName: true, 
+      select: {
+        projectName: true,
         workspaceId: true,
         workspace: {
-          select: { workspaceName: true }
-        }
-      }
+          select: { workspaceName: true },
+        },
+      },
     });
 
     // Add member
@@ -423,16 +522,16 @@ export class ProjectsService {
       data: {
         projectId,
         userId: newUserId,
-        projectRoleId
+        projectRoleId: roleId,
       },
       include: {
         user: {
-          select: { id: true, username: true, email: true }
+          select: { id: true, username: true, email: true },
         },
         projectRole: {
-          select: { id: true, roleName: true }
-        }
-      }
+          select: { id: true, roleName: true },
+        },
+      },
     });
 
     // Create in-app notification for the added member
@@ -441,7 +540,8 @@ export class ProjectsService {
         data: {
           projectId,
           receiverUserId: newUserId,
-          title: 'Added to project',
+          type: "PROJECT_MEMBER_ADDED",
+          title: "Added to project",
           message: `You were added to project "${project.projectName}" in workspace "${project.workspace.workspaceName}"`,
         },
       });
@@ -456,8 +556,8 @@ export class ProjectsService {
           member.user.email,
           project.projectName,
           project.workspace.workspaceName,
-          'System',
-          'You were added to the project'
+          "System",
+          "You were added to the project"
         );
       }
     } catch (e) {
@@ -472,31 +572,37 @@ export class ProjectsService {
     await this.checkAdminPermission(projectId, userId);
 
     const project = await this.prisma.project.findUnique({
-      where: { id: projectId }
+      where: { id: projectId },
     });
 
     const member = await this.prisma.projectMember.findUnique({
-      where: { id: memberId }
+      where: { id: memberId },
     });
 
     if (!member) {
-      throw new NotFoundException('Member not found');
+      throw new NotFoundException("Member not found");
     }
 
     // Prevent removing the original project creator
     if (member.userId === project.createdBy) {
-      throw new ForbiddenException('Cannot remove the original project creator');
+      throw new ForbiddenException(
+        "Cannot remove the original project creator"
+      );
     }
 
     await this.prisma.projectMember.delete({
-      where: { id: memberId }
+      where: { id: memberId },
     });
 
-    return { message: 'Member removed successfully' };
+    return { message: "Member removed successfully" };
   }
 
   // Create project role - only admins can create roles
-  async createProjectRole(projectId: number, createRoleDto: CreateProjectRoleDto, userId: number) {
+  async createProjectRole(
+    projectId: number,
+    createRoleDto: CreateProjectRoleDto,
+    userId: number
+  ) {
     await this.checkAdminPermission(projectId, userId);
 
     const { roleName, description, permissionIds } = createRoleDto;
@@ -505,19 +611,19 @@ export class ProjectsService {
       data: {
         projectId,
         roleName,
-        description
-      }
+        description,
+      },
     });
 
     // Add permissions if provided
     if (permissionIds && permissionIds.length > 0) {
-      const rolePermissions = permissionIds.map(permissionId => ({
+      const rolePermissions = permissionIds.map((permissionId) => ({
         projectRoleId: role.id,
-        permissionId
+        permissionId,
       }));
 
       await this.prisma.projectRolePermission.createMany({
-        data: rolePermissions
+        data: rolePermissions,
       });
     }
 
@@ -526,10 +632,10 @@ export class ProjectsService {
       include: {
         permissions: {
           include: {
-            permission: true
-          }
-        }
-      }
+            permission: true,
+          },
+        },
+      },
     });
   }
 
@@ -541,12 +647,12 @@ export class ProjectsService {
     const adminRole = await this.prisma.projectRole.findFirst({
       where: {
         projectId,
-        roleName: 'Admin'
-      }
+        roleName: "Admin",
+      },
     });
 
     if (!adminRole) {
-      throw new NotFoundException('Admin role not found for this project');
+      throw new NotFoundException("Admin role not found for this project");
     }
 
     // Update member role to admin
@@ -555,12 +661,12 @@ export class ProjectsService {
       data: { projectRoleId: adminRole.id },
       include: {
         user: {
-          select: { id: true, username: true, email: true }
+          select: { id: true, username: true, email: true },
         },
         projectRole: {
-          select: { id: true, roleName: true }
-        }
-      }
+          select: { id: true, roleName: true },
+        },
+      },
     });
 
     return updatedMember;
@@ -569,7 +675,7 @@ export class ProjectsService {
   // Get available permissions
   async getPermissions() {
     return this.prisma.permission.findMany({
-      orderBy: { permissionName: 'asc' }
+      orderBy: { permissionName: "asc" },
     });
   }
 
@@ -581,14 +687,14 @@ export class ProjectsService {
         members: {
           where: { userId },
           include: {
-            projectRole: true
-          }
-        }
-      }
+            projectRole: true,
+          },
+        },
+      },
     });
 
     if (!project) {
-      throw new NotFoundException('Project not found');
+      throw new NotFoundException("Project not found");
     }
 
     // Original creator is always admin
@@ -597,9 +703,11 @@ export class ProjectsService {
     }
 
     // Check if user is admin member
-    const userMembership = project.members.find(member => member.userId === userId);
-    if (!userMembership || userMembership.projectRole.roleName !== 'Admin') {
-      throw new ForbiddenException('Admin permission required');
+    const userMembership = project.members.find(
+      (member) => member.userId === userId
+    );
+    if (!userMembership || userMembership.projectRole.roleName !== "Admin") {
+      throw new ForbiddenException("Admin permission required");
     }
 
     return true;
@@ -610,15 +718,19 @@ export class ProjectsService {
     const membership = await this.prisma.projectMember.findFirst({
       where: {
         projectId,
-        userId
-      }
+        userId,
+      },
     });
 
     return !!membership;
   }
 
   // Invite member to project via email or in-app (Hierarchical Approach - Step 2)
-  async inviteProjectMember(projectId: number, inviteDto: InviteProjectMemberDto, inviterId: number): Promise<ProjectInvitationResponseDto> {
+  async inviteProjectMember(
+    projectId: number,
+    inviteDto: InviteProjectMemberDto,
+    inviterId: number
+  ): Promise<ProjectInvitationResponseDto> {
     const { email, inviteType, roleId, message } = inviteDto;
 
     // Check if user has admin permission
@@ -628,17 +740,17 @@ export class ProjectsService {
       where: { id: projectId },
       include: {
         workspace: true,
-        projectRoles: true
-      }
+        projectRoles: true,
+      },
     });
 
     if (!project) {
-      throw new NotFoundException('Project not found');
+      throw new NotFoundException("Project not found");
     }
 
     // HIERARCHICAL APPROACH: Check if user exists and is workspace member first
     const user = await this.prisma.user.findUnique({
-      where: { email }
+      where: { email },
     });
 
     if (user) {
@@ -647,21 +759,21 @@ export class ProjectsService {
         where: {
           workspaceId: project.workspaceId,
           userId: user.id,
-          dateDeleted: null
-        }
+          dateDeleted: null,
+        },
       });
 
       if (!workspaceMember) {
         throw new BadRequestException(
           `Người dùng phải là thành viên của workspace "${project.workspace.workspaceName}" trước khi có thể được mời vào project này. ` +
-          `Vui lòng mời họ vào workspace trước.`
+            `Vui lòng mời họ vào workspace trước.`
         );
       }
     } else {
       // User doesn't exist - they need to be invited to workspace first
       throw new BadRequestException(
         `Người dùng với email "${email}" chưa đăng ký tài khoản hoặc chưa là thành viên của workspace. ` +
-        `Vui lòng mời họ vào workspace "${project.workspace.workspaceName}" trước.`
+          `Vui lòng mời họ vào workspace "${project.workspace.workspaceName}" trước.`
       );
     }
 
@@ -669,12 +781,14 @@ export class ProjectsService {
     const existingMember = await this.prisma.projectMember.findFirst({
       where: {
         projectId,
-        user: { email }
-      }
+        user: { email },
+      },
     });
 
     if (existingMember) {
-      throw new BadRequestException('Người dùng đã là thành viên của project này');
+      throw new BadRequestException(
+        "Người dùng đã là thành viên của project này"
+      );
     }
 
     // HIERARCHICAL APPROACH: Handle existing pending invitation smartly
@@ -683,8 +797,8 @@ export class ProjectsService {
         projectId,
         email,
         status: InvitationStatus.PENDING,
-        expiresAt: { gt: new Date() }
-      }
+        expiresAt: { gt: new Date() },
+      },
     });
 
     if (existingInvitation) {
@@ -703,19 +817,19 @@ export class ProjectsService {
               workspace: {
                 select: {
                   id: true,
-                  workspaceName: true
-                }
-              }
-            }
+                  workspaceName: true,
+                },
+              },
+            },
           },
           inviter: {
             select: {
               id: true,
               username: true,
-              email: true
-            }
-          }
-        }
+              email: true,
+            },
+          },
+        },
       });
 
       // Resend email if EMAIL type
@@ -727,7 +841,7 @@ export class ProjectsService {
           project.workspace.workspaceName,
           updatedInvitation.inviter.username,
           acceptUrl,
-          message || 'Lời mời project đã được gửi lại'
+          message || "Lời mời project đã được gửi lại"
         );
       }
 
@@ -746,9 +860,9 @@ export class ProjectsService {
         project: {
           id: updatedInvitation.project.id,
           projectName: updatedInvitation.project.projectName,
-          workspace: updatedInvitation.project.workspace
+          workspace: updatedInvitation.project.workspace,
         },
-        inviter: updatedInvitation.inviter
+        inviter: updatedInvitation.inviter,
       };
     }
 
@@ -758,26 +872,26 @@ export class ProjectsService {
       const role = await this.prisma.projectRole.findFirst({
         where: {
           id: roleId,
-          projectId
-        }
+          projectId,
+        },
       });
 
       if (!role) {
-        throw new NotFoundException('Project role not found');
+        throw new NotFoundException("Project role not found");
       }
     } else {
       // Get default member role
       const memberRole = await this.prisma.projectRole.findFirst({
         where: {
           projectId,
-          roleName: { not: 'Admin' }
-        }
+          roleName: { not: "Admin" },
+        },
       });
       assignedRoleId = memberRole?.id;
     }
 
     // Generate unique token
-    const token = crypto.randomBytes(32).toString('hex');
+    const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
 
@@ -791,7 +905,7 @@ export class ProjectsService {
         token,
         message,
         roleId: assignedRoleId,
-        expiresAt
+        expiresAt,
       },
       include: {
         project: {
@@ -799,19 +913,19 @@ export class ProjectsService {
             workspace: {
               select: {
                 id: true,
-                workspaceName: true
-              }
-            }
-          }
+                workspaceName: true,
+              },
+            },
+          },
         },
         inviter: {
           select: {
             id: true,
             username: true,
-            email: true
-          }
-        }
-      }
+            email: true,
+          },
+        },
+      },
     });
 
     // Send email if EMAIL type
@@ -842,9 +956,9 @@ export class ProjectsService {
       project: {
         id: invitation.project.id,
         projectName: invitation.project.projectName,
-        workspace: invitation.project.workspace
+        workspace: invitation.project.workspace,
       },
-      inviter: invitation.inviter
+      inviter: invitation.inviter,
     };
   }
 
@@ -854,28 +968,28 @@ export class ProjectsService {
       where: {
         token,
         status: InvitationStatus.PENDING,
-        expiresAt: { gt: new Date() }
+        expiresAt: { gt: new Date() },
       },
       include: {
         project: {
           include: {
-            workspace: true
-          }
-        }
-      }
+            workspace: true,
+          },
+        },
+      },
     });
 
     if (!invitation) {
-      throw new NotFoundException('Lời mời không hợp lệ hoặc đã hết hạn');
+      throw new NotFoundException("Lời mời không hợp lệ hoặc đã hết hạn");
     }
 
     // Check if user exists
     const user = await this.prisma.user.findUnique({
-      where: { email: invitation.email }
+      where: { email: invitation.email },
     });
 
     if (!user) {
-      throw new BadRequestException('Người dùng chưa đăng ký tài khoản');
+      throw new BadRequestException("Người dùng chưa đăng ký tài khoản");
     }
 
     // HIERARCHICAL APPROACH: Strictly enforce workspace membership requirement
@@ -883,14 +997,14 @@ export class ProjectsService {
       where: {
         workspaceId: invitation.project.workspaceId,
         userId: user.id,
-        dateDeleted: null
-      }
+        dateDeleted: null,
+      },
     });
 
     if (!workspaceMember) {
       throw new BadRequestException(
         `Bạn phải là thành viên của workspace "${invitation.project.workspace.workspaceName}" trước khi có thể tham gia project này. ` +
-        `Vui lòng liên hệ với quản trị viên workspace để được mời vào workspace trước.`
+          `Vui lòng liên hệ với quản trị viên workspace để được mời vào workspace trước.`
       );
     }
 
@@ -898,12 +1012,12 @@ export class ProjectsService {
     const existingMember = await this.prisma.projectMember.findFirst({
       where: {
         projectId: invitation.projectId,
-        userId: user.id
-      }
+        userId: user.id,
+      },
     });
 
     if (existingMember) {
-      throw new BadRequestException('Bạn đã là thành viên của project này');
+      throw new BadRequestException("Bạn đã là thành viên của project này");
     }
 
     // Get default role if none specified
@@ -912,8 +1026,8 @@ export class ProjectsService {
       const defaultRole = await this.prisma.projectRole.findFirst({
         where: {
           projectId: invitation.projectId,
-          roleName: { not: 'Admin' }
-        }
+          roleName: { not: "Admin" },
+        },
       });
       roleId = defaultRole?.id || 1;
     }
@@ -924,38 +1038,41 @@ export class ProjectsService {
         data: {
           projectId: invitation.projectId,
           userId: user.id,
-          projectRoleId: roleId
+          projectRoleId: roleId,
         },
         include: {
           user: {
             select: {
               id: true,
               username: true,
-              email: true
-            }
+              email: true,
+            },
           },
           projectRole: {
             select: {
               id: true,
-              roleName: true
-            }
-          }
-        }
+              roleName: true,
+            },
+          },
+        },
       }),
       this.prisma.projectInvitation.update({
         where: { id: invitation.id },
         data: {
           status: InvitationStatus.ACCEPTED,
-          acceptedAt: new Date()
-        }
-      })
+          acceptedAt: new Date(),
+        },
+      }),
     ]);
 
     return member;
   }
 
   // Get pending project invitations
-  async getPendingProjectInvitations(projectId: number, userId: number): Promise<ProjectInvitationResponseDto[]> {
+  async getPendingProjectInvitations(
+    projectId: number,
+    userId: number
+  ): Promise<ProjectInvitationResponseDto[]> {
     // Check admin permission
     await this.checkAdminPermission(projectId, userId);
 
@@ -963,7 +1080,7 @@ export class ProjectsService {
       where: {
         projectId,
         status: InvitationStatus.PENDING,
-        expiresAt: { gt: new Date() }
+        expiresAt: { gt: new Date() },
       },
       include: {
         project: {
@@ -971,23 +1088,23 @@ export class ProjectsService {
             workspace: {
               select: {
                 id: true,
-                workspaceName: true
-              }
-            }
-          }
+                workspaceName: true,
+              },
+            },
+          },
         },
         inviter: {
           select: {
             id: true,
             username: true,
-            email: true
-          }
-        }
+            email: true,
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: "desc" },
     });
 
-    return invitations.map(invitation => ({
+    return invitations.map((invitation) => ({
       id: invitation.id,
       projectId: invitation.projectId,
       email: invitation.email,
@@ -1002,26 +1119,29 @@ export class ProjectsService {
       project: {
         id: invitation.project.id,
         projectName: invitation.project.projectName,
-        workspace: invitation.project.workspace
+        workspace: invitation.project.workspace,
       },
-      inviter: invitation.inviter
+      inviter: invitation.inviter,
     }));
   }
 
   // Cancel project invitation
-  async cancelProjectInvitation(invitationId: number, userId: number): Promise<void> {
+  async cancelProjectInvitation(
+    invitationId: number,
+    userId: number
+  ): Promise<void> {
     const invitation = await this.prisma.projectInvitation.findFirst({
       where: {
         id: invitationId,
-        status: InvitationStatus.PENDING
+        status: InvitationStatus.PENDING,
       },
       include: {
-        project: true
-      }
+        project: true,
+      },
     });
 
     if (!invitation) {
-      throw new NotFoundException('Invitation not found');
+      throw new NotFoundException("Invitation not found");
     }
 
     // Check permission - admin or inviter can cancel
@@ -1036,12 +1156,14 @@ export class ProjectsService {
     }
 
     if (!isAdmin && !isInviter) {
-      throw new ForbiddenException('You do not have permission to cancel this invitation');
+      throw new ForbiddenException(
+        "You do not have permission to cancel this invitation"
+      );
     }
 
     await this.prisma.projectInvitation.update({
       where: { id: invitationId },
-      data: { status: InvitationStatus.REJECTED }
+      data: { status: InvitationStatus.REJECTED },
     });
   }
 
@@ -1071,6 +1193,6 @@ export class ProjectsService {
     await this.prisma.projectAccessLog.create({
       data: { userId, projectId },
     });
-    return { message: 'Project access logged successfully' };
+    return { message: "Project access logged successfully" };
   }
 }

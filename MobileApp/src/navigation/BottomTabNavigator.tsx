@@ -7,6 +7,8 @@ import { Colors } from '../constants/Colors';
 const DEFAULT_ICONS: Record<string, string> = {
   PersonalDashboard: 'home',
   WorkspaceSelection: 'folder-open',
+  CreateTask: 'add',
+  CreateEvent: 'add',
   PersonalSettings: 'tune',
   Profile: 'person',
 };
@@ -61,10 +63,7 @@ const BottomTabNavigator: React.FC<BottomTabBarProps> = ({
             activeOpacity={0.8}
           >
             <View
-              style={[
-                styles.iconWrapper,
-                isActive && styles.iconWrapperActive,
-              ]}
+              style={[styles.iconWrapper, isActive && styles.iconWrapperActive]}
             >
               <MaterialIcons
                 name={iconName as any}

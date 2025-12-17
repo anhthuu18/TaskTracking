@@ -1,10 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Switch, ScrollView, StatusBar } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Switch,
+  ScrollView,
+  StatusBar,
+} from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../constants/Colors';
 import { useToastContext } from '../context/ToastContext';
+import { localNotification } from '../services/localNotification';
+import { userService } from '../services/userService';
 
 const PersonalSettingsScreen: React.FC<any> = () => {
   const { showSuccess, showError } = useToastContext();
@@ -15,10 +26,14 @@ const PersonalSettingsScreen: React.FC<any> = () => {
 
   const [notifyInApp, setNotifyInApp] = useState(true);
   const [notifyEmail, setNotifyEmail] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<
+    boolean | null
+  >(null);
 
   useEffect(() => {
     const load = async () => {
       try {
+        // Load Pomodoro settings from AsyncStorage
         const raw = await AsyncStorage.getItem('pomodoroSettings');
         if (raw) {
           const s = JSON.parse(raw);
@@ -26,17 +41,33 @@ const PersonalSettingsScreen: React.FC<any> = () => {
           if (s.shortBreak) setShortBreak(String(s.shortBreak));
           if (s.longBreak) setLongBreak(String(s.longBreak));
         }
-        const inApp = await AsyncStorage.getItem('notifyDueInApp');
-        const email = await AsyncStorage.getItem('notifyDueEmail');
-        if (inApp !== null) setNotifyInApp(inApp === 'true');
-        if (email !== null) setNotifyEmail(email === 'true');
-      } catch {}
+
+        // Load notification preferences from backend API
+        const userStr = await AsyncStorage.getItem('user');
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          const response = await userService.getNotificationPreferences(
+            user.id,
+          );
+          if (response.success && response.data) {
+            setNotifyInApp(response.data.notifyByPush);
+            setNotifyEmail(response.data.notifyByEmail);
+          }
+        }
+
+        // Check notification permission status
+        const hasPermission = await localNotification.getPermissionStatus();
+        setNotificationPermission(hasPermission);
+      } catch (err) {
+        console.error('Failed to load settings:', err);
+      }
     };
     load();
   }, []);
 
   const save = async () => {
     try {
+      // Save Pomodoro settings to AsyncStorage
       const toInt = (v: any, def: number) => {
         const n = parseInt(String(v), 10);
         return Number.isFinite(n) && n > 0 ? n : def;
@@ -47,20 +78,63 @@ const PersonalSettingsScreen: React.FC<any> = () => {
         longBreak: toInt(longBreak, 15),
       };
       await AsyncStorage.setItem('pomodoroSettings', JSON.stringify(payload));
-      await AsyncStorage.setItem('notifyDueInApp', notifyInApp.toString());
-      await AsyncStorage.setItem('notifyDueEmail', notifyEmail.toString());
-      showSuccess('Saved settings');
+
+      // Save notification preferences to backend API
+      const userStr = await AsyncStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        const response = await userService.updateNotificationPreferences(
+          user.id,
+          notifyEmail,
+          notifyInApp,
+        );
+
+        if (response.success) {
+          showSuccess('Saved settings');
+        } else {
+          showError(response.message || 'Failed to save notification settings');
+        }
+      } else {
+        showSuccess('Saved Pomodoro settings');
+      }
     } catch (e: any) {
       showError(e?.message || 'Failed to save settings');
     }
   };
 
+  const requestNotificationPermission = async () => {
+    try {
+      const granted = await localNotification.requestPermission();
+      setNotificationPermission(granted);
+      if (granted) {
+        showSuccess('Notification permission granted');
+      } else {
+        showError('Notification permission denied');
+      }
+    } catch (error: any) {
+      showError(error?.message || 'Failed to request permission');
+    }
+  };
+
+  const openNotificationSettings = async () => {
+    try {
+      await localNotification.openSettings();
+    } catch (error: any) {
+      showError(error?.message || 'Failed to open settings');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar backgroundColor={Colors.neutral.white} barStyle="dark-content" />
+      <StatusBar
+        backgroundColor={Colors.neutral.white}
+        barStyle="dark-content"
+      />
       <View style={styles.header}>
         <Text style={styles.title}>Personal Settings</Text>
-        <Text style={styles.subtitle}>Configure Pomodoro and notifications</Text>
+        <Text style={styles.subtitle}>
+          Configure Pomodoro and notifications
+        </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -101,16 +175,81 @@ const PersonalSettingsScreen: React.FC<any> = () => {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Due Task Notifications</Text>
+          <Text style={styles.cardTitle}>Notifications</Text>
+
+          {/* Notification Permission Status */}
+          <View style={styles.permissionSection}>
+            <View style={styles.permissionStatus}>
+              <MaterialIcons
+                name={notificationPermission ? 'check-circle' : 'info'}
+                size={20}
+                color={notificationPermission ? Colors.success : Colors.warning}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.permissionText}>
+                  {notificationPermission
+                    ? 'Notifications Enabled'
+                    : 'Notifications Disabled'}
+                </Text>
+                <Text style={styles.permissionSubtext}>
+                  {notificationPermission
+                    ? 'You will receive Pomodoro alerts'
+                    : 'Enable to receive Pomodoro alerts'}
+                </Text>
+              </View>
+            </View>
+
+            {!notificationPermission && (
+              <TouchableOpacity
+                style={styles.permissionButton}
+                onPress={requestNotificationPermission}
+              >
+                <MaterialIcons
+                  name="notifications-active"
+                  size={16}
+                  color={Colors.neutral.white}
+                />
+                <Text style={styles.permissionButtonText}>
+                  Enable Notifications
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {notificationPermission && (
+              <TouchableOpacity
+                style={styles.settingsButton}
+                onPress={openNotificationSettings}
+              >
+                <MaterialIcons
+                  name="settings"
+                  size={16}
+                  color={Colors.primary}
+                />
+                <Text style={styles.settingsButtonText}>
+                  Notification Settings
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.divider} />
+
           <View style={styles.switchRow}>
             <View style={styles.switchItem}>
-              <MaterialIcons name="notifications" size={20} color={Colors.primary} />
+              <MaterialIcons
+                name="notifications"
+                size={20}
+                color={Colors.primary}
+              />
               <Text style={styles.switchLabel}>In App</Text>
             </View>
             <Switch
               value={notifyInApp}
               onValueChange={setNotifyInApp}
-              trackColor={{ false: Colors.neutral.light, true: Colors.primary + '80' }}
+              trackColor={{
+                false: Colors.neutral.light,
+                true: Colors.primary + '80',
+              }}
               thumbColor={notifyInApp ? Colors.primary : Colors.neutral.medium}
             />
           </View>
@@ -122,11 +261,16 @@ const PersonalSettingsScreen: React.FC<any> = () => {
             <Switch
               value={notifyEmail}
               onValueChange={setNotifyEmail}
-              trackColor={{ false: Colors.neutral.light, true: Colors.primary + '80' }}
+              trackColor={{
+                false: Colors.neutral.light,
+                true: Colors.primary + '80',
+              }}
               thumbColor={notifyEmail ? Colors.primary : Colors.neutral.medium}
             />
           </View>
-          <Text style={styles.hint}>We will use these preferences when sending due task reminders.</Text>
+          <Text style={styles.hint}>
+            We will use these preferences when sending due task reminders.
+          </Text>
         </View>
 
         <TouchableOpacity style={styles.saveBtn} onPress={save}>
@@ -150,21 +294,99 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '700', color: Colors.neutral.dark },
   subtitle: { fontSize: 13, color: Colors.neutral.medium, marginTop: 4 },
   content: { padding: 16, gap: 16 },
-  card: { backgroundColor: Colors.neutral.white, borderRadius: 12, padding: 16, gap: 12, borderWidth: 1, borderColor: Colors.neutral.light },
+  card: {
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+  },
   cardTitle: { fontSize: 16, fontWeight: '700', color: Colors.neutral.dark },
   row: { flexDirection: 'row', gap: 12 },
   inputGroup: { flex: 1 },
   label: { fontSize: 12, color: Colors.neutral.medium, marginBottom: 6 },
-  input: { borderWidth: 1, borderColor: Colors.neutral.light, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10, backgroundColor: Colors.neutral.light + '20' },
-  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
+  input: {
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    backgroundColor: Colors.neutral.light + '20',
+  },
+  permissionSection: { gap: 12, marginBottom: 12 },
+  permissionStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    backgroundColor: Colors.neutral.light + '20',
+    borderRadius: 8,
+  },
+  permissionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.neutral.dark,
+  },
+  permissionSubtext: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    marginTop: 2,
+  },
+  permissionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  permissionButtonText: {
+    color: Colors.neutral.white,
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  settingsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary + '10',
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
+  },
+  settingsButtonText: {
+    color: Colors.primary,
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.neutral.light + '40',
+    marginVertical: 8,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
   switchItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   switchLabel: { fontSize: 14, color: Colors.neutral.dark },
   hint: { fontSize: 11, color: Colors.neutral.medium, marginTop: 6 },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10 },
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
   saveText: { color: Colors.neutral.white, fontWeight: '700' },
 });
 
 export default PersonalSettingsScreen;
-
-
-

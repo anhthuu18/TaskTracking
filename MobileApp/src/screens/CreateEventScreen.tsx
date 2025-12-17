@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,290 +8,622 @@ import {
   StatusBar,
   ScrollView,
   Modal,
-  Dimensions,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { ScreenLayout, ButtonStyles, Typography } from '../constants/Dimensions';
-import { ProjectMember } from '../types/Project';
+import {
+  ScreenLayout,
+  ButtonStyles,
+  Typography,
+} from '../constants/Dimensions';
 import { useToastContext } from '../context/ToastContext';
+import { projectService } from '../services/projectService';
+import { workspaceService } from '../services/workspaceService';
+import { eventService } from '../services/eventService';
+
+// Custom Date Picker Modal Component
+const CustomDatePickerModal = ({
+  visible,
+  onClose,
+  onConfirm,
+  initialDate,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onConfirm: (date: Date) => void;
+  initialDate: Date;
+}) => {
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [displayMonth, setDisplayMonth] = useState(initialDate.getMonth());
+  const [displayYear, setDisplayYear] = useState(initialDate.getFullYear());
+
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
+  const handleMonthChange = (direction: 'prev' | 'next') => {
+    let newMonth = displayMonth;
+    let newYear = displayYear;
+
+    if (direction === 'prev') {
+      newMonth -= 1;
+      if (newMonth < 0) {
+        newMonth = 11;
+        newYear -= 1;
+      }
+    } else {
+      newMonth += 1;
+      if (newMonth > 11) {
+        newMonth = 0;
+        newYear += 1;
+      }
+    }
+    setDisplayMonth(newMonth);
+    setDisplayYear(newYear);
+  };
+
+  const renderCalendarDays = () => {
+    const daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
+    const firstDayOfMonth = new Date(displayYear, displayMonth, 1).getDay();
+    const calendarDays = [] as React.ReactNode[];
+
+    for (let i = 0; i < firstDayOfMonth; i++) {
+      calendarDays.push(
+        <View key={`empty-start-${i}`} style={styles.calendarDay} />,
+      );
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isSelected =
+        day === selectedDate.getDate() &&
+        displayMonth === selectedDate.getMonth() &&
+        displayYear === selectedDate.getFullYear();
+
+      calendarDays.push(
+        <TouchableOpacity
+          key={day}
+          style={[styles.calendarDay, isSelected && styles.calendarDaySelected]}
+          onPress={() =>
+            setSelectedDate(new Date(displayYear, displayMonth, day))
+          }
+        >
+          <Text
+            style={[
+              styles.calendarDayText,
+              isSelected && styles.calendarDayTextSelected,
+            ]}
+          >
+            {day}
+          </Text>
+        </TouchableOpacity>,
+      );
+    }
+
+    return calendarDays;
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.datePickerContainer}>
+          <View style={styles.calendarHeader}>
+            <TouchableOpacity
+              onPress={() => handleMonthChange('prev')}
+              style={styles.navButton}
+            >
+              <MaterialIcons
+                name="chevron-left"
+                size={24}
+                color={Colors.text}
+              />
+            </TouchableOpacity>
+            <Text style={styles.calendarTitle}>
+              {monthNames[displayMonth]} {displayYear}
+            </Text>
+            <TouchableOpacity
+              onPress={() => handleMonthChange('next')}
+              style={styles.navButton}
+            >
+              <MaterialIcons
+                name="chevron-right"
+                size={24}
+                color={Colors.text}
+              />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.calendarWeekDays}>
+            {daysOfWeek.map(day => (
+              <Text key={day} style={styles.calendarDayHeader}>
+                {day}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.calendarGrid}>{renderCalendarDays()}</View>
+
+          <View style={styles.datePickerFooter}>
+            <TouchableOpacity style={styles.datePickerButton} onPress={onClose}>
+              <Text style={styles.datePickerButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.datePickerButton, styles.datePickerConfirmButton]}
+              onPress={() => onConfirm(selectedDate)}
+            >
+              <Text
+                style={[
+                  styles.datePickerButtonText,
+                  styles.datePickerConfirmButtonText,
+                ]}
+              >
+                OK
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 interface CreateEventScreenProps {
   navigation: any;
   route?: any;
 }
 
-const CreateEventScreen: React.FC<CreateEventScreenProps> = ({ navigation, route }) => {
-  const { projectMembers = [], projectId } = route?.params || {};
+interface Project {
+  id: number;
+  projectName: string;
+  workspaceId: number;
+}
+
+const CreateEventScreen: React.FC<CreateEventScreenProps> = ({
+  navigation,
+  route,
+}) => {
   const { showSuccess, showError } = useToastContext();
-  
+  const [loading, setLoading] = useState(false);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+
+  // Form fields
   const [eventName, setEventName] = useState('');
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [link, setLink] = useState('');
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [selectedHour, setSelectedHour] = useState('10');
-  const [selectedMinute, setSelectedMinute] = useState('00');
-  const [showTimePickerModal, setShowTimePickerModal] = useState(false);
-  const [showMembersDropdown, setShowMembersDropdown] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [dateValue, setDateValue] = useState(new Date());
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [description, setDescription] = useState('');
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
-  const handleBack = () => {
-    navigation.goBack();
+  // Initialize dates and times with defaults (9 AM to 9 PM)
+  const getDefaultStartTime = () => {
+    const date = new Date();
+    date.setHours(9, 0, 0, 0); // 9:00 AM
+    return date;
   };
 
-  const formatDateToString = (date: Date) => {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
+  const getDefaultEndTime = () => {
+    const date = new Date();
+    date.setHours(21, 0, 0, 0); // 9:00 PM
+    return date;
   };
 
-  const formatDateToDisplayString = (date: Date) => {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
+  const [startDate, setStartDate] = useState(new Date());
+  const [startTime, setStartTime] = useState(getDefaultStartTime());
+  const [endDate, setEndDate] = useState(new Date());
+  const [endTime, setEndTime] = useState(getDefaultEndTime());
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
-  const getMonthName = (month: number) => {
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    return months[month];
-  };
+  // Project selection
+  const [projects, setProjects] = useState<
+    Array<Project & { workspaceType?: string }>
+  >([]);
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
 
-  const getDaysInMonth = (month: number, year: number) => {
-    return new Date(year, month + 1, 0).getDate();
-  };
+  // Load user's projects
+  useEffect(() => {
+    loadProjects();
+  }, []);
 
-  const getFirstDayOfMonth = (month: number, year: number) => {
-    return new Date(year, month, 1).getDay();
-  };
+  const loadProjects = async () => {
+    try {
+      setLoadingProjects(true);
+      console.log('CreateEventScreen: Loading all projects');
 
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    if (direction === 'prev') {
-      if (currentMonth === 0) {
-        setCurrentMonth(11);
-        setCurrentYear(currentYear - 1);
+      // Get ALL projects from backend (from all workspaces)
+      const response = await projectService.getAllProjects();
+      console.log('CreateEventScreen: All projects response:', response);
+
+      if (response.success && response.data) {
+        // Fetch workspace details for each project to get workspace type
+        const projectsWithType = await Promise.all(
+          response.data.map(async (project: any) => {
+            try {
+              // Get workspace info if available
+              if (project.workspace || project.workspaceId) {
+                const wsId = project.workspace?.id || project.workspaceId;
+                const workspaceDetails =
+                  await workspaceService.getWorkspaceDetails(wsId);
+                const workspaceType =
+                  workspaceDetails?.data?.workspaceType ||
+                  workspaceDetails?.data?.type ||
+                  'PERSONAL';
+                return {
+                  ...project,
+                  workspaceType,
+                };
+              }
+              return {
+                ...project,
+                workspaceType: 'PERSONAL',
+              };
+            } catch (error) {
+              console.error('Error fetching workspace details:', error);
+              return {
+                ...project,
+                workspaceType: 'PERSONAL',
+              };
+            }
+          }),
+        );
+
+        console.log(
+          'CreateEventScreen: Projects with workspace types:',
+          projectsWithType,
+        );
+        setProjects(projectsWithType);
+
+        // Pre-select project if passed from route
+        if (route?.params?.projectId) {
+          const preselected = projectsWithType.find(
+            (p: any) => p.id === parseInt(route.params.projectId, 10),
+          );
+          if (preselected) {
+            setSelectedProject(preselected);
+          }
+        }
       } else {
-        setCurrentMonth(currentMonth - 1);
+        console.log('CreateEventScreen: No projects found or API error');
+        setProjects([]);
       }
-    } else {
-      if (currentMonth === 11) {
-        setCurrentMonth(0);
-        setCurrentYear(currentYear + 1);
-      } else {
-        setCurrentMonth(currentMonth + 1);
-      }
+    } catch (error) {
+      console.error('CreateEventScreen: Error loading projects:', error);
+      showError('Failed to load projects');
+      setProjects([]);
+    } finally {
+      setLoadingProjects(false);
     }
-  };
-
-  const handleDatePickerToggle = () => {
-    const today = new Date();
-    setDateValue(today);
-    setCurrentMonth(today.getMonth());
-    setCurrentYear(today.getFullYear());
-    setShowDatePicker(true);
-    // Close other dropdowns
-    setShowMembersDropdown(false);
-  };
-
-  const handleTimePickerToggle = () => {
-    setShowTimePickerModal(true);
-    // Close other dropdowns
-    setShowMembersDropdown(false);
-    setShowDatePicker(false);
-  };
-
-  const handleTimeConfirm = () => {
-    setTime(`${selectedHour}:${selectedMinute}`);
-    setShowTimePickerModal(false);
-  };
-
-  const handleTimeCancel = () => {
-    setShowTimePickerModal(false);
-  };
-
-  const renderCalendarDays = (selectedDate: Date, month: number, year: number, onDateSelect: (date: Date) => void) => {
-    const daysInMonth = getDaysInMonth(month, year);
-    const firstDay = getFirstDayOfMonth(month, year);
-    const days = [];
-    
-    // Add empty cells for days before the first day of the month
-    for (let i = 0; i < firstDay; i++) {
-      days.push(
-        <View key={`empty-${i}`} style={styles.calendarDay} />
-      );
-    }
-    
-    // Add days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      const isSelected = selectedDate.getDate() === day && 
-                        selectedDate.getMonth() === month && 
-                        selectedDate.getFullYear() === year;
-      const today = new Date();
-      const isToday = today.getDate() === day && 
-                     today.getMonth() === month && 
-                     today.getFullYear() === year;
-      
-      days.push(
-        <TouchableOpacity
-          key={day}
-          style={[
-            styles.calendarDay,
-            isToday && styles.calendarDayToday,
-            isSelected && styles.calendarDaySelected
-          ]}
-          onPress={() => {
-            const newDate = new Date(year, month, day);
-            onDateSelect(newDate);
-          }}
-        >
-          <Text style={[
-            styles.calendarDayText,
-            isToday && styles.calendarDayTextToday,
-            isSelected && styles.calendarDayTextSelected
-          ]}>
-            {day}
-          </Text>
-        </TouchableOpacity>
-      );
-    }
-    
-    // Add empty cells to fill the remaining space (always 42 cells total)
-    const totalCells = 42;
-    const remainingCells = totalCells - days.length;
-    for (let i = 0; i < remainingCells; i++) {
-      days.push(
-        <View key={`empty-end-${i}`} style={styles.calendarDay} />
-      );
-    }
-    
-    return days;
-  };
-
-  const validateForm = () => {
-    const newErrors: {[key: string]: string} = {};
-    
-    if (!eventName.trim()) {
-      newErrors.eventName = 'Event name is required';
-    }
-
-    if (!date.trim()) {
-      newErrors.date = 'Date is required';
-    }
-
-    if (!validateDateFormat(date)) {
-      newErrors.date = 'Please enter date in format: dd/mm/yyyy (e.g., 15/12/2024)';
-    }
-
-    if (!time.trim()) {
-      newErrors.time = 'Time is required';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const validateDateFormat = (dateStr: string) => {
-    const regex = /^\d{2}\/\d{2}\/\d{4}$/;
-    return regex.test(dateStr);
   };
 
   const handleCreateEvent = async () => {
-    if (!validateForm()) {
+    // Validation
+    if (!eventName.trim()) {
+      showError('Please enter event name');
+      return;
+    }
+
+    if (!selectedProject) {
+      showError('Please select a project');
+      return;
+    }
+
+    // Combine date and time for start and end
+    const combinedStartDate = new Date(startDate);
+    combinedStartDate.setHours(
+      startTime.getHours(),
+      startTime.getMinutes(),
+      0,
+      0,
+    );
+
+    const combinedEndDate = new Date(endDate);
+    combinedEndDate.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0);
+
+    if (combinedEndDate <= combinedStartDate) {
+      showError('End time must be after start time');
       return;
     }
 
     try {
-      setIsLoading(true);
-      
+      setLoading(true);
+
+      // Check token before making request
+      const token = await AsyncStorage.getItem('authToken');
+      console.log('CreateEventScreen: Token exists:', !!token);
+
+      if (!token) {
+        showError('Authentication error. Please login again.');
+        return;
+      }
+
       const eventData = {
-        name: eventName.trim(),
-        description: '',
-        startDate: new Date(), // Will be parsed from date string
-        endDate: new Date(), // Will be parsed from date string
-        includeTime: true,
-        startTime: time,
-        endTime: time,
-        location: '',
-        assignedMembers: selectedMembers,
-        memberIds: selectedMembers.map(id => Number(id)).filter(n => !isNaN(n)),
-        projectId: projectId || undefined,
+        eventName: eventName.trim(),
+        description: description.trim(),
+        projectId: selectedProject.id,
+        startTime: combinedStartDate.toISOString(),
+        endTime: combinedEndDate.toISOString(),
       };
 
-      // TODO: Implement actual event creation API call
-      // await eventService.createEvent(eventData);
-      
+      console.log('CreateEventScreen: Creating event with data:', eventData);
+
+      await eventService.createEvent(eventData);
+
       showSuccess('Event created successfully!');
       navigation.goBack();
     } catch (error: any) {
       console.error('Error creating event:', error);
-      showError(error.message || 'Failed to create event');
+      showError(error?.message || 'Failed to create event');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const getSelectedMembersDisplay = () => {
-    const selectedMemberObjects = projectMembers.filter((member: ProjectMember) => 
-      selectedMembers.includes(String(member.id))
+  const formatDateForDisplay = (date: Date | null) => {
+    if (!date) return '';
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const formatTimeForDisplay = (time: Date | null) => {
+    if (!time) return '';
+    return time.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const getSelectedProjectDisplay = () => {
+    if (!selectedProject) return 'Select project';
+    return selectedProject.projectName;
+  };
+
+  const renderProjectDropdownMenu = () => {
+    if (!showProjectDropdown) return null;
+    return (
+      <View style={styles.dropdownMenu}>
+        <ScrollView
+          style={styles.projectsScrollView}
+          nestedScrollEnabled={true}
+          showsVerticalScrollIndicator={true}
+          keyboardShouldPersistTaps="handled"
+          persistentScrollbar={true}
+        >
+          {projects.length > 0 ? (
+            projects.map(project => (
+              <TouchableOpacity
+                key={project.id}
+                style={styles.projectOption}
+                onPress={() => {
+                  setSelectedProject(project);
+                  setShowProjectDropdown(false);
+                }}
+              >
+                <View style={styles.projectInfo}>
+                  <View style={styles.projectIcon}>
+                    <MaterialIcons
+                      name="folder"
+                      size={20}
+                      color={Colors.primary}
+                    />
+                  </View>
+                  <View style={styles.projectDetails}>
+                    <Text style={styles.projectName}>
+                      {project.projectName}
+                    </Text>
+                    <View style={styles.projectMetaRow}>
+                      {project.workspaceType && (
+                        <View style={styles.workspaceTypeContainer}>
+                          <MaterialIcons
+                            name={
+                              project.workspaceType === 'GROUP'
+                                ? 'groups'
+                                : 'person'
+                            }
+                            size={12}
+                            color={Colors.neutral.medium}
+                          />
+                          <Text style={styles.workspaceTypeLabel}>
+                            {project.workspaceType === 'GROUP'
+                              ? 'Group'
+                              : 'Personal'}
+                          </Text>
+                        </View>
+                      )}
+                      {project.workspace?.workspaceName && (
+                        <Text style={styles.workspaceNameLabel}>
+                          • {project.workspace.workspaceName}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                </View>
+                {selectedProject?.id === project.id && (
+                  <View style={styles.checkbox}>
+                    <MaterialIcons
+                      name="check"
+                      size={20}
+                      color={Colors.primary}
+                    />
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.emptyProjectsContainer}>
+              <Text style={styles.emptyProjectsText}>
+                No projects available
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      </View>
     );
-    const totalSelected = selectedMemberObjects.length;
-    if (totalSelected === 0) {
-      return 'Select members';
-    }
-    
-    if (totalSelected <= 3) {
-      const names = selectedMemberObjects.map((m: ProjectMember) => m.user.username);
-      return names.join(', ');
-    }
-    
-    return `${totalSelected} members selected`;
   };
 
-  const toggleMember = (memberId: string) => {
-    if (selectedMembers.includes(memberId)) {
-      setSelectedMembers(selectedMembers.filter(id => id !== memberId));
-    } else {
-      setSelectedMembers([...selectedMembers, memberId]);
-    }
-  };
+  // Time Picker Modal Component
+  const TimePickerModal = ({
+    visible,
+    onClose,
+    onConfirm,
+    initialTime,
+  }: {
+    visible: boolean;
+    onClose: () => void;
+    onConfirm: (time: Date) => void;
+    initialTime: Date;
+  }) => {
+    const [selectedHour, setSelectedHour] = useState(initialTime.getHours());
+    const [selectedMinute, setSelectedMinute] = useState(
+      initialTime.getMinutes(),
+    );
 
-  const handleTimeSelect = (hour: string, minute: string) => {
-    setSelectedHour(hour);
-    setSelectedMinute(minute);
-    setTime(`${hour}:${minute}`);
-    setShowTimePicker(false);
-  };
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const minutes = Array.from({ length: 60 }, (_, i) => i);
 
-  const hourOptions = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
-  const minuteOptions = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
+    const handleConfirm = () => {
+      const newTime = new Date(initialTime);
+      newTime.setHours(selectedHour, selectedMinute, 0, 0);
+      onConfirm(newTime);
+    };
+
+    return (
+      <Modal
+        visible={visible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={onClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.timePickerContainer}>
+            <Text style={styles.timePickerTitle}>Select Time</Text>
+            <View style={styles.timePickerContent}>
+              <View style={styles.timeColumn}>
+                <ScrollView style={styles.timeScrollView}>
+                  {hours.map(hour => (
+                    <TouchableOpacity
+                      key={hour}
+                      style={[
+                        styles.timeOption,
+                        selectedHour === hour && styles.timeOptionSelected,
+                      ]}
+                      onPress={() => setSelectedHour(hour)}
+                    >
+                      <Text
+                        style={[
+                          styles.timeOptionText,
+                          selectedHour === hour &&
+                            styles.timeOptionTextSelected,
+                        ]}
+                      >
+                        {hour.toString().padStart(2, '0')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+              <Text style={styles.timeSeparator}>:</Text>
+              <View style={styles.timeColumn}>
+                <ScrollView style={styles.timeScrollView}>
+                  {minutes.map(minute => (
+                    <TouchableOpacity
+                      key={minute}
+                      style={[
+                        styles.timeOption,
+                        selectedMinute === minute && styles.timeOptionSelected,
+                      ]}
+                      onPress={() => setSelectedMinute(minute)}
+                    >
+                      <Text
+                        style={[
+                          styles.timeOptionText,
+                          selectedMinute === minute &&
+                            styles.timeOptionTextSelected,
+                        ]}
+                      >
+                        {minute.toString().padStart(2, '0')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+            <View style={styles.timePickerFooter}>
+              <TouchableOpacity
+                style={styles.datePickerButton}
+                onPress={onClose}
+              >
+                <Text style={styles.datePickerButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.datePickerButton,
+                  styles.datePickerConfirmButton,
+                ]}
+                onPress={handleConfirm}
+              >
+                <Text
+                  style={[
+                    styles.datePickerButtonText,
+                    styles.datePickerConfirmButtonText,
+                  ]}
+                >
+                  OK
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      
+      <StatusBar
+        backgroundColor={Colors.neutral.white}
+        barStyle="dark-content"
+      />
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
           <MaterialIcons name="chevron-left" size={24} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Create event</Text>
         <View style={styles.headerSpacer} />
       </View>
 
-      {/* Content */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled={true}
+      >
         {/* Event Name */}
         <View style={styles.inputSection}>
           <Text style={styles.sectionLabel}>Name</Text>
@@ -300,133 +632,6 @@ const CreateEventScreen: React.FC<CreateEventScreenProps> = ({ navigation, route
             placeholder="Event name"
             value={eventName}
             onChangeText={setEventName}
-            style={[
-              styles.textInput,
-              errors.eventName && styles.textInputError
-            ]}
-            outlineStyle={[
-              styles.inputOutline,
-              errors.eventName && styles.inputOutlineError
-            ]}
-            theme={{
-              colors: {
-                primary: errors.eventName ? Colors.semantic.error : Colors.primary,
-                outline: errors.eventName ? Colors.semantic.error : Colors.neutral.light,
-                onSurface: Colors.text,
-              },
-            }}
-            left={
-              <TextInput.Icon 
-                icon={() => <MaterialIcons name="event" size={20} color={Colors.neutral.medium} />}
-              />
-            }
-          />
-          {errors.eventName && (
-            <Text style={styles.errorText}>{errors.eventName}</Text>
-          )}
-        </View>
-
-        {/* Add Member */}
-        <View style={styles.inputSection}>
-          <Text style={styles.sectionLabel}>Add member</Text>
-          <View style={styles.dropdownContainer}>
-            <TouchableOpacity
-              style={styles.dropdownButton}
-              onPress={() => setShowMembersDropdown(!showMembersDropdown)}
-            >
-              <View style={styles.dropdownContent}>
-                <MaterialIcons name="people" size={20} color={Colors.neutral.medium} />
-                <Text style={styles.dropdownText} numberOfLines={1}>
-                  {getSelectedMembersDisplay()}
-                </Text>
-              </View>
-              <MaterialIcons name={showMembersDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={24} color={Colors.neutral.medium} />
-            </TouchableOpacity>
-            {showMembersDropdown && (
-              <View style={styles.dropdownMenu}>
-                <ScrollView style={styles.membersScrollView} nestedScrollEnabled>
-                  {projectMembers.map((member: ProjectMember) => (
-                    <TouchableOpacity
-                      key={String(member.id)}
-                      style={styles.memberOption}
-                      onPress={() => toggleMember(String(member.id))}
-                    >
-                      <View style={styles.memberInfo}>
-                        <View style={styles.avatar}>
-                          <Text style={styles.avatarText}>
-                            {(member.user.username || member.user.email || 'U').charAt(0).toUpperCase()}
-                          </Text>
-                        </View>
-                        <View style={styles.memberDetails}>
-                          <Text style={styles.memberName}>
-                            {member.user.username || member.user.email}
-                          </Text>
-                          <Text style={styles.memberEmail}>
-                            {member.user.email}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={styles.checkbox}>
-                        {selectedMembers.includes(String(member.id)) && (
-                          <MaterialIcons name="check" size={20} color={Colors.primary} />
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* Date */}
-        <View style={styles.inputSection}>
-          <Text style={styles.sectionLabel}>Date</Text>
-          <TouchableOpacity
-            style={[styles.dateFieldButton, errors.date && styles.dateFieldButtonError]}
-            onPress={handleDatePickerToggle}
-          >
-            <View style={styles.dateFieldContent}>
-              <MaterialIcons name="calendar-today" size={20} color={Colors.neutral.medium} />
-              <Text style={styles.dateFieldText}>
-                {date || 'Select date'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-          {errors.date && (
-            <Text style={styles.errorText}>{errors.date}</Text>
-          )}
-        </View>
-
-        {/* Time */}
-        <View style={styles.inputSection}>
-          <Text style={styles.sectionLabel}>Time</Text>
-          <TouchableOpacity
-            style={[styles.timeFieldButton, errors.time && styles.timeFieldButtonError]}
-            onPress={handleTimePickerToggle}
-          >
-            <View style={styles.timeFieldContent}>
-              <MaterialIcons name="schedule" size={20} color={Colors.neutral.medium} />
-              <Text style={styles.timeFieldText}>
-                {time || 'Select time'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-          {errors.time && (
-            <Text style={styles.errorText}>{errors.time}</Text>
-          )}
-        </View>
-
-        {/* Link */}
-        <View style={styles.inputSection}>
-          <Text style={styles.sectionLabel}>Link</Text>
-          <TextInput
-            mode="outlined"
-            placeholder="Add Google Meet link or other meeting link"
-            value={link}
-            onChangeText={setLink}
-            keyboardType="url"
-            autoCapitalize="none"
             style={styles.textInput}
             outlineStyle={styles.inputOutline}
             theme={{
@@ -437,219 +642,237 @@ const CreateEventScreen: React.FC<CreateEventScreenProps> = ({ navigation, route
               },
             }}
             left={
-              <TextInput.Icon 
-                icon={() => <MaterialIcons name="link" size={20} color={Colors.neutral.medium} />}
+              <TextInput.Icon
+                icon={() => (
+                  <MaterialIcons
+                    name="event"
+                    size={20}
+                    color={Colors.neutral.medium}
+                  />
+                )}
               />
             }
           />
         </View>
 
+        {/* Project Selection */}
+        <View style={styles.inputSection}>
+          <Text style={styles.sectionLabel}>Project</Text>
+          <View style={styles.dropdownContainer}>
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => setShowProjectDropdown(!showProjectDropdown)}
+              disabled={loadingProjects}
+            >
+              <View style={styles.dropdownContent}>
+                <MaterialIcons
+                  name="folder"
+                  size={20}
+                  color={Colors.neutral.medium}
+                />
+                <Text style={styles.dropdownText} numberOfLines={1}>
+                  {loadingProjects
+                    ? 'Loading projects...'
+                    : getSelectedProjectDisplay()}
+                </Text>
+              </View>
+              {loadingProjects ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <MaterialIcons
+                  name={
+                    showProjectDropdown
+                      ? 'keyboard-arrow-up'
+                      : 'keyboard-arrow-down'
+                  }
+                  size={24}
+                  color={Colors.neutral.medium}
+                />
+              )}
+            </TouchableOpacity>
+            {renderProjectDropdownMenu()}
+          </View>
+        </View>
+
+        {/* Start Date & Time */}
+        <View style={styles.inputSection}>
+          <Text style={styles.sectionLabel}>Start date & time</Text>
+          <View style={styles.dateTimeRow}>
+            <TouchableOpacity
+              style={[styles.dateFieldButton, styles.dateFieldHalf]}
+              onPress={() => setShowStartDatePicker(true)}
+            >
+              <View style={styles.dateFieldContent}>
+                <MaterialIcons
+                  name="calendar-today"
+                  size={18}
+                  color={Colors.neutral.medium}
+                />
+                <Text style={styles.dateFieldText}>
+                  {formatDateForDisplay(startDate)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.dateFieldButton, styles.timeFieldHalf]}
+              onPress={() => setShowStartTimePicker(true)}
+            >
+              <View style={styles.dateFieldContent}>
+                <MaterialIcons
+                  name="access-time"
+                  size={18}
+                  color={Colors.neutral.medium}
+                />
+                <Text style={styles.dateFieldText}>
+                  {formatTimeForDisplay(startTime)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* End Date & Time */}
+        <View style={styles.inputSection}>
+          <Text style={styles.sectionLabel}>Due date & time</Text>
+          <View style={styles.dateTimeRow}>
+            <TouchableOpacity
+              style={[styles.dateFieldButton, styles.dateFieldHalf]}
+              onPress={() => setShowEndDatePicker(true)}
+            >
+              <View style={styles.dateFieldContent}>
+                <MaterialIcons
+                  name="calendar-today"
+                  size={18}
+                  color={Colors.neutral.medium}
+                />
+                <Text style={styles.dateFieldText}>
+                  {formatDateForDisplay(endDate)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.dateFieldButton, styles.timeFieldHalf]}
+              onPress={() => setShowEndTimePicker(true)}
+            >
+              <View style={styles.dateFieldContent}>
+                <MaterialIcons
+                  name="access-time"
+                  size={18}
+                  color={Colors.neutral.medium}
+                />
+                <Text style={styles.dateFieldText}>
+                  {formatTimeForDisplay(endTime)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Description */}
+        <View style={styles.inputSection}>
+          <Text style={styles.sectionLabel}>Description</Text>
+          <TextInput
+            mode="outlined"
+            placeholder="Event description"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={3}
+            style={[styles.textInput, styles.multilineTextInput]}
+            outlineStyle={styles.inputOutline}
+            contentStyle={styles.multilineContent}
+            theme={{
+              colors: {
+                primary: Colors.primary,
+                outline: Colors.neutral.light,
+                onSurface: Colors.text,
+              },
+            }}
+            left={
+              <TextInput.Icon
+                icon={() => (
+                  <MaterialIcons
+                    name="description"
+                    size={20}
+                    color={Colors.neutral.medium}
+                  />
+                )}
+              />
+            }
+          />
+        </View>
       </ScrollView>
-
-      {/* Date Picker Modal */}
-      {showDatePicker && (
-        <Modal
-          visible={showDatePicker}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={() => {
-            console.log('Modal onRequestClose called');
-            setShowDatePicker(false);
-          }}
-        >
-          <View style={styles.datePickerOverlay}>
-            <View style={styles.datePickerContainer}>
-              {/* Header with selected date and buttons */}
-              <View style={[styles.datePickerHeader, styles.datePickerHeaderOverride]}>
-                <Text style={styles.datePickerSelectedText}>
-                  {formatDateToDisplayString(dateValue)}
-                </Text>
-                <View style={styles.headerButtons}>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      console.log('Cancel button pressed');
-                      setShowDatePicker(false);
-                    }}
-                    style={styles.headerButton}
-                  >
-                    <Text style={styles.headerButtonText}>CANCEL</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      console.log('OK button pressed');
-                      setDate(formatDateToString(dateValue));
-                      setShowDatePicker(false);
-                    }}
-                    style={styles.headerButton}
-                  >
-                    <Text style={styles.headerButtonText}>OK</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              
-              {/* Calendar content */}
-              <View style={styles.datePickerContent}>
-                <View style={styles.calendarContainer}>
-                  <View style={styles.calendarNavigation}>
-                    <TouchableOpacity 
-                      onPress={() => navigateMonth('prev')}
-                      style={styles.navButton}
-                    >
-                      <MaterialIcons name="chevron-left" size={24} color={Colors.text} />
-                    </TouchableOpacity>
-                    <Text style={styles.calendarTitle}>
-                      {getMonthName(currentMonth)} {currentYear}
-                    </Text>
-                    <TouchableOpacity 
-                      onPress={() => navigateMonth('next')}
-                      style={styles.navButton}
-                    >
-                      <MaterialIcons name="chevron-right" size={24} color={Colors.text} />
-                    </TouchableOpacity>
-                  </View>
-                  
-                  <View style={styles.calendarGrid}>
-                    <View style={styles.calendarHeader}>
-                      <Text style={styles.calendarDayHeader}>S</Text>
-                      <Text style={styles.calendarDayHeader}>M</Text>
-                      <Text style={styles.calendarDayHeader}>T</Text>
-                      <Text style={styles.calendarDayHeader}>W</Text>
-                      <Text style={styles.calendarDayHeader}>T</Text>
-                      <Text style={styles.calendarDayHeader}>F</Text>
-                      <Text style={styles.calendarDayHeader}>S</Text>
-                    </View>
-                    <View style={styles.calendarDays}>
-                      {renderCalendarDays(dateValue, currentMonth, currentYear, (newDate) => setDateValue(newDate))}
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {/* Time Picker Modal */}
-      {showTimePickerModal && (
-        <Modal
-          visible={showTimePickerModal}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={() => {
-            console.log('Time Modal onRequestClose called');
-            setShowTimePickerModal(false);
-          }}
-        >
-          <View style={styles.timePickerOverlay}>
-            <View style={styles.timePickerContainer}>
-              {/* Header with selected time and buttons */}
-              <View style={[styles.timePickerHeader, styles.timePickerHeaderOverride]}>
-                <Text style={styles.timePickerSelectedText}>
-                  {selectedHour}:{selectedMinute}
-                </Text>
-                <View style={styles.headerButtons}>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      console.log('Time Cancel button pressed');
-                      setShowTimePickerModal(false);
-                    }}
-                    style={styles.headerButton}
-                  >
-                    <Text style={styles.headerButtonText}>CANCEL</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      console.log('Time OK button pressed');
-                      handleTimeConfirm();
-                    }}
-                    style={styles.headerButton}
-                  >
-                    <Text style={styles.headerButtonText}>OK</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              
-              {/* Time picker content */}
-              <View style={styles.timePickerContent}>
-                <View style={styles.timePickerColumns}>
-                  <View style={styles.timeColumn}>
-                    <Text style={styles.timeColumnTitle}>Hour</Text>
-                    <ScrollView style={styles.timeScrollView} nestedScrollEnabled>
-                      {hourOptions.map((hour) => (
-                        <TouchableOpacity
-                          key={hour}
-                          style={[
-                            styles.timeOption,
-                            selectedHour === hour && styles.selectedTimeOption
-                          ]}
-                          onPress={() => setSelectedHour(hour)}
-                        >
-                          <Text style={[
-                            styles.timeOptionText,
-                            selectedHour === hour && styles.selectedTimeOptionText
-                          ]}>
-                            {hour}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                  
-                  <View style={styles.timeColumn}>
-                    <Text style={styles.timeColumnTitle}>Minute</Text>
-                    <ScrollView style={styles.timeScrollView} nestedScrollEnabled>
-                      {minuteOptions.map((minute) => (
-                        <TouchableOpacity
-                          key={minute}
-                          style={[
-                            styles.timeOption,
-                            selectedMinute === minute && styles.selectedTimeOption
-                          ]}
-                          onPress={() => setSelectedMinute(minute)}
-                        >
-                          <Text style={[
-                            styles.timeOptionText,
-                            selectedMinute === minute && styles.selectedTimeOptionText
-                          ]}>
-                            {minute}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
 
       {/* Create Button */}
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={[styles.createButton, isLoading && styles.createButtonDisabled]}
+        <TouchableOpacity
+          style={[styles.createButton, loading && styles.createButtonDisabled]}
           onPress={handleCreateEvent}
-          disabled={isLoading}
+          disabled={loading}
         >
-          <Text style={[styles.createButtonText, isLoading && styles.createButtonTextDisabled]}>
-            {isLoading ? 'Creating...' : 'Create'}
-          </Text>
+          {loading ? (
+            <ActivityIndicator size="small" color={Colors.surface} />
+          ) : (
+            <Text style={styles.createButtonText}>Create event</Text>
+          )}
         </TouchableOpacity>
-        
-        {/* Error Message */}
-        {errors.general && (
-          <Text style={styles.errorText}>{errors.general}</Text>
-        )}
       </View>
+
+      {/* Date Picker Modals */}
+      {showStartDatePicker && (
+        <CustomDatePickerModal
+          visible={showStartDatePicker}
+          initialDate={startDate}
+          onConfirm={date => {
+            setShowStartDatePicker(false);
+            setStartDate(date);
+          }}
+          onClose={() => setShowStartDatePicker(false)}
+        />
+      )}
+
+      {showEndDatePicker && (
+        <CustomDatePickerModal
+          visible={showEndDatePicker}
+          initialDate={endDate}
+          onConfirm={date => {
+            setShowEndDatePicker(false);
+            setEndDate(date);
+          }}
+          onClose={() => setShowEndDatePicker(false)}
+        />
+      )}
+
+      {/* Time Picker Modals */}
+      {showStartTimePicker && (
+        <TimePickerModal
+          visible={showStartTimePicker}
+          initialTime={startTime}
+          onConfirm={time => {
+            setShowStartTimePicker(false);
+            setStartTime(time);
+          }}
+          onClose={() => setShowStartTimePicker(false)}
+        />
+      )}
+
+      {showEndTimePicker && (
+        <TimePickerModal
+          visible={showEndTimePicker}
+          initialTime={endTime}
+          onConfirm={time => {
+            setShowEndTimePicker(false);
+            setEndTime(time);
+          }}
+          onClose={() => setShowEndTimePicker(false)}
+        />
+      )}
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -659,55 +882,34 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral.light,
   },
-  backButton: {
-    padding: 8,
-    width: 44,
-    height: 44,
-  },
+  backButton: { padding: 8, marginLeft: -8 },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '600',
     color: Colors.text,
     flex: 1,
     textAlign: 'center',
-    marginRight: 44, // Compensate for back button width
+    marginRight: 36,
   },
-  headerSpacer: {
-    width: 44,
-  },
+  headerSpacer: { width: 36 },
   content: {
     flex: 1,
     paddingHorizontal: ScreenLayout.contentHorizontalPadding,
-    paddingTop: ScreenLayout.contentTopSpacing,
+    paddingTop: 12,
   },
-  inputSection: {
-    marginBottom: 24,
-  },
+  inputSection: { marginBottom: 16 },
   sectionLabel: {
     fontSize: 16,
     fontWeight: '600',
     color: Colors.text,
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  textInput: {
-    backgroundColor: Colors.background,
-    fontSize: 16,
-  },
-  inputOutline: {
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  textInputError: {
-    backgroundColor: Colors.background,
-  },
-  inputOutlineError: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.semantic.error,
-  },
-  dropdownContainer: {
-    position: 'relative',
-  },
+  textInput: { backgroundColor: Colors.background, fontSize: 16 },
+  inputOutline: { borderRadius: 12, borderWidth: 1 },
+  multilineTextInput: { minHeight: 80, textAlignVertical: 'top' },
+  multilineContent: { paddingTop: 12 },
+
+  dropdownContainer: { position: 'relative', zIndex: 10000 },
   dropdownButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -719,20 +921,13 @@ const styles = StyleSheet.create({
     borderColor: Colors.neutral.light,
     backgroundColor: Colors.background,
   },
-  dropdownButtonError: {
-    borderColor: Colors.semantic.error,
-  },
   dropdownContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     flex: 1,
   },
-  dropdownText: {
-    fontSize: 16,
-    color: Colors.text,
-    flex: 1,
-  },
+  dropdownText: { fontSize: 16, color: Colors.text, flex: 1 },
   dropdownMenu: {
     position: 'absolute',
     top: '100%',
@@ -742,207 +937,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.neutral.light,
-    paddingVertical: 8,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    zIndex: 1000,
-    maxHeight: 300,
-  },
-  dropdownScrollView: {
-    maxHeight: 300,
-  },
-  dropdownOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  dropdownOptionText: {
-    fontSize: 16,
-    color: Colors.text,
-  },
-  dropdownOptionTextSelected: {
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  membersScrollView: {
-    maxHeight: 200,
-  },
-  memberOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.light + '50',
-  },
-  memberInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  avatarText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.surface,
-  },
-  memberDetails: {
-    flex: 1,
-  },
-  memberName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: Colors.neutral.dark,
-  },
-  memberEmail: {
-    fontSize: 14,
-    color: Colors.neutral.medium,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  timePickerMenu: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    right: 0,
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    zIndex: 2000,
-  },
-  timePickerContent: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    flex: 1,
-  },
-  timeColumn: {
-    flex: 1,
-    marginHorizontal: 4,
-  },
-  timeColumnTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.neutral.dark,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  timeScrollView: {
-    maxHeight: 200,
-  },
-  timeOption: {
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    borderRadius: 4,
-    marginVertical: 1,
-  },
-  selectedTimeOption: {
-    backgroundColor: Colors.primary + '20',
-  },
-  timeOptionText: {
-    fontSize: 16,
-    color: Colors.neutral.dark,
-  },
-  selectedTimeOptionText: {
-    color: Colors.primary,
-    fontWeight: '500',
-  },
-  timePickerActions: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutral.light,
-    gap: 12,
-  },
-  timePickerCancelButton: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  timePickerCancelText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.neutral.dark,
-  },
-  timePickerConfirmButton: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  timePickerConfirmText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.surface,
-  },
-  errorText: {
-    color: Colors.semantic.error,
-    fontSize: 12,
     marginTop: 4,
-    marginLeft: 12,
+    maxHeight: 250,
+    elevation: 12,
+    zIndex: 9999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    maxHeight: 300,
   },
-  footer: {
-    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
-    paddingBottom: ScreenLayout.footerBottomSpacing,
-    paddingTop: 24,
+
+  dateTimeRow: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  createButton: {
-    backgroundColor: Colors.primary,
-    ...ButtonStyles.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    shadowColor: Colors.primary,
-  },
-  createButtonDisabled: {
-    backgroundColor: Colors.neutral.medium,
-  },
-  createButtonText: {
-    ...Typography.buttonText,
-    color: Colors.neutral.white,
-  },
-  createButtonTextDisabled: {
-    color: Colors.neutral.medium,
-  },
-  // Date Picker Styles
   dateFieldButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -953,109 +962,76 @@ const styles = StyleSheet.create({
     borderColor: Colors.neutral.light,
     backgroundColor: Colors.background,
   },
-  dateFieldButtonError: {
-    borderColor: Colors.semantic.error,
+  dateFieldHalf: {
+    flex: 1,
+  },
+  timeFieldHalf: {
+    flex: 0.8,
   },
   dateFieldContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
     flex: 1,
   },
-  dateFieldText: {
-    fontSize: 16,
-    color: Colors.text,
-    flex: 1,
+  dateFieldText: { fontSize: 14, color: Colors.text, flex: 1 },
+
+  footer: {
+    paddingHorizontal: ScreenLayout.contentHorizontalPadding,
+    paddingBottom: ScreenLayout.footerBottomSpacing,
+    paddingTop: 16,
   },
-  datePickerOverlay: {
+  createButton: {
+    backgroundColor: Colors.primary,
+    ...ButtonStyles.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    shadowColor: Colors.primary,
+  },
+  createButtonDisabled: { backgroundColor: Colors.neutral.medium },
+  createButtonText: { ...Typography.buttonText, color: Colors.neutral.white },
+
+  modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
+
+  // Date Picker Styles
   datePickerContainer: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
+    padding: 20,
     width: '90%',
-    maxWidth: 350,
-    height: 420,
-    elevation: 5,
-    shadowColor: Colors.neutral.dark,
+    maxWidth: 340,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  datePickerHeader: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  datePickerHeaderOverride: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  datePickerSelectedText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.surface,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  headerButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  headerButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.surface,
-  },
-  datePickerContent: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  calendarContainer: {
-    flex: 1,
-  },
-  calendarNavigation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  navButton: {
-    padding: 8,
-  },
-  calendarTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  calendarGrid: {
-    flex: 1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  navButton: { padding: 8 },
+  calendarTitle: { fontSize: 18, fontWeight: '600', color: Colors.text },
+  calendarWeekDays: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginBottom: 8,
   },
   calendarDayHeader: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.neutral.medium,
-    width: 40,
+    width: 32,
     textAlign: 'center',
+    color: Colors.neutral.medium,
+    fontWeight: '500',
   },
-  calendarDays: {
+  calendarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-around',
@@ -1065,96 +1041,165 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 2,
     borderRadius: 20,
   },
-  calendarDaySelected: {
-    backgroundColor: Colors.primary + '20',
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: Colors.primary,
+  calendarDaySelected: { backgroundColor: Colors.primary },
+  calendarDayText: { fontSize: 16, color: Colors.text },
+  calendarDayTextSelected: { color: Colors.surface, fontWeight: 'bold' },
+  datePickerFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 20,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral.light,
   },
-  calendarDayToday: {
-    backgroundColor: Colors.neutral.light,
-    borderRadius: 20,
+  datePickerButton: { paddingHorizontal: 20, paddingVertical: 10 },
+  datePickerConfirmButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    marginLeft: 8,
   },
-  calendarDayText: {
+  datePickerButtonText: {
     fontSize: 16,
-    color: Colors.text,
-  },
-  calendarDayTextSelected: {
-    color: Colors.primary,
     fontWeight: '600',
+    color: Colors.primary,
   },
-  calendarDayTextToday: {
-    color: Colors.neutral.dark,
-    fontWeight: '500',
-  },
-  // Time Picker Modal Styles
-  timeFieldButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.neutral.light,
-    backgroundColor: Colors.background,
-  },
-  timeFieldButtonError: {
-    borderColor: Colors.semantic.error,
-  },
-  timeFieldContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  timeFieldText: {
-    fontSize: 16,
-    color: Colors.text,
-    flex: 1,
-  },
-  timePickerOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  datePickerConfirmButtonText: { color: Colors.surface },
+
+  // Time Picker Styles
   timePickerContainer: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    width: '90%',
-    maxWidth: 350,
-    height: 320,
-    elevation: 5,
-    shadowColor: Colors.neutral.dark,
+    padding: 20,
+    width: '80%',
+    maxWidth: 300,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  timePickerHeader: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+  timePickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  timePickerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 200,
+  },
+  timeColumn: {
+    flex: 1,
+    height: 200,
+  },
+  timeScrollView: {
+    flex: 1,
+  },
+  timeOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  timeOptionSelected: {
+    backgroundColor: Colors.primary + '20',
+    borderRadius: 8,
+  },
+  timeOptionText: {
+    fontSize: 18,
+    color: Colors.text,
+  },
+  timeOptionTextSelected: {
+    color: Colors.primary,
+    fontWeight: 'bold',
+  },
+  timeSeparator: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginHorizontal: 8,
+  },
+  timePickerFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral.light,
+  },
+
+  // Project Modal Styles - Changed to dropdown
+  projectsScrollView: {
+    maxHeight: 200,
+  },
+  projectOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.light + '50',
   },
-  timePickerHeaderOverride: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  timePickerSelectedText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.surface,
-  },
-  timePickerColumns: {
+  projectInfo: {
     flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
+  },
+  projectIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: Colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  projectDetails: { flex: 1 },
+  projectName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: Colors.neutral.dark,
+    marginBottom: 4,
+  },
+  projectMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  workspaceTypeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  workspaceTypeLabel: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    marginLeft: 4,
+  },
+  workspaceNameLabel: {
+    fontSize: 12,
+    color: Colors.neutral.medium,
+    marginLeft: 4,
+  },
+  emptyProjectsContainer: {
+    paddingVertical: 32,
+    alignItems: 'center',
+  },
+  emptyProjectsText: {
+    fontSize: 14,
+    color: Colors.neutral.medium,
+    fontStyle: 'italic',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

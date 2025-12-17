@@ -13,21 +13,37 @@ import { CreateProjectModal, TaskCardModern } from '../components';
 import { Colors } from '../constants/Colors';
 import WorkspaceMembersTab from '../components/WorkspaceMembersTab';
 import InviteMemberModal from '../components/InviteMemberModal';
+import WorkspaceSettingsScreen from './WorkspaceSettingsScreen';
 
 import { projectService } from '../services/projectService';
 import { useToastContext } from '../context/ToastContext';
-
+import SettingsScreenExt from './SettingsScreen';
 
 const Tab = createBottomTabNavigator();
 
-const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highlightProjectId, onProjectCreated }: { navigation: any; route?: any; onInviteMember: () => void; reloadKey?: number; highlightProjectId?: number; onProjectCreated: (project: any, hasMembers: boolean) => void; }) => {
+const DashboardContent = ({
+  navigation,
+  route,
+  onInviteMember,
+  reloadKey,
+  highlightProjectId,
+  onProjectCreated,
+}: {
+  navigation: any;
+  route?: any;
+  onInviteMember: () => void;
+  reloadKey?: number;
+  highlightProjectId?: number;
+  onProjectCreated: (project: any, hasMembers: boolean) => void;
+}) => {
   const workspace = route?.params?.workspace;
-  const [selectedTab, setSelectedTab] = React.useState<'overview' | 'analytics' | 'members'>('overview');
+  const [selectedTab, setSelectedTab] = React.useState<
+    'overview' | 'analytics' | 'members'
+  >('overview');
   const [projects, setProjects] = useState<any[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [taskFilter, setTaskFilter] = useState<string>('all');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  
 
   useEffect(() => {
     if (workspace?.id) {
@@ -49,7 +65,7 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
       setLoadingProjects(true);
       const workspaceId = workspace?.id || 1;
       const response = await projectService.getProjectsByWorkspace(workspaceId);
-      
+
       if (response.success) {
         setProjects(response.data);
       } else {
@@ -57,7 +73,8 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
       }
     } catch (error) {
       console.error('Error loading projects:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Failed to load projects:', errorMessage);
       setProjects([]);
     } finally {
@@ -147,20 +164,22 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
   // Filter and sort tasks
   const getFilteredTasks = () => {
     let filtered = allTasks;
-    
+
     // Filter by project if not 'all'
     if (taskFilter !== 'all') {
       filtered = allTasks.filter(task => task.projectId === taskFilter);
     }
-    
+
     // Sort by due date (closest first)
-    filtered = filtered.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
-    
+    filtered = filtered.sort(
+      (a, b) => a.dueDate.getTime() - b.dueDate.getTime(),
+    );
+
     // Limit to 5 tasks for 'all' filter
     if (taskFilter === 'all') {
       filtered = filtered.slice(0, 5);
     }
-    
+
     return filtered;
   };
 
@@ -168,22 +187,30 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     if (date.toDateString() === today.toDateString()) {
       return 'Due: Today';
     } else if (date.toDateString() === tomorrow.toDateString()) {
       return 'Due: Tomorrow';
     } else {
-      return `Due: ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      return `Due: ${date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      })}`;
     }
   };
 
   return (
-  <View style={styles.tabContainer}>
+    <View style={styles.tabContainer}>
       {/* Search Section */}
       <View style={styles.searchSection}>
         <View style={styles.searchContainer}>
-          <MaterialIcons name="search" size={20} color={Colors.neutral.medium} style={styles.searchIcon} />
+          <MaterialIcons
+            name="search"
+            size={20}
+            color={Colors.neutral.medium}
+            style={styles.searchIcon}
+          />
           <Text style={styles.searchPlaceholder}>Search</Text>
         </View>
         <TouchableOpacity style={styles.filterButton}>
@@ -194,28 +221,52 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
       {/* Tab Section */}
       <View style={styles.tabSection}>
         <TouchableOpacity
-          style={[styles.tabButton, selectedTab === 'overview' && styles.activeTabButton]}
+          style={[
+            styles.tabButton,
+            selectedTab === 'overview' && styles.activeTabButton,
+          ]}
           onPress={() => setSelectedTab('overview')}
         >
-          <Text style={[styles.tabButtonText, selectedTab === 'overview' && styles.activeTabButtonText]}>
+          <Text
+            style={[
+              styles.tabButtonText,
+              selectedTab === 'overview' && styles.activeTabButtonText,
+            ]}
+          >
             Overview
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tabButton, selectedTab === 'analytics' && styles.activeTabButton]}
+          style={[
+            styles.tabButton,
+            selectedTab === 'analytics' && styles.activeTabButton,
+          ]}
           onPress={() => setSelectedTab('analytics')}
         >
-          <Text style={[styles.tabButtonText, selectedTab === 'analytics' && styles.activeTabButtonText]}>
+          <Text
+            style={[
+              styles.tabButtonText,
+              selectedTab === 'analytics' && styles.activeTabButtonText,
+            ]}
+          >
             Analytics
           </Text>
         </TouchableOpacity>
         {/* Only show Members tab for group workspaces */}
         {workspace?.type === 'group' && (
           <TouchableOpacity
-            style={[styles.tabButton, selectedTab === 'members' && styles.activeTabButton]}
+            style={[
+              styles.tabButton,
+              selectedTab === 'members' && styles.activeTabButton,
+            ]}
             onPress={() => setSelectedTab('members')}
           >
-            <Text style={[styles.tabButtonText, selectedTab === 'members' && styles.activeTabButtonText]}>
+            <Text
+              style={[
+                styles.tabButtonText,
+                selectedTab === 'members' && styles.activeTabButtonText,
+              ]}
+            >
               Members
             </Text>
           </TouchableOpacity>
@@ -223,7 +274,10 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
       </View>
 
       {/* Content based on selected tab */}
-      <ScrollView style={styles.contentContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         {selectedTab === 'overview' && (
           <View>
             {/* Projects Section */}
@@ -234,7 +288,7 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
                   <Text style={styles.newProjectButtonText}>+ New Project</Text>
                 </TouchableOpacity>
               </View>
-              
+
               {loadingProjects ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="small" color={Colors.primary} />
@@ -243,22 +297,33 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
               ) : projects.length > 0 ? (
                 <View style={styles.projectsList}>
                   {projects.slice(0, 2).map((project, index) => (
-                    <View key={project.id} style={[
-                      styles.projectCardSimple,
-                      index === 0 && styles.projectCardActive
-                    ]}>
+                    <View
+                      key={project.id}
+                      style={[
+                        styles.projectCardSimple,
+                        index === 0 && styles.projectCardActive,
+                      ]}
+                    >
                       <View style={styles.projectCardContent}>
                         <View style={styles.projectDot} />
-                        <Text style={styles.projectCardName}>{project.projectName}</Text>
+                        <Text style={styles.projectCardName}>
+                          {project.projectName}
+                        </Text>
                       </View>
                     </View>
                   ))}
                 </View>
               ) : (
                 <View style={styles.emptyProjectsContainer}>
-                  <MaterialIcons name="folder-open" size={48} color={Colors.neutral.light} />
+                  <MaterialIcons
+                    name="folder-open"
+                    size={48}
+                    color={Colors.neutral.light}
+                  />
                   <Text style={styles.emptyProjectsText}>No projects yet</Text>
-                  <Text style={styles.emptyProjectsSubtext}>Create your first project to get started</Text>
+                  <Text style={styles.emptyProjectsSubtext}>
+                    Create your first project to get started
+                  </Text>
                 </View>
               )}
             </View>
@@ -269,40 +334,53 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
                 <Text style={styles.sectionTitle}>Tasks</Text>
                 <View style={styles.taskButtonsContainer}>
                   <TouchableOpacity style={styles.aiScheduleButton}>
-                    <MaterialIcons name="auto-awesome" size={16} color={Colors.neutral.white} />
+                    <MaterialIcons
+                      name="auto-awesome"
+                      size={16}
+                      color={Colors.neutral.white}
+                    />
                     <Text style={styles.aiScheduleButtonText}>AI Schedule</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.newTaskButton}>
-                    <Text style={styles.newTaskButtonText}>+ New Task</Text>
+                    <MaterialIcons
+                      name="add"
+                      size={16}
+                      color={Colors.neutral.white}
+                    />
+                    <Text style={styles.newTaskButtonText}>New Task</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-              
+
               {getFilteredTasks().length === 0 ? (
                 <View style={styles.emptyTasksContainer}>
                   <Text style={styles.emptyTasksText}>No tasks yet</Text>
                   <TouchableOpacity style={styles.createFirstTaskButton}>
-                    <Text style={styles.createFirstTaskButtonText}>Create Your First Task</Text>
+                    <Text style={styles.createFirstTaskButtonText}>
+                      Create Your First Task
+                    </Text>
                   </TouchableOpacity>
                 </View>
               ) : (
                 <View style={styles.tasksList}>
-                  {getFilteredTasks().map((task) => (
+                  {getFilteredTasks().map(task => (
                     <TaskCardModern
                       key={task.id}
-                      task={{
-                        id: task.id,
-                        title: task.title,
-                        description: '',
-                        status: 'todo',
-                        priority: task.priority || 'medium',
-                        dueDate: task.dueDate,
-                        projectName: task.project,
-                        assigneeName: '',
-                        tags: [],
-                        estimatedHours: (task as any).estimatedHours,
-                        actualHours: (task as any).actualHours,
-                      } as any}
+                      task={
+                        {
+                          id: task.id,
+                          title: task.title,
+                          description: '',
+                          status: 'todo',
+                          priority: task.priority || 'medium',
+                          dueDate: task.dueDate,
+                          projectName: task.project,
+                          assigneeName: '',
+                          tags: [],
+                          estimatedHours: (task as any).estimatedHours,
+                          actualHours: (task as any).actualHours,
+                        } as any
+                      }
                       onPress={() => {
                         console.log('Task pressed:', task.id);
                       }}
@@ -314,40 +392,54 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
 
             {/* Project Filter Dropdown */}
             <View style={styles.filterContainer}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.filterDropdownButton}
                 onPress={() => setShowFilterDropdown(!showFilterDropdown)}
               >
-                <Text style={styles.filterDropdownText}>{getFilterTitle()}</Text>
-                <MaterialIcons 
-                  name={showFilterDropdown ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
-                  size={20} 
-                  color={Colors.neutral.medium} 
+                <Text style={styles.filterDropdownText}>
+                  {getFilterTitle()}
+                </Text>
+                <MaterialIcons
+                  name={
+                    showFilterDropdown
+                      ? 'keyboard-arrow-up'
+                      : 'keyboard-arrow-down'
+                  }
+                  size={20}
+                  color={Colors.neutral.medium}
                 />
               </TouchableOpacity>
-              
+
               {showFilterDropdown && (
                 <View style={styles.filterDropdownMenu}>
-                  {filterOptions.map((option) => (
+                  {filterOptions.map(option => (
                     <TouchableOpacity
                       key={option.id}
                       style={[
                         styles.filterDropdownItem,
-                        taskFilter === option.id && styles.activeFilterDropdownItem
+                        taskFilter === option.id &&
+                          styles.activeFilterDropdownItem,
                       ]}
                       onPress={() => {
                         setTaskFilter(option.id);
                         setShowFilterDropdown(false);
                       }}
                     >
-                      <Text style={[
-                        styles.filterDropdownItemText,
-                        taskFilter === option.id && styles.activeFilterDropdownItemText
-                      ]}>
+                      <Text
+                        style={[
+                          styles.filterDropdownItemText,
+                          taskFilter === option.id &&
+                            styles.activeFilterDropdownItemText,
+                        ]}
+                      >
                         {option.title}
                       </Text>
                       {taskFilter === option.id && (
-                        <MaterialIcons name="check" size={16} color={Colors.primary} />
+                        <MaterialIcons
+                          name="check"
+                          size={16}
+                          color={Colors.primary}
+                        />
                       )}
                     </TouchableOpacity>
                   ))}
@@ -356,24 +448,29 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
             </View>
 
             {/* Tasks List - Scrollable */}
-            <ScrollView style={styles.tasksScrollView} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.tasksScrollView}
+              showsVerticalScrollIndicator={false}
+            >
               <View style={styles.tasksList}>
-                {getFilteredTasks().map((task) => (
+                {getFilteredTasks().map(task => (
                   <TaskCardModern
                     key={task.id}
-                    task={{
-                      id: task.id,
-                      title: task.title,
-                      description: '',
-                      status: 'todo',
-                      priority: task.priority || 'medium',
-                      dueDate: task.dueDate,
-                      projectName: task.project,
-                      assigneeName: '',
-                      tags: [],
-                      estimatedHours: (task as any).estimatedHours,
-                      actualHours: (task as any).actualHours,
-                    } as any}
+                    task={
+                      {
+                        id: task.id,
+                        title: task.title,
+                        description: '',
+                        status: 'todo',
+                        priority: task.priority || 'medium',
+                        dueDate: task.dueDate,
+                        projectName: task.project,
+                        assigneeName: '',
+                        tags: [],
+                        estimatedHours: (task as any).estimatedHours,
+                        actualHours: (task as any).actualHours,
+                      } as any
+                    }
                     onPress={() => {
                       console.log('Task pressed:', task.id);
                     }}
@@ -386,11 +483,15 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
 
         {selectedTab === 'analytics' && (
           <View>
-              {/* Task Statistics Section */}
+            {/* Task Statistics Section */}
             <View style={styles.sectionContainer}>
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleRow}>
-                  <MaterialIcons name="analytics" size={20} color={Colors.accent} />
+                  <MaterialIcons
+                    name="analytics"
+                    size={20}
+                    color={Colors.accent}
+                  />
                   <Text style={styles.sectionTitle}>Task Statistics</Text>
                 </View>
               </View>
@@ -400,13 +501,22 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
                 <View style={styles.statsRow}>
                   <View style={styles.enhancedStatBlock}>
                     <View style={styles.statHeader}>
-                      <MaterialIcons name="assignment" size={20} color={Colors.primary} />
+                      <MaterialIcons
+                        name="assignment"
+                        size={20}
+                        color={Colors.primary}
+                      />
                       <Text style={styles.statTitle}>Total Tasks</Text>
                     </View>
                     <Text style={styles.statMainNumber}>48</Text>
                     <View style={styles.statProgress}>
                       <View style={styles.statProgressBar}>
-                        <View style={[styles.statProgressFill, { width: '75%', backgroundColor: Colors.primary }]} />
+                        <View
+                          style={[
+                            styles.statProgressFill,
+                            { width: '75%', backgroundColor: Colors.primary },
+                          ]}
+                        />
                       </View>
                       <Text style={styles.statProgressText}>75% Active</Text>
                     </View>
@@ -414,13 +524,22 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
 
                   <View style={styles.enhancedStatBlock}>
                     <View style={styles.statHeader}>
-                      <MaterialIcons name="check_circle" size={20} color={Colors.success} />
+                      <MaterialIcons
+                        name="check_circle"
+                        size={20}
+                        color={Colors.success}
+                      />
                       <Text style={styles.statTitle}>Completed</Text>
                     </View>
                     <Text style={styles.statMainNumber}>36</Text>
                     <View style={styles.statProgress}>
                       <View style={styles.statProgressBar}>
-                        <View style={[styles.statProgressFill, { width: '90%', backgroundColor: Colors.success }]} />
+                        <View
+                          style={[
+                            styles.statProgressFill,
+                            { width: '90%', backgroundColor: Colors.success },
+                          ]}
+                        />
                       </View>
                       <Text style={styles.statProgressText}>+12 this week</Text>
                     </View>
@@ -430,13 +549,22 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
                 <View style={styles.statsRow}>
                   <View style={styles.enhancedStatBlock}>
                     <View style={styles.statHeader}>
-                      <MaterialIcons name="schedule" size={20} color={Colors.warning} />
+                      <MaterialIcons
+                        name="schedule"
+                        size={20}
+                        color={Colors.warning}
+                      />
                       <Text style={styles.statTitle}>Due Soon</Text>
                     </View>
                     <Text style={styles.statMainNumber}>6</Text>
                     <View style={styles.statProgress}>
                       <View style={styles.statProgressBar}>
-                        <View style={[styles.statProgressFill, { width: '60%', backgroundColor: Colors.warning }]} />
+                        <View
+                          style={[
+                            styles.statProgressFill,
+                            { width: '60%', backgroundColor: Colors.warning },
+                          ]}
+                        />
                       </View>
                       <Text style={styles.statProgressText}>Next 7 days</Text>
                     </View>
@@ -444,45 +572,72 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
 
                   <View style={styles.enhancedStatBlock}>
                     <View style={styles.statHeader}>
-                      <MaterialIcons name="trending_up" size={20} color={Colors.accent} />
+                      <MaterialIcons
+                        name="trending_up"
+                        size={20}
+                        color={Colors.accent}
+                      />
                       <Text style={styles.statTitle}>Productivity</Text>
                     </View>
                     <Text style={styles.statMainNumber}>92%</Text>
                     <View style={styles.statProgress}>
                       <View style={styles.statProgressBar}>
-                        <View style={[styles.statProgressFill, { width: '92%', backgroundColor: Colors.accent }]} />
+                        <View
+                          style={[
+                            styles.statProgressFill,
+                            { width: '92%', backgroundColor: Colors.accent },
+                          ]}
+                        />
                       </View>
-                      <Text style={styles.statProgressText}>↗ +5% vs last week</Text>
-                    </View>
+                      <Text style={styles.statProgressText}>
+                        ↗ +5% vs last week
+                      </Text>
                     </View>
                   </View>
                 </View>
               </View>
+            </View>
 
-              {/* Calendar Section */}
+            {/* Calendar Section */}
             <View style={styles.sectionContainer}>
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleRow}>
-                  <MaterialIcons name="calendar-today" size={20} color={Colors.primary} />
+                  <MaterialIcons
+                    name="calendar-today"
+                    size={20}
+                    color={Colors.primary}
+                  />
                   <Text style={styles.sectionTitle}>Calendar</Text>
                 </View>
               </View>
 
               <View style={styles.calendarSection}>
                 <View style={styles.calendarHeader}>
-                    <TouchableOpacity>
-                    <MaterialIcons name="chevron-left" size={24} color={Colors.neutral.dark} />
-                    </TouchableOpacity>
+                  <TouchableOpacity>
+                    <MaterialIcons
+                      name="chevron-left"
+                      size={24}
+                      color={Colors.neutral.dark}
+                    />
+                  </TouchableOpacity>
                   <Text style={styles.calendarMonth}>January 2025</Text>
-                    <TouchableOpacity>
-                    <MaterialIcons name="chevron-right" size={24} color={Colors.neutral.dark} />
-                    </TouchableOpacity>
+                  <TouchableOpacity>
+                    <MaterialIcons
+                      name="chevron-right"
+                      size={24}
+                      color={Colors.neutral.dark}
+                    />
+                  </TouchableOpacity>
                 </View>
 
                 <View style={styles.calendarWeekdays}>
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                    <Text key={day} style={styles.calendarWeekday}>{day}</Text>
-                  ))}
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
+                    day => (
+                      <Text key={day} style={styles.calendarWeekday}>
+                        {day}
+                      </Text>
+                    ),
+                  )}
                 </View>
 
                 <View style={styles.calendarGrid}>
@@ -490,19 +645,26 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
                     const dayNumber = index - 6 + 1;
                     const isCurrentMonth = dayNumber > 0 && dayNumber <= 31;
                     // Show red dots for days with tasks due (simplified mock data)
-                    const hasTasksDue = [15, 16, 17, 18, 19, 20].includes(dayNumber); // Tasks due dates
+                    const hasTasksDue = [15, 16, 17, 18, 19, 20].includes(
+                      dayNumber,
+                    ); // Tasks due dates
                     const isToday = dayNumber === 15;
-                    
+
                     return (
-                      <TouchableOpacity key={index} style={[
-                        styles.calendarDay,
-                        isToday && styles.calendarToday,
-                      ]}>
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.calendarDay,
+                          isToday && styles.calendarToday,
+                        ]}
+                      >
                         {isCurrentMonth ? (
-                          <Text style={[
-                            styles.calendarDayText,
-                            isToday && styles.calendarTodayText
-                          ]}>
+                          <Text
+                            style={[
+                              styles.calendarDayText,
+                              isToday && styles.calendarTodayText,
+                            ]}
+                          >
                             {dayNumber}
                           </Text>
                         ) : (
@@ -518,8 +680,10 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
 
                 {/* Upcoming Events */}
                 <View style={styles.upcomingEvents}>
-                  <Text style={styles.upcomingEventsTitle}>Upcoming Events</Text>
-                  
+                  <Text style={styles.upcomingEventsTitle}>
+                    Upcoming Events
+                  </Text>
+
                   <View style={styles.eventItem}>
                     <View style={styles.eventDate}>
                       <Text style={styles.eventDateDay}>18</Text>
@@ -530,7 +694,12 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
                       <Text style={styles.eventTime}>10:00 AM - 11:00 AM</Text>
                       <Text style={styles.eventProject}>Mane UiKit</Text>
                     </View>
-                    <View style={[styles.eventTypeDot, { backgroundColor: Colors.primary }]} />
+                    <View
+                      style={[
+                        styles.eventTypeDot,
+                        { backgroundColor: Colors.primary },
+                      ]}
+                    />
                   </View>
 
                   <View style={styles.eventItem}>
@@ -539,41 +708,53 @@ const DashboardContent = ({ navigation, route, onInviteMember, reloadKey, highli
                       <Text style={styles.eventDateMonth}>Jan</Text>
                     </View>
                     <View style={styles.eventContent}>
-                      <Text style={styles.eventTitle}>Database Migration Due</Text>
+                      <Text style={styles.eventTitle}>
+                        Database Migration Due
+                      </Text>
                       <Text style={styles.eventTime}>All day</Text>
                       <Text style={styles.eventProject}>Backend</Text>
                     </View>
-                    <View style={[styles.eventTypeDot, { backgroundColor: Colors.error }]} />
-          </View>
+                    <View
+                      style={[
+                        styles.eventTypeDot,
+                        { backgroundColor: Colors.error },
+                      ]}
+                    />
+                  </View>
 
                   <View style={styles.eventItem}>
                     <View style={styles.eventDate}>
                       <Text style={styles.eventDateDay}>25</Text>
                       <Text style={styles.eventDateMonth}>Jan</Text>
-                </View>
+                    </View>
                     <View style={styles.eventContent}>
                       <Text style={styles.eventTitle}>Sprint Review</Text>
                       <Text style={styles.eventTime}>2:00 PM - 3:30 PM</Text>
                       <Text style={styles.eventProject}>Mobile App</Text>
-                </View>
-                    <View style={[styles.eventTypeDot, { backgroundColor: Colors.accent }]} />
-                </View>
+                    </View>
+                    <View
+                      style={[
+                        styles.eventTypeDot,
+                        { backgroundColor: Colors.accent },
+                      ]}
+                    />
+                  </View>
                 </View>
               </View>
             </View>
-              </View>
+          </View>
         )}
 
         {selectedTab === 'members' && (
           <View style={styles.membersTabContainer}>
-            <WorkspaceMembersTab 
-              workspaceId={workspace?.id || 1} 
+            <WorkspaceMembersTab
+              workspaceId={workspace?.id || 1}
               onInviteMember={onInviteMember}
             />
           </View>
         )}
       </ScrollView>
-              </View>
+    </View>
   );
 };
 
@@ -582,23 +763,23 @@ const SettingsScreen = () => (
   <ScrollView style={styles.tabContainer} showsVerticalScrollIndicator={false}>
     <View style={styles.settingsContent}>
       <Text style={styles.sectionTitle}>Settings</Text>
-      
+
       <View style={styles.settingsItem}>
         <MaterialIcons name="person" size={24} color={Colors.primary} />
         <Text style={styles.settingsItemText}>Profile Settings</Text>
-          </View>
+      </View>
 
       <View style={styles.settingsItem}>
         <MaterialIcons name="notifications" size={24} color={Colors.primary} />
         <Text style={styles.settingsItemText}>Notifications</Text>
-          </View>
+      </View>
 
       <View style={styles.settingsItem}>
         <MaterialIcons name="security" size={24} color={Colors.primary} />
         <Text style={styles.settingsItemText}>Privacy & Security</Text>
-                  </View>
-            </View>
-          </ScrollView>
+      </View>
+    </View>
+  </ScrollView>
 );
 
 // Voice Commands Screen Component
@@ -623,14 +804,20 @@ const NotificationScreen = () => (
   <ScrollView style={styles.tabContainer} showsVerticalScrollIndicator={false}>
     <View style={styles.notificationContent}>
       <Text style={styles.sectionTitle}>Notifications</Text>
-      
+
       <View style={styles.notificationItem}>
         <View style={styles.notificationIcon}>
-          <MaterialIcons name="notifications" size={24} color={Colors.primary} />
+          <MaterialIcons
+            name="notifications"
+            size={24}
+            color={Colors.primary}
+          />
         </View>
         <View style={styles.notificationText}>
           <Text style={styles.notificationTitle}>New task assigned</Text>
-          <Text style={styles.notificationSubtitle}>You have been assigned to "API Integration"</Text>
+          <Text style={styles.notificationSubtitle}>
+            You have been assigned to "API Integration"
+          </Text>
           <Text style={styles.notificationTime}>2 hours ago</Text>
         </View>
       </View>
@@ -641,23 +828,36 @@ const NotificationScreen = () => (
         </View>
         <View style={styles.notificationText}>
           <Text style={styles.notificationTitle}>New member joined</Text>
-          <Text style={styles.notificationSubtitle}>John Doe joined the workspace</Text>
+          <Text style={styles.notificationSubtitle}>
+            John Doe joined the workspace
+          </Text>
           <Text style={styles.notificationTime}>1 day ago</Text>
         </View>
       </View>
-  </View>
+    </View>
   </ScrollView>
 );
 
-const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogout }: { navigation: any; route?: any; onSwitchWorkspace?: () => void; onLogout?: () => void }) => {
+const WorkspaceDashboardScreen = ({
+  navigation,
+  route,
+  onSwitchWorkspace,
+  onLogout,
+}: {
+  navigation: any;
+  route?: any;
+  onSwitchWorkspace?: () => void;
+  onLogout?: () => void;
+}) => {
   const workspace = route?.params?.workspace;
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [showInviteMemberModal, setShowInviteMemberModal] = useState(false);
   const { showSuccess, showError } = useToastContext();
   const [reloadKey, setReloadKey] = useState(0);
-  const [highlightProjectId, setHighlightProjectId] = useState<number | undefined>(undefined);
+  const [highlightProjectId, setHighlightProjectId] = useState<
+    number | undefined
+  >(undefined);
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
-
 
   const handleCreateProject = () => {
     setShowCreateProjectModal(true);
@@ -670,7 +870,7 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
   const handleProjectCreated = (createdProject: any, hasMembers: boolean) => {
     setReloadKey(prev => prev + 1);
     setShowCreateProjectModal(false);
-    
+
     // Navigate to project detail screen
     if (createdProject) {
       // If no members selected, go to members tab; otherwise go to tasks tab
@@ -702,28 +902,31 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
     }
   };
 
-
-
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.workspaceInfo}>
-            
-          <TouchableOpacity 
-            style={styles.workspaceMenuButton}
-            onPress={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
-          >
-            <MaterialIcons name="menu" size={24} color={Colors.neutral.dark} />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.workspaceMenuButton}
+              onPress={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
+            >
+              <MaterialIcons
+                name="menu"
+                size={24}
+                color={Colors.neutral.dark}
+              />
+            </TouchableOpacity>
             <View style={styles.headerTextContainer}>
               {/* <Text style={styles.dashboardTitle}>Dashboard</Text> */}
-              <Text style={styles.welcomeSubtitle}>Workspace {workspace?.workspaceName || 'Workspace'}</Text>
+              <Text style={styles.welcomeSubtitle}>
+                Workspace {workspace?.workspaceName || 'Workspace'}
+              </Text>
             </View>
           </View>
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.addButton}
           onPress={() => setShowCreateProjectModal(true)}
         >
@@ -734,37 +937,53 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
       {/* Workspace Menu Dropdown */}
       {showWorkspaceMenu && (
         <View style={styles.workspaceMenu}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.workspaceMenuItem}
             onPress={handleSwitchWorkspace}
           >
             <MaterialIcons name="swap-horiz" size={20} color={Colors.primary} />
             <Text style={styles.workspaceMenuItemText}>Switch Workspace</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.workspaceMenuItem}
             onPress={() => setShowWorkspaceMenu(false)}
           >
-            <MaterialIcons name="settings" size={20} color={Colors.neutral.medium} />
+            <MaterialIcons
+              name="settings"
+              size={20}
+              color={Colors.neutral.medium}
+            />
             <Text style={styles.workspaceMenuItemText}>Settings</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.workspaceMenuItem}
             onPress={() => setShowWorkspaceMenu(false)}
           >
-            <MaterialIcons name="help" size={20} color={Colors.neutral.medium} />
+            <MaterialIcons
+              name="help"
+              size={20}
+              color={Colors.neutral.medium}
+            />
             <Text style={styles.workspaceMenuItemText}>Help & Support</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.workspaceMenuItem, styles.logoutMenuItem]}
             onPress={handleLogout}
           >
-            <MaterialIcons name="logout" size={20} color={Colors.semantic.error} />
-            <Text style={[styles.workspaceMenuItemText, styles.logoutMenuItemText]}>Logout</Text>
+            <MaterialIcons
+              name="logout"
+              size={20}
+              color={Colors.semantic.error}
+            />
+            <Text
+              style={[styles.workspaceMenuItemText, styles.logoutMenuItemText]}
+            >
+              Logout
+            </Text>
           </TouchableOpacity>
         </View>
       )}
-      
+
       <Tab.Navigator
         screenOptions={{
           tabBarActiveTintColor: Colors.primary,
@@ -773,8 +992,8 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
           headerShown: false,
         }}
       >
-        <Tab.Screen 
-          name="Home" 
+        <Tab.Screen
+          name="Home"
           options={{
             title: 'Home',
             tabBarIcon: ({ color, size }) => (
@@ -782,10 +1001,19 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
             ),
           }}
         >
-          {() => <DashboardContent navigation={navigation} route={route} onInviteMember={handleInviteMember} reloadKey={reloadKey} highlightProjectId={highlightProjectId} onProjectCreated={handleProjectCreated} />}
+          {() => (
+            <DashboardContent
+              navigation={navigation}
+              route={route}
+              onInviteMember={handleInviteMember}
+              reloadKey={reloadKey}
+              highlightProjectId={highlightProjectId}
+              onProjectCreated={handleProjectCreated}
+            />
+          )}
         </Tab.Screen>
-        <Tab.Screen 
-          name="Voice" 
+        <Tab.Screen
+          name="Voice"
           component={VoiceScreen}
           options={{
             title: 'Voice',
@@ -794,8 +1022,8 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
             ),
           }}
         />
-        <Tab.Screen 
-          name="Notifications" 
+        <Tab.Screen
+          name="Notifications"
           component={NotificationScreen}
           options={{
             title: 'Notifications',
@@ -804,18 +1032,21 @@ const WorkspaceDashboardScreen = ({ navigation, route, onSwitchWorkspace, onLogo
             ),
           }}
         />
-        <Tab.Screen 
-          name="Settings" 
-          component={SettingsScreen}
+        <Tab.Screen
+          name="Settings"
           options={{
             title: 'Settings',
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="settings" size={size} color={color} />
             ),
           }}
-        />
+        >
+          {() => (
+            <WorkspaceSettingsScreen navigation={navigation} route={route} />
+          )}
+        </Tab.Screen>
       </Tab.Navigator>
-      
+
       {/* Modals */}
       <InviteMemberModal
         visible={showInviteMemberModal}
@@ -1118,7 +1349,7 @@ const styles = StyleSheet.create({
     color: Colors.neutral.dark,
     marginLeft: 12,
   },
-  
+
   // Section Title Row
   sectionTitleRow: {
     flexDirection: 'row',
@@ -1382,10 +1613,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
 
-
-
-
-
   centerContent: {
     flex: 1,
     alignItems: 'center',
@@ -1473,7 +1700,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginTop: -20, // Adjust to align with other content
   },
-  
+
   // Workspace Menu Styles
   workspaceMenuButton: {
     padding: 8,
@@ -1521,7 +1748,7 @@ const styles = StyleSheet.create({
   logoutMenuItemText: {
     color: Colors.semantic.error,
   },
-  
+
   // Welcome Banner Styles
   welcomeBanner: {
     backgroundColor: Colors.primary,
@@ -1566,7 +1793,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginRight: 4,
   },
-  
+
   // Project and Task Styles
   newProjectButton: {
     backgroundColor: Colors.primary,
@@ -1635,9 +1862,12 @@ const styles = StyleSheet.create({
   },
   newTaskButton: {
     backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
+    gap: 4,
   },
   newTaskButtonText: {
     color: Colors.neutral.white,

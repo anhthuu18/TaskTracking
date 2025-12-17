@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Swipeable } from 'react-native-gesture-handler';
 
@@ -138,7 +138,22 @@ const TaskCardModern: React.FC<TaskCardModernProps> = ({
         </TouchableOpacity>
         <TouchableOpacity 
           style={styles.content}
-          onPress={onNavigateToTracking}
+          onPress={() => {
+            const s = String((task as any)?.status || '').toLowerCase();
+            const isCompleted = s === 'completed' || s.includes('done') || s.includes('complete');
+            if (isCompleted) {
+              Alert.alert(
+                'Task đã hoàn thành',
+                'Vui lòng mở chi tiết và cập nhật trạng thái trước khi bắt đầu tracking.',
+                [
+                  { text: 'Hủy', style: 'cancel' },
+                  { text: 'Mở chi tiết', onPress: () => { if (onEdit) onEdit(); } },
+                ]
+              );
+              return;
+            }
+            if (onNavigateToTracking) onNavigateToTracking();
+          }}
           activeOpacity={0.7}
         >
           <View style={styles.header}>

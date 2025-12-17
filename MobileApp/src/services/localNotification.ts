@@ -2,159 +2,279 @@
 // Tries to load @notifee/react-native at runtime; if unavailable, all methods are no-ops
 
 import { Platform } from 'react-native';
+import notifee, { TriggerType } from '@notifee/react-native';
 
 export type NotificationId = string;
 
+export interface NotificationOptions {
+  sound?: 'default' | 'silent';
+  vibration?: boolean;
+  importance?: 'low' | 'default' | 'high' | 'max';
+  tag?: string;
+  autoCancel?: boolean;
+  data?: Record<string, string>;
+}
+
 class LocalNotificationService {
-  private notifee: any | null = null;
-  private loaded = false;
+  private notifeeReady = false;
 
-  private async ensureLoaded() {
-    if (this.loaded) return;
+  /**
+   * Initialize notifee
+   */
+  async initialize() {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const mod = require('@notifee/react-native');
-      // Merge default and named exports to support both CJS/ESM shapes
-      this.notifee = { ...(mod || {}), ...(mod?.default || {}) };
-    } catch (e) {
-      this.notifee = null;
+      // Request permission
+      const settings = await notifee.requestPermission();
+      console.log(
+        '[LocalNotification] Permission status:',
+        settings.authorizationStatus,
+      );
+
+      // Create default channel for Android
+      if (Platform.OS === 'android') {
+        await this.createDefaultChannel();
+      }
+
+      this.notifeeReady = true;
+    } catch (error) {
+      console.error('[LocalNotification] Initialize error:', error);
+      this.notifeeReady = false;
     }
-    this.loaded = true;
   }
 
-  async isAvailable(): Promise<boolean> {
-    await this.ensureLoaded();
-    return !!this.notifee;
-  }
-
+  /**
+   * Request notification permission
+   */
   async requestPermission(): Promise<boolean> {
-    await this.ensureLoaded();
-    if (!this.notifee) return false; // not available
-    const settings = await this.notifee.requestPermission();
-    return settings.authorizationStatus >= 1; // AUTHORIZED or PROVISIONAL
+    try {
+      const settings = await notifee.requestPermission();
+      return settings.authorizationStatus >= 1; // AUTHORIZED or PROVISIONAL
+    } catch (error) {
+      console.error('[LocalNotification] Request permission error:', error);
+      return false;
+    }
   }
 
+  /**
+   * Open notification settings
+   */
   async openSettings(): Promise<void> {
-    await this.ensureLoaded();
-    if (!this.notifee) return;
-    try { await this.notifee.openNotificationSettings(); } catch {}
+    try {
+      await notifee.openNotificationSettings();
+    } catch (error) {
+      console.error('[LocalNotification] Open settings error:', error);
+    }
   }
 
+  /**
+   * Get permission status
+   */
   async getPermissionStatus(): Promise<boolean | null> {
-    await this.ensureLoaded();
-    if (!this.notifee) return null;
     try {
-      const settings = await this.notifee.getNotificationSettings();
+      const settings = await notifee.getNotificationSettings();
       return settings.authorizationStatus >= 1;
-    } catch {
+    } catch (error) {
+      console.error('[LocalNotification] Get permission error:', error);
       return null;
     }
   }
 
-  async createDefaultChannel(): Promise<string | null> {
-    await this.ensureLoaded();
-    if (!this.notifee) return null;
-
-    if (Platform.OS !== 'android') {
-      // iOS does not use channels
-      return null;
-    }
-
+  /**
+   * Create default notification channel for Android
+   */
+  private async createDefaultChannel(): Promise<string | null> {
     try {
-      // Prefer top-level createChannel if available
-      if (typeof this.notifee.createChannel === 'function') {
-        const channelId = await this.notifee.createChannel({
-          id: 'pomodoro',
-          name: 'Pomodoro Alerts',
-          sound: 'default',
-          importance: this.notifee.AndroidImportance ? this.notifee.AndroidImportance.HIGH : 4,
-          vibration: true,
-        });
-        return channelId;
+      if (Platform.OS !== 'android') {
+        return null;
       }
-      // Fallback to android namespace if present
-      if (this.notifee.android && typeof this.notifee.android.createChannel === 'function') {
-        const channelId = await this.notifee.android.createChannel({
-          id: 'pomodoro',
-          name: 'Pomodoro Alerts',
-          sound: 'default',
-          importance: this.notifee.AndroidImportance ? this.notifee.AndroidImportance.HIGH : 4,
-          vibration: true,
-        });
-        return channelId;
-      }
-      return null;
-    } catch (e) {
-      // Graceful fallback
+
+      const channelId = await notifee.createChannel({
+        id: 'pomodoro',
+        name: 'Pomodoro Alerts',
+        sound: 'default',
+        importance: 4, // AndroidImportance.HIGH
+        vibration: true,
+        lightColor: '#2196F3',
+        bypassDnd: true, // Bypass Do Not Disturb
+      });
+
+      console.log('[LocalNotification] Created channel:', channelId);
+      return channelId;
+    } catch (error) {
+      console.error('[LocalNotification] Create channel error:', error);
       return null;
     }
   }
 
-  async showNow(title: string, body: string): Promise<NotificationId | null> {
-    await this.ensureLoaded();
-    if (!this.notifee) return null;
-    const channelId = await this.createDefaultChannel();
-    const notificationId = await this.notifee.displayNotification({
-      title,
-      body,
-      android: {
-        channelId: channelId || 'default',
-        smallIcon: 'ic_launcher',
-        pressAction: { id: 'default' },
-      },
-      ios: {},
-    });
-    return notificationId as string;
-  }
-
-  async scheduleAt(date: Date, title: string, body: string): Promise<NotificationId | null> {
-    await this.ensureLoaded();
-    if (!this.notifee) return null;
-
+  /**
+   * Show notification immediately
+   */
+  async showNow(
+    title: string,
+    body: string,
+    options?: NotificationOptions,
+  ): Promise<NotificationId | null> {
     try {
-      const TriggerType = this.notifee.TriggerType || this.notifee.AndroidTriggerType || {};
-      const typeVal = TriggerType.TIMESTAMP ?? 1; // fallback numeric id
-      const trigger: any = { type: typeVal, timestamp: date.getTime() };
+      if (!this.notifeeReady) {
+        await this.initialize();
+      }
 
-      const channelId = await this.createDefaultChannel();
-
-      const notificationId = await this.notifee.createTriggerNotification({
+      const notificationId = await notifee.displayNotification({
         title,
         body,
+        data: options?.data || {},
         android: {
-          channelId: channelId || 'default',
-          pressAction: { id: 'default' },
-          smallIcon: 'ic_launcher',
+          channelId: 'pomodoro',
+          pressAction: {
+            id: 'default',
+          },
+          importance: this.mapImportance(options?.importance || 'high'),
+          sound: options?.sound === 'silent' ? undefined : 'default',
+          vibration: options?.vibration !== false,
+          tag: options?.tag || 'notification',
+          autoCancel: options?.autoCancel !== false,
+          // Allow bypass of Do Not Disturb
+          bypassDnd: true,
         },
-        ios: {},
-      }, trigger);
+        ios: {
+          sound: options?.sound === 'silent' ? undefined : 'default',
+          critical:
+            options?.importance === 'max' || options?.importance === 'high',
+          criticalVolume: 1.0,
+          badge: 1,
+        },
+      });
 
-      return notificationId as string;
-    } catch (e) {
-      // Graceful fallback: if trigger scheduling fails, attempt immediate notify and return null
-      try {
-        await this.showNow(title, body);
-      } catch {}
+      console.log('[LocalNotification] Showed notification:', notificationId);
+      return notificationId;
+    } catch (error) {
+      console.error('[LocalNotification] Show error:', error);
       return null;
     }
   }
 
-  async cancel(notificationId: NotificationId | null | undefined) {
-    await this.ensureLoaded();
-    if (!this.notifee || !notificationId) return;
+  /**
+   * Schedule notification at specific time
+   */
+  async scheduleAt(
+    date: Date,
+    title: string,
+    body: string,
+    options?: NotificationOptions,
+  ): Promise<NotificationId | null> {
     try {
-      await this.notifee.cancelNotification(notificationId);
-    } catch {}
+      if (!this.notifeeReady) {
+        await this.initialize();
+      }
+
+      const notificationId = await notifee.createTriggerNotification(
+        {
+          title,
+          body,
+          data: options?.data || {},
+          android: {
+            channelId: 'pomodoro',
+            pressAction: {
+              id: 'default',
+            },
+            importance: this.mapImportance(options?.importance || 'high'),
+            sound: options?.sound === 'silent' ? undefined : 'default',
+            vibration: options?.vibration !== false,
+            tag: options?.tag || 'notification',
+            autoCancel: options?.autoCancel !== false,
+            fullScreenAction: {
+              id: 'default',
+            },
+            bypassDnd: true,
+          },
+          ios: {
+            sound: options?.sound === 'silent' ? undefined : 'default',
+            critical:
+              options?.importance === 'max' || options?.importance === 'high',
+            criticalVolume: 1.0,
+            badge: 1,
+          },
+        },
+        {
+          type: TriggerType.TIMESTAMP,
+          timestamp: date.getTime(),
+          alarmManager: { allowWhileIdle: true },
+        },
+      );
+
+      console.log(
+        '[LocalNotification] Scheduled notification:',
+        notificationId,
+      );
+      return notificationId;
+    } catch (error) {
+      console.error('[LocalNotification] Schedule error:', error);
+      // Fallback: show immediately if scheduling fails
+      try {
+        return await this.showNow(title, body, options);
+      } catch {
+        return null;
+      }
+    }
   }
 
-  async cancelAll() {
-    await this.ensureLoaded();
-    if (!this.notifee) return;
+  /**
+   * Cancel notification by ID
+   */
+  async cancel(notificationId: NotificationId | null | undefined) {
     try {
-      await this.notifee.cancelAllNotifications();
-    } catch {}
+      if (!notificationId) return;
+      await notifee.cancelNotification(notificationId);
+      console.log(
+        '[LocalNotification] Cancelled notification:',
+        notificationId,
+      );
+    } catch (error) {
+      console.error('[LocalNotification] Cancel error:', error);
+    }
+  }
+
+  /**
+   * Cancel all notifications
+   */
+  async cancelAll() {
+    try {
+      await notifee.cancelAllNotifications();
+      console.log('[LocalNotification] Cancelled all notifications');
+    } catch (error) {
+      console.error('[LocalNotification] Cancel all error:', error);
+    }
+  }
+
+  /**
+   * Map importance string to Android importance level
+   */
+  private mapImportance(importance: string): number {
+    switch (importance) {
+      case 'low':
+        return 2; // AndroidImportance.LOW
+      case 'default':
+        return 3; // AndroidImportance.DEFAULT
+      case 'high':
+        return 4; // AndroidImportance.HIGH
+      case 'max':
+        return 5; // AndroidImportance.MAX
+      default:
+        return 4; // Default to HIGH
+    }
+  }
+
+  /**
+   * Get all displayed notifications
+   */
+  async getDisplayedNotifications(): Promise<any[]> {
+    try {
+      return await notifee.getDisplayedNotifications();
+    } catch (error) {
+      console.error('[LocalNotification] Get displayed error:', error);
+      return [];
+    }
   }
 }
 
 export const localNotification = new LocalNotificationService();
-

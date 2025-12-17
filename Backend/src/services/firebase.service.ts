@@ -1,5 +1,5 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
-import * as admin from 'firebase-admin';
+import { Injectable, BadRequestException } from "@nestjs/common";
+import * as admin from "firebase-admin";
 
 @Injectable()
 export class FirebaseService {
@@ -12,7 +12,7 @@ export class FirebaseService {
         credential: admin.credential.cert({
           projectId: process.env.FIREBASE_PROJECT_ID,
           clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
         }),
       });
     } else {
@@ -27,14 +27,16 @@ export class FirebaseService {
   async sendSmsOtp(phoneNumber: string, otpCode: string): Promise<boolean> {
     try {
       // Format phone number to international format
-      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+84${phoneNumber.substring(1)}`;
-      
+      const formattedPhone = phoneNumber.startsWith("+")
+        ? phoneNumber
+        : `+84${phoneNumber.substring(1)}`;
+
       // Log OTP để test - trong thực tế sẽ gửi SMS qua Twilio/AWS SNS
-      
+
       // Simulate SMS sending success
       return true;
     } catch (error) {
-      console.error('SMS Error:', error);
+      console.error("SMS Error:", error);
       return false;
     }
   }
@@ -42,23 +44,31 @@ export class FirebaseService {
   /**
    * Verify OTP với Firebase custom token
    */
-  async verifyOtpToken(phoneNumber: string, otpCode: string, customToken: string): Promise<boolean> {
+  async verifyOtpToken(
+    phoneNumber: string,
+    otpCode: string,
+    customToken: string
+  ): Promise<boolean> {
     try {
       // Verify custom token
       const decodedToken = await this.app.auth().verifyIdToken(customToken);
-      
-      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+84${phoneNumber.substring(1)}`;
-      
+
+      const formattedPhone = phoneNumber.startsWith("+")
+        ? phoneNumber
+        : `+84${phoneNumber.substring(1)}`;
+
       // Check if token is valid and matches
-      if (decodedToken.otp === otpCode && 
-          decodedToken.phone === formattedPhone &&
-          decodedToken.expiresAt > Date.now()) {
+      if (
+        decodedToken.otp === otpCode &&
+        decodedToken.phone === formattedPhone &&
+        decodedToken.expiresAt > Date.now()
+      ) {
         return true;
       }
-      
+
       return false;
     } catch (error) {
-      console.error('Firebase OTP Verification Error:', error);
+      console.error("Firebase OTP Verification Error:", error);
       return false;
     }
   }
@@ -71,52 +81,64 @@ export class FirebaseService {
       const decodedToken = await this.app.auth().verifyIdToken(idToken);
       return decodedToken;
     } catch (error) {
-      console.error('Firebase Token Verification Error:', error);
-      throw new BadRequestException('Firebase token không hợp lệ');
+      console.error("Firebase Token Verification Error:", error);
+      throw new BadRequestException("Firebase token không hợp lệ");
     }
   }
 
   /**
    * Tạo custom token cho user
    */
-  async createCustomToken(uid: string, additionalClaims?: object): Promise<string> {
+  async createCustomToken(
+    uid: string,
+    additionalClaims?: object
+  ): Promise<string> {
     try {
-      const customToken = await this.app.auth().createCustomToken(uid, additionalClaims);
+      const customToken = await this.app
+        .auth()
+        .createCustomToken(uid, additionalClaims);
       return customToken;
     } catch (error) {
-      console.error('Firebase Custom Token Error:', error);
-      throw new BadRequestException('Không thể tạo Firebase custom token');
+      console.error("Firebase Custom Token Error:", error);
+      throw new BadRequestException("Không thể tạo Firebase custom token");
     }
   }
 
   /**
    * Lấy thông tin user từ Firebase
    */
-  async getUserByPhoneNumber(phoneNumber: string): Promise<admin.auth.UserRecord | null> {
+  async getUserByPhoneNumber(
+    phoneNumber: string
+  ): Promise<admin.auth.UserRecord | null> {
     try {
-      const userRecord = await this.app.auth().getUserByPhoneNumber(phoneNumber);
+      const userRecord = await this.app
+        .auth()
+        .getUserByPhoneNumber(phoneNumber);
       return userRecord;
     } catch (error) {
-      if (error.code === 'auth/user-not-found') {
+      if (error.code === "auth/user-not-found") {
         return null;
       }
-      console.error('Firebase Get User Error:', error);
-      throw new BadRequestException('Lỗi khi lấy thông tin user từ Firebase');
+      console.error("Firebase Get User Error:", error);
+      throw new BadRequestException("Lỗi khi lấy thông tin user từ Firebase");
     }
   }
 
   /**
    * Tạo hoặc cập nhật user trong Firebase
    */
-  async createOrUpdateUser(phoneNumber: string, additionalInfo?: {
-    email?: string;
-    displayName?: string;
-    disabled?: boolean;
-  }): Promise<admin.auth.UserRecord> {
+  async createOrUpdateUser(
+    phoneNumber: string,
+    additionalInfo?: {
+      email?: string;
+      displayName?: string;
+      disabled?: boolean;
+    }
+  ): Promise<admin.auth.UserRecord> {
     try {
       // Kiểm tra user đã tồn tại chưa
       let userRecord = await this.getUserByPhoneNumber(phoneNumber);
-      
+
       if (userRecord) {
         // Cập nhật user hiện có
         userRecord = await this.app.auth().updateUser(userRecord.uid, {
@@ -129,11 +151,102 @@ export class FirebaseService {
           ...additionalInfo,
         });
       }
-      
+
       return userRecord;
     } catch (error) {
-      console.error('Firebase Create/Update User Error:', error);
-      throw new BadRequestException('Không thể tạo/cập nhật user trong Firebase');
+      console.error("Firebase Create/Update User Error:", error);
+      throw new BadRequestException(
+        "Không thể tạo/cập nhật user trong Firebase"
+      );
+    }
+  }
+
+  /**
+   * Gửi push notification đến device token
+   */
+  async sendPushNotification(
+    fcmToken: string,
+    notification: {
+      title: string;
+      body: string;
+    },
+    data?: { [key: string]: string }
+  ): Promise<boolean> {
+    try {
+      const message: admin.messaging.Message = {
+        notification,
+        data,
+        token: fcmToken,
+        android: {
+          priority: "high",
+          notification: {
+            sound: "default",
+            channelId: "task_reminders",
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: "default",
+              badge: 1,
+            },
+          },
+        },
+      };
+
+      const response = await this.app.messaging().send(message);
+      console.log("Push notification sent successfully:", response);
+      return true;
+    } catch (error) {
+      console.error("Firebase Push Notification Error:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Gửi push notification đến nhiều devices
+   */
+  async sendMulticastPushNotification(
+    fcmTokens: string[],
+    notification: {
+      title: string;
+      body: string;
+    },
+    data?: { [key: string]: string }
+  ): Promise<{ successCount: number; failureCount: number }> {
+    try {
+      const message: admin.messaging.MulticastMessage = {
+        notification,
+        data,
+        tokens: fcmTokens,
+        android: {
+          priority: "high",
+          notification: {
+            sound: "default",
+            channelId: "task_reminders",
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: "default",
+              badge: 1,
+            },
+          },
+        },
+      };
+
+      const response = await this.app.messaging().sendEachForMulticast(message);
+      console.log(
+        `Push notifications sent - Success: ${response.successCount}, Failure: ${response.failureCount}`
+      );
+      return {
+        successCount: response.successCount,
+        failureCount: response.failureCount,
+      };
+    } catch (error) {
+      console.error("Firebase Multicast Push Notification Error:", error);
+      return { successCount: 0, failureCount: fcmTokens.length };
     }
   }
 }

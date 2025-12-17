@@ -21,7 +21,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { ScreenLayout, ButtonStyles, Typography } from '../constants/Dimensions';
+import {
+  ScreenLayout,
+  ButtonStyles,
+  Typography,
+} from '../constants/Dimensions';
 import { workspaceService, projectService } from '../services';
 import { Workspace, WorkspaceType } from '../types';
 import DashboardHeader from '../components/DashboardHeader';
@@ -45,22 +49,32 @@ interface WorkspaceUI {
   lastUsedAt?: Date;
 }
 
-const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ navigation }) => {
+const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({
+  navigation,
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTab, setSelectedTab] = useState<'group' | 'personal' | 'total'>('total');
+  const [selectedTab, setSelectedTab] = useState<
+    'group' | 'personal' | 'total'
+  >('total');
   // Removed showAllWorkspaces state - no longer needed
   const [workspaces, setWorkspaces] = useState<WorkspaceUI[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [username, setUsername] = useState('User');
-  const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = useState<string | null>(null);
+  const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = useState<string | null>(
+    null,
+  );
   const [showSearchOptionsModal, setShowSearchOptionsModal] = useState(false);
   const [searchOptions, setSearchOptions] = useState({
     searchInProjects: false,
     searchInTasks: false,
   });
-  const [workspaceProjects, setWorkspaceProjects] = useState<{[workspaceId: string]: any[]}>({});
-  const [workspaceTasks, setWorkspaceTasks] = useState<{[workspaceId: string]: any[]}>({});
+  const [workspaceProjects, setWorkspaceProjects] = useState<{
+    [workspaceId: string]: any[];
+  }>({});
+  const [workspaceTasks, setWorkspaceTasks] = useState<{
+    [workspaceId: string]: any[];
+  }>({});
   const [showSearchBar, setShowSearchBar] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
@@ -98,7 +112,8 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     const unsubscribe = navigation.addListener('focus', () => {
       // Check if we need to refresh (e.g., from CreateWorkspaceScreen)
       if (navigation.getState()?.routes) {
-        const currentRoute = navigation.getState().routes[navigation.getState().index];
+        const currentRoute =
+          navigation.getState().routes[navigation.getState().index];
         if (currentRoute.name === 'WorkspaceSelection') {
           loadWorkspaces();
         }
@@ -107,7 +122,6 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
 
     return unsubscribe;
   }, [navigation]);
-
 
   const loadUsername = async () => {
     try {
@@ -141,17 +155,27 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     }
   };
 
-  const saveLastUsedTimestamp = async (workspaceId: string, timestamp: Date) => {
+  const saveLastUsedTimestamp = async (
+    workspaceId: string,
+    timestamp: Date,
+  ) => {
     try {
-      await AsyncStorage.setItem(`lastUsedTimestamp_${workspaceId}`, timestamp.toISOString());
+      await AsyncStorage.setItem(
+        `lastUsedTimestamp_${workspaceId}`,
+        timestamp.toISOString(),
+      );
     } catch (error) {
       console.error('Error saving last used timestamp:', error);
     }
   };
 
-  const loadLastUsedTimestamp = async (workspaceId: string): Promise<Date | undefined> => {
+  const loadLastUsedTimestamp = async (
+    workspaceId: string,
+  ): Promise<Date | undefined> => {
     try {
-      const timestamp = await AsyncStorage.getItem(`lastUsedTimestamp_${workspaceId}`);
+      const timestamp = await AsyncStorage.getItem(
+        `lastUsedTimestamp_${workspaceId}`,
+      );
       return timestamp ? new Date(timestamp) : undefined;
     } catch (error) {
       console.error('Error loading last used timestamp:', error);
@@ -162,7 +186,7 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   const loadWorkspaces = async () => {
     try {
       setLoading(true);
-      
+
       const authToken = await AsyncStorage.getItem('authToken');
       if (!authToken) {
         setWorkspaces([]);
@@ -170,7 +194,7 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
       }
 
       const response = await workspaceService.getAllWorkspaces();
-      
+
       if (response.success) {
         if (!response.data || !Array.isArray(response.data)) {
           setWorkspaces([]);
@@ -185,23 +209,37 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
         const uiWorkspaces: WorkspaceUI[] = await Promise.all(
           response.data.map(async (workspace, index) => {
             const projectCount = await loadProjectCount(workspace.id);
-            const lastUsedTimestamp = await loadLastUsedTimestamp(workspace.id.toString());
-            const workspaceType = (workspace.workspaceType === WorkspaceType.GROUP ? 'group' : 'personal') as 'group' | 'personal';
-            
+            const lastUsedTimestamp = await loadLastUsedTimestamp(
+              workspace.id.toString(),
+            );
+            const workspaceType = (
+              workspace.workspaceType === WorkspaceType.GROUP
+                ? 'group'
+                : 'personal'
+            ) as 'group' | 'personal';
+
             return {
               id: workspace.id.toString(),
               name: workspace.workspaceName,
-              description: workspace.description || `A ${workspace.workspaceType === WorkspaceType.GROUP ? 'group' : 'personal'} workspace for collaboration and project management`,
+              description:
+                workspace.description ||
+                `A ${
+                  workspace.workspaceType === WorkspaceType.GROUP
+                    ? 'group'
+                    : 'personal'
+                } workspace for collaboration and project management`,
               memberCount: workspace.memberCount || 1,
               projectCount: projectCount,
               type: workspaceType,
               color: getWorkspaceColor(workspaceType),
-              createdAt: workspace.dateCreated ? new Date(workspace.dateCreated) : undefined,
+              createdAt: workspace.dateCreated
+                ? new Date(workspace.dateCreated)
+                : undefined,
               lastUsedAt: lastUsedTimestamp,
             };
-          })
+          }),
         );
-        
+
         setWorkspaces(uiWorkspaces);
       } else {
         Alert.alert('Error', response.message || 'Failed to load workspaces');
@@ -209,17 +247,20 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
       }
     } catch (error: any) {
       const errorMessage = error?.message || '';
-      
-      if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
+
+      if (
+        errorMessage.includes('Unauthorized') ||
+        errorMessage.includes('401')
+      ) {
         try {
           await AsyncStorage.removeItem('authToken');
           await AsyncStorage.removeItem('user');
         } catch (e) {
           console.error('Error clearing tokens:', e);
         }
-        
+
         setWorkspaces([]);
-        
+
         Alert.alert(
           'Session Expired',
           'Your session has expired. Please log in again.',
@@ -230,7 +271,7 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
                 navigation.navigate('SignIn');
               },
             },
-          ]
+          ],
         );
       } else {
         Alert.alert('Error', error.message || 'Failed to load workspaces');
@@ -273,13 +314,15 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     }
   };
 
-
   const loadProjectCount = async (workspaceId: number): Promise<number> => {
     try {
       const response = await projectService.getProjectsByWorkspace(workspaceId);
       return response.success ? response.data.length : 0;
     } catch (error) {
-      console.error(`Error loading project count for workspace ${workspaceId}:`, error);
+      console.error(
+        `Error loading project count for workspace ${workspaceId}:`,
+        error,
+      );
       return 0;
     }
   };
@@ -288,9 +331,12 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   const cardWidth = screenWidth - 40; // 20px padding on each side
 
   // Function to get search sources for a workspace
-  const getSearchSources = (workspace: WorkspaceUI, query: string): string[] => {
+  const getSearchSources = (
+    workspace: WorkspaceUI,
+    query: string,
+  ): string[] => {
     const sources: string[] = [];
-    
+
     // Check if name matches (always enabled)
     if (workspace.name.toLowerCase().includes(query)) {
       sources.push('Name');
@@ -298,8 +344,8 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
 
     // Search in projects if enabled
     if (searchOptions.searchInProjects && workspaceProjects[workspace.id]) {
-      const projectMatches = workspaceProjects[workspace.id].some(project => 
-        project.projectName?.toLowerCase().includes(query)
+      const projectMatches = workspaceProjects[workspace.id].some(project =>
+        project.projectName?.toLowerCase().includes(query),
       );
       if (projectMatches) {
         sources.push('Projects');
@@ -308,8 +354,8 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
 
     // Search in tasks if enabled
     if (searchOptions.searchInTasks && workspaceTasks[workspace.id]) {
-      const taskMatches = workspaceTasks[workspace.id].some(task => 
-        task.taskName?.toLowerCase().includes(query)
+      const taskMatches = workspaceTasks[workspace.id].some(task =>
+        task.taskName?.toLowerCase().includes(query),
       );
       if (taskMatches) {
         sources.push('Tasks');
@@ -322,10 +368,10 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   // Function to highlight matching text
   const highlightText = (text: string, query: string) => {
     if (!query || !text) return text;
-    
+
     const regex = new RegExp(`(${query})`, 'gi');
     const parts = text.split(regex);
-    
+
     return (
       <Text>
         {parts.map((part, index) => {
@@ -345,38 +391,46 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   const filteredWorkspaces = workspaces
     .filter(workspace => {
       if (!searchQuery) {
-        const matchesTab = selectedTab === 'total' || workspace.type === selectedTab;
+        const matchesTab =
+          selectedTab === 'total' || workspace.type === selectedTab;
         return matchesTab;
       }
 
       const query = searchQuery.toLowerCase();
-      
+
       // Get all search sources for this workspace
       const searchSources = getSearchSources(workspace, query);
-      
+
       // Workspace matches if it has any search sources
       const matchesSearch = searchSources.length > 0;
-      
-      const matchesTab = selectedTab === 'total' || workspace.type === selectedTab;
+
+      const matchesTab =
+        selectedTab === 'total' || workspace.type === selectedTab;
       return matchesSearch && matchesTab;
     })
     .sort((a, b) => {
       // First priority: Sort by last used time - most recent first
       if (a.lastUsedAt && b.lastUsedAt) {
-        return new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime();
+        return (
+          new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime()
+        );
       }
       if (a.lastUsedAt && !b.lastUsedAt) return -1;
       if (!a.lastUsedAt && b.lastUsedAt) return 1;
-      
+
       // Second priority: Last used workspace ID
       if (lastUsedWorkspaceId) {
-        if (a.id === lastUsedWorkspaceId && b.id !== lastUsedWorkspaceId) return -1;
-        if (b.id === lastUsedWorkspaceId && a.id !== lastUsedWorkspaceId) return 1;
+        if (a.id === lastUsedWorkspaceId && b.id !== lastUsedWorkspaceId)
+          return -1;
+        if (b.id === lastUsedWorkspaceId && a.id !== lastUsedWorkspaceId)
+          return 1;
       }
-      
+
       // Third priority: Sort by creation date - most recent first
       if (a.createdAt && b.createdAt) {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return (
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
       }
       // Fallback to id comparison if createdAt is not available (higher id = more recent)
       return parseInt(b.id) - parseInt(a.id);
@@ -389,14 +443,14 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     try {
       // Clear any existing last used workspace first
       await AsyncStorage.removeItem('lastUsedWorkspaceId');
-      
+
       // Save as last used workspace with timestamp
       const now = new Date();
       await saveLastUsedWorkspace(workspace.id);
       await saveLastUsedTimestamp(workspace.id, now);
-      
+
       // Navigate to Main with selected workspace
-      navigation.navigate('Main', { 
+      navigation.navigate('Main', {
         workspace: {
           id: parseInt(workspace.id), // Convert to number for backend
           workspaceName: workspace.name,
@@ -407,12 +461,12 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
           dateModified: new Date(),
           userId: 1, // Mock user ID
           userRole: 'OWNER' as any,
-        }
+        },
       });
     } catch (error) {
       console.error('Error selecting workspace:', error);
       // Still navigate even if saving fails
-      navigation.navigate('Main', { 
+      navigation.navigate('Main', {
         workspace: {
           id: parseInt(workspace.id),
           workspaceName: workspace.name,
@@ -423,7 +477,7 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
           dateModified: new Date(),
           userId: 1, // Mock user ID
           userRole: 'OWNER' as any,
-        }
+        },
       });
     }
   };
@@ -433,13 +487,15 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
     try {
       const response = await workspaceService.getAllWorkspaces();
       if (response.success) {
-        const workspace = response.data.find(w => w.id.toString() === workspaceId);
+        const workspace = response.data.find(
+          w => w.id.toString() === workspaceId,
+        );
         if (workspace) {
           return {
             id: workspace.id,
             name: workspace.workspaceName,
             memberCount: workspace.memberCount || 1,
-            type: workspace.workspaceType === 'GROUP' ? 'group' : 'personal'
+            type: workspace.workspaceType === 'GROUP' ? 'group' : 'personal',
           };
         }
       }
@@ -458,46 +514,59 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   const handleSearchOptionChange = (option: keyof typeof searchOptions) => {
     setSearchOptions(prev => ({
       ...prev,
-      [option]: !prev[option]
+      [option]: !prev[option],
     }));
   };
 
   const handleApplySearchOptions = async () => {
     setShowSearchOptionsModal(false);
-    
+
     // Load project and task data if search options are enabled
     if (searchOptions.searchInProjects || searchOptions.searchInTasks) {
       await loadWorkspaceData();
     }
-    
+
     // Trigger search with new options
     // The search will be automatically triggered by the searchQuery state change
   };
 
   // Load workspace data when search query changes and options are enabled
   useEffect(() => {
-    if (searchQuery && (searchOptions.searchInProjects || searchOptions.searchInTasks)) {
+    if (
+      searchQuery &&
+      (searchOptions.searchInProjects || searchOptions.searchInTasks)
+    ) {
       loadWorkspaceData();
     }
-  }, [searchQuery, searchOptions.searchInProjects, searchOptions.searchInTasks]);
+  }, [
+    searchQuery,
+    searchOptions.searchInProjects,
+    searchOptions.searchInTasks,
+  ]);
 
   const loadWorkspaceData = async () => {
     try {
-      const projectsData: {[workspaceId: string]: any[]} = {};
-      const tasksData: {[workspaceId: string]: any[]} = {};
+      const projectsData: { [workspaceId: string]: any[] } = {};
+      const tasksData: { [workspaceId: string]: any[] } = {};
 
       for (const workspace of workspaces) {
         const workspaceId = workspace.id;
-        
+
         // Load projects if search in projects is enabled
         if (searchOptions.searchInProjects) {
           try {
-            const projectsResponse = await projectService.getProjectsByWorkspace(parseInt(workspaceId));
+            const projectsResponse =
+              await projectService.getProjectsByWorkspace(
+                parseInt(workspaceId),
+              );
             if (projectsResponse.success) {
               projectsData[workspaceId] = projectsResponse.data;
             }
           } catch (error) {
-            console.error(`Error loading projects for workspace ${workspaceId}:`, error);
+            console.error(
+              `Error loading projects for workspace ${workspaceId}:`,
+              error,
+            );
           }
         }
 
@@ -508,7 +577,10 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
             // For now, we'll use an empty array
             tasksData[workspaceId] = [];
           } catch (error) {
-            console.error(`Error loading tasks for workspace ${workspaceId}:`, error);
+            console.error(
+              `Error loading tasks for workspace ${workspaceId}:`,
+              error,
+            );
           }
         }
       }
@@ -547,14 +619,19 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
                 style={styles.modalCloseButton}
                 onPress={() => setShowSearchOptionsModal(false)}
               >
-                <MaterialIcons name="close" size={24} color={Colors.neutral.medium} />
+                <MaterialIcons
+                  name="close"
+                  size={24}
+                  color={Colors.neutral.medium}
+                />
               </TouchableOpacity>
             </View>
 
             {/* Content */}
             <View style={styles.modalContent}>
               <Text style={styles.modalDescription}>
-                Choose additional search options (Name search is always enabled):
+                Choose additional search options (Name search is always
+                enabled):
               </Text>
 
               {/* Search Options */}
@@ -564,15 +641,25 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
                   onPress={() => handleSearchOptionChange('searchInProjects')}
                 >
                   <View style={styles.searchOptionLeft}>
-                    <MaterialIcons name="folder" size={20} color={Colors.primary} />
+                    <MaterialIcons
+                      name="folder"
+                      size={20}
+                      color={Colors.primary}
+                    />
                     <Text style={styles.searchOptionTitle}>Projects</Text>
                   </View>
-                  <View style={[
-                    styles.checkbox,
-                    searchOptions.searchInProjects && styles.checkboxChecked
-                  ]}>
+                  <View
+                    style={[
+                      styles.checkbox,
+                      searchOptions.searchInProjects && styles.checkboxChecked,
+                    ]}
+                  >
                     {searchOptions.searchInProjects && (
-                      <MaterialIcons name="check" size={16} color={Colors.neutral.white} />
+                      <MaterialIcons
+                        name="check"
+                        size={16}
+                        color={Colors.neutral.white}
+                      />
                     )}
                   </View>
                 </TouchableOpacity>
@@ -582,15 +669,25 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
                   onPress={() => handleSearchOptionChange('searchInTasks')}
                 >
                   <View style={styles.searchOptionLeft}>
-                    <MaterialIcons name="assignment" size={20} color={Colors.primary} />
+                    <MaterialIcons
+                      name="assignment"
+                      size={20}
+                      color={Colors.primary}
+                    />
                     <Text style={styles.searchOptionTitle}>Tasks</Text>
                   </View>
-                  <View style={[
-                    styles.checkbox,
-                    searchOptions.searchInTasks && styles.checkboxChecked
-                  ]}>
+                  <View
+                    style={[
+                      styles.checkbox,
+                      searchOptions.searchInTasks && styles.checkboxChecked,
+                    ]}
+                  >
                     {searchOptions.searchInTasks && (
-                      <MaterialIcons name="check" size={16} color={Colors.neutral.white} />
+                      <MaterialIcons
+                        name="check"
+                        size={16}
+                        color={Colors.neutral.white}
+                      />
                     )}
                   </View>
                 </TouchableOpacity>
@@ -624,13 +721,13 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
         key={workspace.id}
         style={[
           styles.workspaceCard,
-          { 
+          {
             width: cardWidth,
             backgroundColor: Colors.neutral.white,
             borderColor: workspace.color + '20',
             borderLeftColor: workspace.color,
             borderLeftWidth: 4,
-          }
+          },
         ]}
         onPress={() => handleWorkspaceSelect(workspace)}
         activeOpacity={0.7}
@@ -648,15 +745,29 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
               </Text>
             )}
             {/* Search source indicator for name */}
-            {searchQuery && workspace.name.toLowerCase().includes(searchQuery.toLowerCase()) && (
-              <View style={styles.searchSourceBadge}>
-                <MaterialIcons name="label" size={12} color={Colors.primary} />
-                <Text style={styles.searchSourceBadgeText}>Name</Text>
-              </View>
-            )}
+            {searchQuery &&
+              workspace.name
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase()) && (
+                <View style={styles.searchSourceBadge}>
+                  <MaterialIcons
+                    name="label"
+                    size={12}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.searchSourceBadgeText}>Name</Text>
+                </View>
+              )}
           </View>
-          <View style={[styles.workspaceTypeBadge, { backgroundColor: workspace.color + '15' }]}>
-            <Text style={[styles.workspaceTypeText, { color: workspace.color }]}>
+          <View
+            style={[
+              styles.workspaceTypeBadge,
+              { backgroundColor: workspace.color + '15' },
+            ]}
+          >
+            <Text
+              style={[styles.workspaceTypeText, { color: workspace.color }]}
+            >
               {workspace.type === 'group' ? 'Group' : 'Personal'}
             </Text>
           </View>
@@ -676,47 +787,66 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
         </View>
 
         {/* Search Sources Section */}
-        {searchQuery && (() => {
-          const sources = getSearchSources(workspace, searchQuery);
-          return sources.length > 0 ? (
-            <View style={styles.searchSourcesSection}>
-              <View style={styles.searchSourcesHeader}>
-                <MaterialIcons name="search" size={16} color={Colors.primary} />
-                <Text style={styles.searchSourcesTitle}>Found in:</Text>
+        {searchQuery &&
+          (() => {
+            const sources = getSearchSources(workspace, searchQuery);
+            return sources.length > 0 ? (
+              <View style={styles.searchSourcesSection}>
+                <View style={styles.searchSourcesHeader}>
+                  <MaterialIcons
+                    name="search"
+                    size={16}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.searchSourcesTitle}>Found in:</Text>
+                </View>
+                <View style={styles.searchSourcesList}>
+                  {sources.map((source, index) => (
+                    <View key={index} style={styles.searchSourceItem}>
+                      <MaterialIcons
+                        name={
+                          source === 'Name'
+                            ? 'label'
+                            : source === 'Projects'
+                            ? 'folder'
+                            : 'assignment'
+                        }
+                        size={14}
+                        color={Colors.primary}
+                      />
+                      <Text style={styles.searchSourceItemText}>{source}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-              <View style={styles.searchSourcesList}>
-                {sources.map((source, index) => (
-                  <View key={index} style={styles.searchSourceItem}>
-                    <MaterialIcons 
-                      name={source === 'Name' ? 'label' : source === 'Projects' ? 'folder' : 'assignment'} 
-                      size={14} 
-                      color={Colors.primary} 
-                    />
-                    <Text style={styles.searchSourceItemText}>{source}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ) : null;
-        })()}
+            ) : null;
+          })()}
 
         {/* Stats Section */}
         <View style={styles.cardStats}>
           <View style={styles.statItem}>
             <View style={styles.statIconContainer}>
-              <MaterialIcons name="people" size={16} color={Colors.neutral.medium} />
+              <MaterialIcons
+                name="people"
+                size={16}
+                color={Colors.neutral.medium}
+              />
             </View>
             <View style={styles.statContent}>
               <Text style={styles.statValue}>{workspace.memberCount}</Text>
               <Text style={styles.statLabel}>Members</Text>
             </View>
           </View>
-          
+
           <View style={styles.statDivider} />
-          
+
           <View style={styles.statItem}>
             <View style={styles.statIconContainer}>
-              <MaterialIcons name="folder" size={16} color={Colors.neutral.medium} />
+              <MaterialIcons
+                name="folder"
+                size={16}
+                color={Colors.neutral.medium}
+              />
             </View>
             <View style={styles.statContent}>
               <Text style={styles.statValue}>{workspace.projectCount}</Text>
@@ -731,159 +861,181 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      
+
       {/* Content Wrapper */}
       <View style={styles.contentWrapper}>
-      {/* Content */}
-      <View style={styles.content}>
-        <DashboardHeader
-          username={username}
-          subtitle="Choose your workspace"
-          actions={[
-            {
-              icon: 'notifications',
-              onPress: () => setShowNotificationModal(true),
-              badgeCount: notificationCount,
-            },
-          ]}
-          searchPlaceholder="Search workspaces..."
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          showSearchBar={showSearchBar}
-          onToggleSearchBar={setShowSearchBar}
-          onClearSearch={() => setSearchQuery('')}
-          showSearchOptionsButton
-          onSearchOptionsPress={() => setShowSearchOptionsModal(true)}
-          searchOptionsActive={searchOptions.searchInProjects || searchOptions.searchInTasks}
-                />
+        {/* Content */}
+        <View style={styles.content}>
+          <DashboardHeader
+            username={username}
+            subtitle="Choose your workspace"
+            actions={[
+              {
+                icon: 'notifications',
+                onPress: () => setShowNotificationModal(true),
+                badgeCount: notificationCount,
+              },
+            ]}
+            searchPlaceholder="Search workspaces..."
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            showSearchBar={showSearchBar}
+            onToggleSearchBar={setShowSearchBar}
+            onClearSearch={() => setSearchQuery('')}
+            showSearchOptionsButton
+            onSearchOptionsPress={() => setShowSearchOptionsModal(true)}
+            searchOptionsActive={
+              searchOptions.searchInProjects || searchOptions.searchInTasks
+            }
+          />
 
-        {showSearchBar && (searchOptions.searchInProjects || searchOptions.searchInTasks) && (
+          {showSearchBar &&
+            (searchOptions.searchInProjects || searchOptions.searchInTasks) && (
               <Text style={styles.searchOptionsHint}>
-            Search includes: Name (default)
-            {searchOptions.searchInProjects ? ', Projects' : ''}
-            {searchOptions.searchInTasks ? ', Tasks' : ''}
+                Search includes: Name (default)
+                {searchOptions.searchInProjects ? ', Projects' : ''}
+                {searchOptions.searchInTasks ? ', Tasks' : ''}
               </Text>
+            )}
+
+          {/* Tab Navigation */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tab, selectedTab === 'total' && styles.activeTab]}
+              onPress={() => setSelectedTab('total')}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  selectedTab === 'total' && styles.activeTabText,
+                ]}
+              >
+                Total
+              </Text>
+              {selectedTab === 'total' && (
+                <View style={styles.activeTabIndicator} />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, selectedTab === 'group' && styles.activeTab]}
+              onPress={() => setSelectedTab('group')}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  selectedTab === 'group' && styles.activeTabText,
+                ]}
+              >
+                Group
+              </Text>
+              {selectedTab === 'group' && (
+                <View style={styles.activeTabIndicator} />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.tab,
+                selectedTab === 'personal' && styles.activeTab,
+              ]}
+              onPress={() => setSelectedTab('personal')}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  selectedTab === 'personal' && styles.activeTabText,
+                ]}
+              >
+                Personal
+              </Text>
+              {selectedTab === 'personal' && (
+                <View style={styles.activeTabIndicator} />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Workspace Blocks Container */}
+          <View style={styles.workspaceSection}>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={styles.loadingText}>Loading workspaces...</Text>
+              </View>
+            ) : workspaces.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <MaterialIcons
+                  name="folder-open"
+                  size={48}
+                  color={Colors.neutral.medium}
+                />
+                <Text style={styles.emptyTitle}>No workspaces found</Text>
+                <Text style={styles.emptySubtitle}>
+                  Create your first workspace to get started
+                </Text>
+              </View>
+            ) : filteredWorkspaces.length === 0 && searchQuery ? (
+              <View style={styles.emptyContainer}>
+                <MaterialIcons
+                  name="search-off"
+                  size={48}
+                  color={Colors.neutral.medium}
+                />
+                <Text style={styles.emptyTitle}>No results found</Text>
+                <Text style={styles.emptySubtitle}>
+                  No workspaces match "{searchQuery}". Try different keywords or
+                  check your search options.
+                </Text>
+                <TouchableOpacity
+                  style={styles.clearSearchButton}
+                  onPress={() => setSearchQuery('')}
+                >
+                  <Text style={styles.clearSearchButtonText}>Clear search</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.workspaceContainerFixed}>
+                <ScrollView
+                  style={styles.workspacesScrollContainer}
+                  showsVerticalScrollIndicator={hasMoreWorkspaces}
+                  contentContainerStyle={styles.scrollContentContainer}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={refreshWorkspaces}
+                      colors={[Colors.primary]}
+                    />
+                  }
+                >
+                  <View style={styles.workspacesContainer}>
+                    {filteredWorkspaces.map((workspace, index) =>
+                      renderWorkspaceCard(workspace, index),
+                    )}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Create Workspace Button - Hidden when searching */}
+        {!searchQuery && (
+          <View style={styles.footer}>
+            <TouchableOpacity
+              style={styles.createButton}
+              onPress={handleCreateWorkspace}
+            >
+              <Text style={styles.createButtonText}>Create workspace</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
-        {/* Tab Navigation */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[
-              styles.tab,
-              selectedTab === 'total' && styles.activeTab
-            ]}
-            onPress={() => setSelectedTab('total')}
-          >
-            <Text style={[
-              styles.tabText,
-              selectedTab === 'total' && styles.activeTabText
-            ]}>
-              Total
-            </Text>
-            {selectedTab === 'total' && <View style={styles.activeTabIndicator} />}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.tab,
-              selectedTab === 'group' && styles.activeTab
-            ]}
-            onPress={() => setSelectedTab('group')}
-          >
-            <Text style={[
-              styles.tabText,
-              selectedTab === 'group' && styles.activeTabText
-            ]}>
-              Group
-            </Text>
-            {selectedTab === 'group' && <View style={styles.activeTabIndicator} />}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.tab,
-              selectedTab === 'personal' && styles.activeTab
-            ]}
-            onPress={() => setSelectedTab('personal')}
-          >
-            <Text style={[
-              styles.tabText,
-              selectedTab === 'personal' && styles.activeTabText
-            ]}>
-              Personal
-            </Text>
-            {selectedTab === 'personal' && <View style={styles.activeTabIndicator} />}
-          </TouchableOpacity>
-        </View>
-
-        {/* Workspace Blocks Container */}
-        <View style={styles.workspaceSection}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.loadingText}>Loading workspaces...</Text>
-            </View>
-          ) : workspaces.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <MaterialIcons name="folder-open" size={48} color={Colors.neutral.medium} />
-              <Text style={styles.emptyTitle}>No workspaces found</Text>
-              <Text style={styles.emptySubtitle}>Create your first workspace to get started</Text>
-            </View>
-          ) : filteredWorkspaces.length === 0 && searchQuery ? (
-            <View style={styles.emptyContainer}>
-              <MaterialIcons name="search-off" size={48} color={Colors.neutral.medium} />
-              <Text style={styles.emptyTitle}>No results found</Text>
-              <Text style={styles.emptySubtitle}>
-                No workspaces match "{searchQuery}". Try different keywords or check your search options.
-              </Text>
-              <TouchableOpacity 
-                style={styles.clearSearchButton}
-                onPress={() => setSearchQuery('')}
-              >
-                <Text style={styles.clearSearchButtonText}>Clear search</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.workspaceContainerFixed}>
-              <ScrollView 
-                style={styles.workspacesScrollContainer}
-                showsVerticalScrollIndicator={hasMoreWorkspaces}
-                contentContainerStyle={styles.scrollContentContainer}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={refreshWorkspaces}
-                    colors={[Colors.primary]}
-                  />
-                }
-              >
-                <View style={styles.workspacesContainer}>
-                  {filteredWorkspaces.map((workspace, index) => renderWorkspaceCard(workspace, index))}
-                </View>
-              </ScrollView>
-            </View>
-          )}
-        </View>
-      </View>
-
-      {/* Create Workspace Button - Hidden when searching */}
-      {!searchQuery && (
-        <View style={styles.footer}>
-          <TouchableOpacity 
-            style={styles.createButton}
-            onPress={handleCreateWorkspace}
-          >
-            <Text style={styles.createButtonText}>Create workspace</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Search Options Modal */}
-      {renderSearchOptionsModal()}
+        {/* Search Options Modal */}
+        {renderSearchOptionsModal()}
       </View>
 
       <NotificationModal
         visible={showNotificationModal}
         onClose={() => setShowNotificationModal(false)}
-        onAcceptInvitation={async (notificationId) => {
+        onAcceptInvitation={async notificationId => {
           try {
             await notificationService.acceptInvitation(notificationId);
             await loadNotificationCount();
@@ -894,7 +1046,7 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
             setShowNotificationModal(false);
           }
         }}
-        onDeclineInvitation={async (notificationId) => {
+        onDeclineInvitation={async notificationId => {
           try {
             await notificationService.declineInvitation(notificationId);
             await loadNotificationCount();
@@ -905,6 +1057,7 @@ const WorkspaceSelectionScreen: React.FC<WorkspaceSelectionScreenProps> = ({ nav
             setShowNotificationModal(false);
           }
         }}
+        navigation={navigation}
       />
     </SafeAreaView>
   );
@@ -1277,9 +1430,12 @@ const styles = StyleSheet.create({
   },
   // Removed viewMore and viewLess styles - no longer needed
   footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 16,
     paddingHorizontal: ScreenLayout.contentHorizontalPadding,
-    paddingBottom: 100, // Space for bottom tab navigator
-    paddingTop: 10,
+    paddingTop: 0,
   },
   createButton: {
     borderColor: Colors.neutral.light,

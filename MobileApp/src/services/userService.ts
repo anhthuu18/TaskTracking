@@ -74,5 +74,63 @@ export const userService = {
       message: 'No user data available',
     };
   },
-};
 
+  async updateFCMToken(userId: number, fcmToken: string): Promise<ApiResponse> {
+    if (!API_CONFIG.USE_MOCK_API) {
+      return request(buildApiUrl(`/users/${userId}/fcm-token`), {
+        method: 'PUT',
+        body: JSON.stringify({ fcmToken }),
+      });
+    }
+
+    // Mock response
+    return {
+      success: true,
+      message: 'FCM token updated (mock)',
+      data: { fcmToken },
+    };
+  },
+
+  async getNotificationPreferences(
+    userId: number,
+  ): Promise<ApiResponse<{ notifyByEmail: boolean; notifyByPush: boolean }>> {
+    if (!API_CONFIG.USE_MOCK_API) {
+      return request(buildApiUrl(`/users/${userId}/notification-preferences`), {
+        method: 'GET',
+      });
+    }
+
+    // Mock response
+    return {
+      success: true,
+      message: 'Notification preferences loaded (mock)',
+      data: {
+        notifyByEmail: true,
+        notifyByPush: true,
+      },
+    };
+  },
+
+  async updateNotificationPreferences(
+    userId: number,
+    notifyByEmail?: boolean,
+    notifyByPush?: boolean,
+  ): Promise<ApiResponse<{ notifyByEmail: boolean; notifyByPush: boolean }>> {
+    if (!API_CONFIG.USE_MOCK_API) {
+      return request(buildApiUrl(`/users/${userId}/notification-preferences`), {
+        method: 'PUT',
+        body: JSON.stringify({ notifyByEmail, notifyByPush }),
+      });
+    }
+
+    // Mock response
+    return {
+      success: true,
+      message: 'Notification preferences updated (mock)',
+      data: {
+        notifyByEmail: notifyByEmail ?? true,
+        notifyByPush: notifyByPush ?? true,
+      },
+    };
+  },
+};

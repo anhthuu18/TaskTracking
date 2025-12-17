@@ -55,13 +55,13 @@ class NotificationService {
   private async request<T>(url: string, options: RequestInit): Promise<T> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
-    
+
     try {
       const token = await this.getAuthToken();
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
-        ...(options.headers as Record<string, string> || {}),
+        ...((options.headers as Record<string, string>) || {}),
       };
 
       const response = await fetch(url, {
@@ -71,27 +71,65 @@ class NotificationService {
       });
 
       const data = await response.json().catch(() => ({}));
-      
+
       if (!response.ok) {
-        throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(
+          data.message || `HTTP ${response.status}: ${response.statusText}`,
+        );
       }
 
       return data as T;
     } catch (error: any) {
       const isAbort = error?.name === 'AbortError';
-      throw new Error(isAbort ? 'Request timeout' : (error?.message || 'Network error'));
+      throw new Error(
+        isAbort ? 'Request timeout' : error?.message || 'Network error',
+      );
     } finally {
       clearTimeout(timeout);
     }
   }
 
-  // Get user notifications
+  // Get user workspace invitations (for Personal Dashboard)
   async getUserNotifications(): Promise<NotificationResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockGetUserNotifications();
     }
 
-    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL);
+    const url = buildApiUrl(
+      getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL,
+    );
+    return this.request<NotificationResponse>(url, {
+      method: 'GET',
+    });
+  }
+
+  // Get ALL user notifications (workspace invitations + project notifications across all workspaces)
+  async getAllUserNotifications(): Promise<NotificationResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return this.mockGetUserNotifications();
+    }
+
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL}/all`,
+    );
+    return this.request<NotificationResponse>(url, {
+      method: 'GET',
+    });
+  }
+
+  // Get project notifications for a workspace (for Workspace Dashboard)
+  async getProjectNotifications(
+    workspaceId: number,
+  ): Promise<NotificationResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return { success: true, message: 'Mock project notifications', data: [] };
+    }
+
+    const url = buildApiUrl(
+      `${
+        getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL
+      }/project/${workspaceId}`,
+    );
     return this.request<NotificationResponse>(url, {
       method: 'GET',
     });
@@ -103,19 +141,30 @@ class NotificationService {
       return this.mockAcceptInvitation(invitationId);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.NOTIFICATION.ACCEPT}/${invitationId}`);
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.NOTIFICATION.ACCEPT}/${invitationId}`,
+    );
     return this.request<ActionResponse>(url, {
       method: 'POST',
     });
   }
 
   // Create in-app notifications for project invite (no accept/reject required)
-  async createProjectInviteNotification(payload: ProjectInvitePayload): Promise<ActionResponse> {
+  async createProjectInviteNotification(
+    payload: ProjectInvitePayload,
+  ): Promise<ActionResponse> {
     if (API_CONFIG.USE_MOCK_API) {
-      return new Promise((resolve) => setTimeout(() => resolve({ success: true, message: 'Project invites sent' }), API_CONFIG.MOCK_DELAY));
+      return new Promise(resolve =>
+        setTimeout(
+          () => resolve({ success: true, message: 'Project invites sent' }),
+          API_CONFIG.MOCK_DELAY,
+        ),
+      );
     }
 
-    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.NOTIFICATION.PROJECT_INVITE);
+    const url = buildApiUrl(
+      getCurrentApiConfig().ENDPOINTS.NOTIFICATION.PROJECT_INVITE,
+    );
     return this.request<ActionResponse>(url, {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -128,18 +177,144 @@ class NotificationService {
       return this.mockDeclineInvitation(invitationId);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.NOTIFICATION.DECLINE}/${invitationId}`);
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.NOTIFICATION.DECLINE}/${invitationId}`,
+    );
+    return this.request<ActionResponse>(url, {
+      method: 'POST',
+    });
+  }
+
+  // Delete all workspace invitations (for Personal Dashboard - declines them)
+  async deleteAllWorkspaceInvitations(): Promise<ActionResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return new Promise(resolve => {
+        setTimeout(
+          () =>
+            resolve({
+              success: true,
+              message: 'All workspace invitations declined (mock)',
+            }),
+          API_CONFIG.MOCK_DELAY,
+        );
+      });
+    }
+
+    const url = buildApiUrl(
+      getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL +
+        '/delete-all-workspace',
+    );
+    return this.request<ActionResponse>(url, {
+      method: 'POST',
+    });
+  }
+
+  // Delete all project notifications for a workspace (for Workspace Dashboard)
+  async deleteAllProjectNotifications(
+    workspaceId: number,
+  ): Promise<ActionResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return new Promise(resolve => {
+        setTimeout(
+          () =>
+            resolve({
+              success: true,
+              message: 'All project notifications deleted (mock)',
+            }),
+          API_CONFIG.MOCK_DELAY,
+        );
+      });
+    }
+
+    const url = buildApiUrl(
+      `${
+        getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL
+      }/delete-all-project/${workspaceId}`,
+    );
+    return this.request<ActionResponse>(url, {
+      method: 'POST',
+    });
+  }
+
+  // Delete all project notifications for user (for Personal Dashboard - all mode)
+  async deleteAllProjectNotificationsForUser(): Promise<ActionResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return new Promise(resolve => {
+        setTimeout(
+          () =>
+            resolve({
+              success: true,
+              message: 'All project notifications deleted (mock)',
+            }),
+          API_CONFIG.MOCK_DELAY,
+        );
+      });
+    }
+
+    const url = buildApiUrl(
+      `${
+        getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL
+      }/delete-all-project`,
+    );
+    return this.request<ActionResponse>(url, {
+      method: 'POST',
+    });
+  }
+
+  // Mark all project notifications as read for user (Personal Dashboard - all mode)
+  async markAllProjectNotificationsAsRead(): Promise<ActionResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return new Promise(resolve => {
+        setTimeout(
+          () =>
+            resolve({
+              success: true,
+              message: 'All notifications marked as read (mock)',
+            }),
+          API_CONFIG.MOCK_DELAY,
+        );
+      });
+    }
+
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL}/mark-all-read`,
+    );
+    return this.request<ActionResponse>(url, {
+      method: 'POST',
+    });
+  }
+
+  // Mark all project notifications as read for workspace (Workspace Dashboard)
+  async markAllProjectNotificationsAsReadForWorkspace(
+    workspaceId: number,
+  ): Promise<ActionResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return new Promise(resolve => {
+        setTimeout(
+          () =>
+            resolve({
+              success: true,
+              message: 'All notifications marked as read (mock)',
+            }),
+          API_CONFIG.MOCK_DELAY,
+        );
+      });
+    }
+
+    const url = buildApiUrl(
+      `${
+        getCurrentApiConfig().ENDPOINTS.NOTIFICATION.GET_ALL
+      }/mark-all-read/${workspaceId}`,
+    );
     return this.request<ActionResponse>(url, {
       method: 'POST',
     });
   }
 
   // ==================== MOCK METHODS ====================
-  
-  private async mockGetUserNotifications(): Promise<NotificationResponse> {
 
-    
-    return new Promise((resolve) => {
+  private async mockGetUserNotifications(): Promise<NotificationResponse> {
+    return new Promise(resolve => {
       setTimeout(() => {
         const mockNotifications: Notification[] = [
           {
@@ -150,8 +325,11 @@ class NotificationService {
             inviteType: 'EMAIL',
             status: 'PENDING',
             token: 'mock-token-1',
-            message: 'Welcome to our team! We\'d love to have you join our project.',
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+            message:
+              "Welcome to our team! We'd love to have you join our project.",
+            expiresAt: new Date(
+              Date.now() + 7 * 24 * 60 * 60 * 1000,
+            ).toISOString(), // 7 days from now
             createdAt: new Date('2024-01-20').toISOString(),
             updatedAt: new Date('2024-01-20').toISOString(),
             workspace: {
@@ -174,7 +352,9 @@ class NotificationService {
             status: 'PENDING',
             token: 'mock-token-2',
             message: 'We need your design expertise for our new project.',
-            expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days from now
+            expiresAt: new Date(
+              Date.now() + 5 * 24 * 60 * 60 * 1000,
+            ).toISOString(), // 5 days from now
             createdAt: new Date('2024-01-22').toISOString(),
             updatedAt: new Date('2024-01-22').toISOString(),
             workspace: {
@@ -199,9 +379,10 @@ class NotificationService {
     });
   }
 
-  private async mockAcceptInvitation(invitationId: number): Promise<ActionResponse> {
-    
-    return new Promise((resolve) => {
+  private async mockAcceptInvitation(
+    invitationId: number,
+  ): Promise<ActionResponse> {
+    return new Promise(resolve => {
       setTimeout(() => {
         resolve({
           success: true,
@@ -211,9 +392,10 @@ class NotificationService {
     });
   }
 
-  private async mockDeclineInvitation(invitationId: number): Promise<ActionResponse> {
-    
-    return new Promise((resolve) => {
+  private async mockDeclineInvitation(
+    invitationId: number,
+  ): Promise<ActionResponse> {
+    return new Promise(resolve => {
       setTimeout(() => {
         resolve({
           success: true,

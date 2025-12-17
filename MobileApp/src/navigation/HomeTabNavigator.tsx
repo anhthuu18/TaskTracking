@@ -1,19 +1,31 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
 import BottomTabNavigator from './BottomTabNavigator';
 import PersonalDashboardScreen from '../screens/PersonalDashboardScreen';
 import WorkspaceSelectionScreen from '../screens/WorkspaceSelectionScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import PersonalSettingsScreen from '../screens/PersonalSettingsScreen';
 
 type HomeTabParamList = {
   PersonalDashboard: undefined;
   WorkspaceSelection: undefined;
-  PersonalSettings: undefined;
+  CreateEvent: undefined;
   Profile: undefined;
 };
 
 const Tab = createBottomTabNavigator<HomeTabParamList>();
+
+// Placeholder screen for Create action - navigates directly to CreateEvent
+const CreatePlaceholderScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
+
+  React.useEffect(() => {
+    // Navigate directly to CreateEvent screen
+    navigation.navigate('CreateEvent');
+  }, [navigation]);
+
+  return null;
+};
 
 interface HomeTabNavigatorProps {
   onLogout?: () => void;
@@ -25,7 +37,7 @@ const HomeTabNavigator: React.FC<HomeTabNavigatorProps> = ({ onLogout }) => {
       screenOptions={{
         headerShown: false,
       }}
-      tabBar={(props) => <BottomTabNavigator {...props} />}
+      tabBar={props => <BottomTabNavigator {...props} />}
     >
       <Tab.Screen
         name="PersonalDashboard"
@@ -42,11 +54,18 @@ const HomeTabNavigator: React.FC<HomeTabNavigatorProps> = ({ onLogout }) => {
         }}
       />
       <Tab.Screen
-        name="PersonalSettings"
-        component={PersonalSettingsScreen}
+        name="CreateEvent"
+        component={CreatePlaceholderScreen}
         options={{
-          tabBarLabel: 'Settings',
+          tabBarLabel: 'Create',
         }}
+        listeners={({ navigation }) => ({
+          tabPress: e => {
+            e.preventDefault();
+            // Navigate directly to CreateEvent screen
+            navigation.getParent()?.navigate('CreateEvent');
+          },
+        })}
       />
       <Tab.Screen
         name="Profile"
@@ -54,11 +73,10 @@ const HomeTabNavigator: React.FC<HomeTabNavigatorProps> = ({ onLogout }) => {
           tabBarLabel: 'Profile',
         }}
       >
-        {(props) => <ProfileScreen {...props} onLogout={onLogout} />}
+        {props => <ProfileScreen {...props} onLogout={onLogout} />}
       </Tab.Screen>
     </Tab.Navigator>
   );
 };
 
 export default HomeTabNavigator;
-
