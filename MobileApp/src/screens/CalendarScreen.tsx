@@ -16,7 +16,9 @@ import { useTheme } from '../hooks/useTheme';
 import { Task } from '../types/Task';
 import TaskCardModern from '../components/TaskCardModern';
 import TaskDetailModal from '../components/TaskDetailModal';
-import { taskService } from '../services';
+import EventCard from '../components/EventCard';
+import { taskService, eventService } from '../services';
+import { Event } from '../services/eventService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface TimeTracking {
@@ -78,6 +80,7 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [tasks, setTasks] = useState<Task[]>(passedTasks || []);
+  const [events, setEvents] = useState<Event[]>([]);
   const [timeTrackings, setTimeTrackings] = useState<EnrichedTimeTracking[]>(
     passedTimeTrackings || [],
   );
@@ -169,6 +172,14 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({
           tasksWithDeadline.length,
         );
 
+        // Load events for this project
+        console.log('[Calendar] Loading events for project:', projectId);
+        const eventsResponse = await eventService.getEventsByProject(
+          Number(projectId),
+        );
+        console.log('[Calendar] Events response:', eventsResponse);
+        setEvents(Array.isArray(eventsResponse) ? eventsResponse : []);
+
         setTasks(tasksWithDeadline);
         setTimeTrackings([]); // Clear trackings for now
         setLoading(false);
@@ -247,6 +258,14 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({
       // Filter tasks with deadline
       const tasksWithDeadline = apiTasks.filter(task => task.dueDate);
       console.log('[Calendar] Tasks with deadline:', tasksWithDeadline.length);
+
+      // Load events for this workspace
+      console.log('[Calendar] Loading events for workspace:', workspaceId);
+      const eventsResponse = await eventService.getEventsByWorkspace(
+        workspaceId,
+      );
+      console.log('[Calendar] Events response:', eventsResponse);
+      setEvents(Array.isArray(eventsResponse) ? eventsResponse : []);
 
       setTasks(tasksWithDeadline);
       setTimeTrackings([]); // Clear trackings for now
@@ -538,6 +557,13 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({
         return hasMatch;
       });
 
+      // Check if there are events starting on this day (blue dot for events)
+      const hasEvents = events.some(event => {
+        const eventStartDate = new Date(event.startTime);
+        eventStartDate.setHours(0, 0, 0, 0);
+        return eventStartDate.getTime() === currentDate.getTime();
+      });
+
       const hasTrackings = timeTrackings.some(tracking => {
         const trackingDate = new Date(tracking.startTime);
         trackingDate.setHours(0, 0, 0, 0);
@@ -545,7 +571,7 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({
       });
 
       // Show red dot if there are tasks due OR trackings
-      const hasActivity = hasDueTasks || hasTrackings;
+      const hasTaskActivity = hasDueTasks || hasTrackings;
 
       days.push(
         <TouchableOpacity
@@ -575,8 +601,10 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({
               {day}
             </Text>
           </View>
-          {/* Show red dot for dates with activity (tasks or trackings) */}
-          {hasActivity && <View style={styles.activityDot} />}
+          {/* Show orange dot for dates with tasks/trackings */}
+          {hasTaskActivity && <View style={styles.activityDot} />}
+          {/* Show blue dot for dates with events */}
+          {hasEvents && <View style={styles.eventDot} />}
         </TouchableOpacity>,
       );
     }
@@ -628,6 +656,17 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({
         trackingDate.getMonth() === selectedDate.getMonth() &&
         trackingDate.getFullYear() === selectedDate.getFullYear()
       );
+    });
+  };
+
+  const getEventsForSelectedDate = () => {
+    const selectedDateCopy = new Date(selectedDate);
+    selectedDateCopy.setHours(0, 0, 0, 0);
+
+    return events.filter(event => {
+      const eventStartDate = new Date(event.startTime);
+      eventStartDate.setHours(0, 0, 0, 0);
+      return eventStartDate.getTime() === selectedDateCopy.getTime();
     });
   };
 
@@ -772,10 +811,12 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({
 
   const selectedDateTasks = getTasksForSelectedDate();
   const selectedDateTrackings = getTrackingsForSelectedDate();
+  const selectedDateEvents = getEventsForSelectedDate();
   const isPastDate = isDateInPast(selectedDate);
 
   console.log('[Calendar] Selected date:', selectedDate);
   console.log('[Calendar] Selected date tasks:', selectedDateTasks.length);
+  console.log('[Calendar] Selected date events:', selectedDateEvents.length);
   console.log('[Calendar] Is past date:', isPastDate);
 
   return (
@@ -880,24 +921,28 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({
           <Text style={[styles.selectedDateText, { color: colors.text }]}>
             {formatDate(selectedDate)}
           </Text>
-          {selectedDateTasks.length > 0 && (
+          {(selectedDateTasks.length > 0 || selectedDateEvents.length > 0) && (
             <Text
               style={[styles.itemCountText, { color: colors.textSecondary }]}
             >
               {selectedDateTasks.length} task
-              {selectedDateTasks.length > 1 ? 's' : ''}
+              {selectedDateTasks.length !== 1 ? 's' : ''}
+              {selectedDateEvents.length > 0 &&
+                ` • ${selectedDateEvents.length} event${
+                  selectedDateEvents.length !== 1 ? 's' : ''
+                }`}
             </Text>
           )}
         </View>
 
-        {/* Tasks List */}
+        {/* Tasks and Events List */}
         <View style={styles.itemsSection}>
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={Colors.primary} />
             </View>
-          ) : // Always show tasks with deadlines, regardless of past/future
-          selectedDateTasks.length === 0 ? (
+          ) : selectedDateTasks.length === 0 &&
+            selectedDateEvents.length === 0 ? (
             <View style={styles.emptyContainer}>
               <MaterialIcons
                 name="check-circle"
@@ -905,12 +950,12 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({
                 color={Colors.neutral.medium}
               />
               <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                No tasks due
+                No tasks or events
               </Text>
               <Text
                 style={[styles.emptySubtitle, { color: colors.textSecondary }]}
               >
-                No tasks are due on this date
+                No tasks or events are scheduled for this date
               </Text>
             </View>
           ) : (
@@ -919,7 +964,54 @@ const CalendarScreen: React.FC<CalendarScreenProps> = ({
               showsVerticalScrollIndicator={true}
               nestedScrollEnabled={true}
             >
-              {selectedDateTasks.map(task => renderTaskItem(task))}
+              {/* Render Events */}
+              {selectedDateEvents.length > 0 && (
+                <View style={styles.eventsSection}>
+                  <View style={styles.sectionHeader}>
+                    <MaterialIcons name="event" size={20} color="#2196F3" />
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                      Events
+                    </Text>
+                  </View>
+                  {selectedDateEvents.map(event => (
+                    <EventCard
+                      key={event.id}
+                      event={{
+                        ...event,
+                        projectName: event.project?.projectName,
+                        creatorName: event.creator?.username,
+                      }}
+                      onEdit={() => {
+                        if (navigation) {
+                          navigation.navigate('EditEvent', {
+                            eventId: event.id,
+                            onEventUpdated: () => {
+                              loadData();
+                            },
+                          });
+                        }
+                      }}
+                    />
+                  ))}
+                </View>
+              )}
+
+              {/* Render Tasks */}
+              {selectedDateTasks.length > 0 && (
+                <View style={styles.tasksSection}>
+                  {selectedDateEvents.length > 0 && (
+                    <View style={styles.sectionHeader}>
+                      <MaterialIcons name="task" size={20} color="#FF9800" />
+                      <Text
+                        style={[styles.sectionTitle, { color: colors.text }]}
+                      >
+                        Tasks
+                      </Text>
+                    </View>
+                  )}
+                  {selectedDateTasks.map(task => renderTaskItem(task))}
+                </View>
+              )}
             </ScrollView>
           )}
         </View>
@@ -1183,7 +1275,15 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.semantic.error,
+    backgroundColor: '#FF9800', // Orange for tasks
+  },
+  eventDot: {
+    position: 'absolute',
+    bottom: 8,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#2196F3', // Blue for events
   },
   selectedDateSection: {
     flexDirection: 'row',
@@ -1278,6 +1378,71 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.neutral.dark,
+  },
+
+  // Event Styles
+  eventsSection: {
+    marginBottom: 16,
+  },
+  tasksSection: {
+    marginBottom: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  eventCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196F3',
+    shadowColor: Colors.neutral.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+    flexDirection: 'row',
+  },
+  eventIndicator: {
+    width: 0,
+  },
+  eventContent: {
+    flex: 1,
+  },
+  eventName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  eventDescription: {
+    fontSize: 14,
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  eventTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 6,
+  },
+  eventTime: {
+    fontSize: 13,
+  },
+  eventProjectRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  eventProject: {
+    fontSize: 13,
   },
 });
 

@@ -17,7 +17,11 @@ interface ProjectNotification {
   projectName: string;
   title: string;
   message: string;
-  type: 'TASK_ASSIGNED' | 'MEMBER_ADDED' | 'DEADLINE_REMINDER' | 'PROJECT_UPDATE';
+  type:
+    | 'TASK_ASSIGNED'
+    | 'MEMBER_ADDED'
+    | 'DEADLINE_REMINDER'
+    | 'PROJECT_UPDATE';
   createdAt: Date;
   isRead: boolean;
   senderName?: string;
@@ -38,6 +42,7 @@ const ProjectNotificationModal: React.FC<ProjectNotificationModalProps> = ({
 }) => {
   const [notifications, setNotifications] = useState<ProjectNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     loadNotifications();
@@ -49,7 +54,7 @@ const ProjectNotificationModal: React.FC<ProjectNotificationModalProps> = ({
       // TODO: Replace with actual API call
       // const response = await notificationService.getProjectNotifications(projectId);
       // setNotifications(response.data);
-      
+
       // Mock data for testing
       const mockNotifications: ProjectNotification[] = [
         {
@@ -96,7 +101,7 @@ const ProjectNotificationModal: React.FC<ProjectNotificationModalProps> = ({
           senderName: 'Project Manager',
         },
       ];
-      
+
       setNotifications(mockNotifications);
     } catch (error) {
       console.error('Error loading notifications:', error);
@@ -109,16 +114,33 @@ const ProjectNotificationModal: React.FC<ProjectNotificationModalProps> = ({
     try {
       // TODO: Replace with actual API call
       // await notificationService.markAsRead(notificationId);
-      
-      setNotifications(prev => 
-        prev.map(notification => 
-          notification.id === notificationId 
+
+      setNotifications(prev =>
+        prev.map(notification =>
+          notification.id === notificationId
             ? { ...notification, isRead: true }
-            : notification
-        )
+            : notification,
+        ),
       );
     } catch (error) {
       console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      setClearing(true);
+      // TODO: Replace with actual API call
+      // await notificationService.markAllProjectNotificationsAsReadForProject(projectId);
+
+      // Mark all notifications as read
+      setNotifications(prev =>
+        prev.map(notification => ({ ...notification, isRead: true })),
+      );
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -154,8 +176,10 @@ const ProjectNotificationModal: React.FC<ProjectNotificationModalProps> = ({
 
   const formatTimeAgo = (date: Date) => {
     const now = new Date();
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
+    const diffInMinutes = Math.floor(
+      (now.getTime() - date.getTime()) / (1000 * 60),
+    );
+
     if (diffInMinutes < 1) {
       return 'Just now';
     } else if (diffInMinutes < 60) {
@@ -178,75 +202,106 @@ const ProjectNotificationModal: React.FC<ProjectNotificationModalProps> = ({
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
-            {/* Header */}
-            <View style={styles.header}>
-              <Text style={styles.title}>Project Notifications</Text>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Project Notifications</Text>
+            <View style={styles.headerActions}>
+              {notifications.length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearAllButton}
+                  onPress={handleClearAll}
+                  disabled={clearing}
+                >
+                  {clearing ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={Colors.semantic.error}
+                    />
+                  ) : (
+                    <Text style={styles.clearAllText}>Mark as Read</Text>
+                  )}
+                </TouchableOpacity>
+              )}
               <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                <MaterialIcons name="close" size={24} color={Colors.neutral.dark} />
+                <MaterialIcons
+                  name="close"
+                  size={24}
+                  color={Colors.neutral.dark}
+                />
               </TouchableOpacity>
             </View>
-    
-            {/* Content */}
-            <View style={styles.content}>
-              {loading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color={Colors.primary} />
-                  <Text style={styles.loadingText}>Loading notifications...</Text>
-                </View>
-              ) : notifications.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <MaterialIcons name="notifications-none" size={48} color={Colors.neutral.medium} />
-                  <Text style={styles.emptyTitle}>No notifications yet</Text>
-                  <Text style={styles.emptySubtitle}>You'll see project updates here</Text>
-                </View>
-              ) : (
+          </View>
+
+          {/* Content */}
+          <View style={styles.content}>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={styles.loadingText}>Loading notifications...</Text>
+              </View>
+            ) : notifications.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <MaterialIcons
+                  name="notifications-none"
+                  size={48}
+                  color={Colors.neutral.medium}
+                />
+                <Text style={styles.emptyTitle}>No notifications yet</Text>
+                <Text style={styles.emptySubtitle}>
+                  You'll see project updates here
+                </Text>
+              </View>
+            ) : (
               <ScrollView
                 style={styles.notificationsList}
                 showsVerticalScrollIndicator={false}
               >
-                  {notifications.map((notification) => (
-                    <TouchableOpacity
-                      key={notification.id}
-                      style={styles.notificationCard}
-                      onPress={() => markAsRead(notification.id)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.notificationHeader}>
-                        <View style={styles.notificationInfo}>
-                          <View style={styles.notificationIcon}>
-                            <MaterialIcons 
-                              name={getNotificationIcon(notification.type)} 
-                              size={20} 
-                              color={getNotificationColor(notification.type)} 
-                            />
-                          </View>
-                          <View style={styles.notificationDetails}>
-                            <Text style={styles.notificationTitle}>
-                              {notification.title}
-                            </Text>
-                            <Text style={styles.notificationMessage}>
-                              {notification.message}
-                            </Text>
-                          </View>
+                {notifications.map(notification => (
+                  <TouchableOpacity
+                    key={notification.id}
+                    style={[
+                      styles.notificationCard,
+                      notification.isRead && styles.notificationCardRead,
+                    ]}
+                    onPress={() => markAsRead(notification.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.notificationHeader}>
+                      <View style={styles.notificationInfo}>
+                        <View style={styles.notificationIcon}>
+                          <MaterialIcons
+                            name={getNotificationIcon(notification.type)}
+                            size={20}
+                            color={getNotificationColor(notification.type)}
+                          />
+                        </View>
+                        <View style={styles.notificationDetails}>
+                          <Text style={styles.notificationTitle}>
+                            {notification.title}
+                          </Text>
+                          <Text style={styles.notificationMessage}>
+                            {notification.message}
+                          </Text>
                         </View>
                       </View>
+                    </View>
 
-                      <View style={styles.notificationFooter}>
-                        <Text style={styles.timeText}>
-                          {formatTimeAgo(notification.createdAt)}
+                    <View style={styles.notificationFooter}>
+                      <Text style={styles.timeText}>
+                        {formatTimeAgo(notification.createdAt)}
+                      </Text>
+                      {notification.senderName && (
+                        <Text style={styles.senderText}>
+                          by {notification.senderName}
                         </Text>
-                        {notification.senderName && (
-                          <Text style={styles.senderText}>
-                            by {notification.senderName}
-                          </Text>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              )}
-            </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
           </View>
+        </View>
       </View>
     </Modal>
   );
@@ -277,6 +332,23 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     color: Colors.neutral.dark,
+    flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  clearAllButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: Colors.semantic.error + '10',
+  },
+  clearAllText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.semantic.error,
   },
   closeButton: {
     padding: 4,
@@ -325,6 +397,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.neutral.light,
   },
+  notificationCardRead: {
+    backgroundColor: Colors.neutral.light,
+    opacity: 0.7,
+    borderColor: Colors.neutral.medium,
+  },
   notificationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -340,7 +417,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 8,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -377,4 +454,3 @@ const styles = StyleSheet.create({
 });
 
 export default ProjectNotificationModal;
-

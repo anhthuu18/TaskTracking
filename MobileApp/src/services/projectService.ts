@@ -1,9 +1,9 @@
 // Project Service - Kết nối với Backend project APIs
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { 
-  Project, 
-  ProjectMember, 
-  CreateProjectRequest, 
+import {
+  Project,
+  ProjectMember,
+  CreateProjectRequest,
   UpdateProjectRequest,
   InviteProjectMemberRequest,
   UpdateMemberRoleRequest,
@@ -11,7 +11,7 @@ import {
   ProjectListResponse,
   ProjectMemberResponse,
   DeleteProjectResponse,
-  ProjectMemberRole 
+  ProjectMemberRole,
 } from '../types/Project';
 import { API_CONFIG, buildApiUrl, getCurrentApiConfig } from '../config/api';
 
@@ -28,13 +28,13 @@ class ProjectService {
   private async request<T>(url: string, options: RequestInit): Promise<T> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
-    
+
     try {
       const token = await this.getAuthToken();
       const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
+        'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
-        ...(options.headers as Record<string, string> || {}),
+        ...((options.headers as Record<string, string>) || {}),
       };
 
       // remove verbose request logs
@@ -57,7 +57,8 @@ class ProjectService {
       }
 
       if (!response.ok) {
-        const errorMessage = data?.message || `HTTP ${response.status}: ${response.statusText}`;
+        const errorMessage =
+          data?.message || `HTTP ${response.status}: ${response.statusText}`;
         console.warn('API Error:', errorMessage);
         throw new Error(errorMessage);
       }
@@ -66,7 +67,9 @@ class ProjectService {
     } catch (error: any) {
       console.warn('Request failed:', error);
       const isAbort = error?.name === 'AbortError';
-      const errorMessage = isAbort ? 'Request timeout' : (error?.message || 'Network error');
+      const errorMessage = isAbort
+        ? 'Request timeout'
+        : error?.message || 'Network error';
       throw new Error(errorMessage);
     } finally {
       clearTimeout(timeout);
@@ -74,7 +77,9 @@ class ProjectService {
   }
 
   // Tạo project mới
-  async createProject(projectData: CreateProjectRequest): Promise<ProjectResponse> {
+  async createProject(
+    projectData: CreateProjectRequest,
+  ): Promise<ProjectResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockCreateProject(projectData);
     }
@@ -94,17 +99,58 @@ class ProjectService {
   }
 
   // Lấy danh sách project theo workspace
-  async getProjectsByWorkspace(workspaceId: number): Promise<ProjectListResponse> {
+  async getProjectsByWorkspace(
+    workspaceId: number,
+  ): Promise<ProjectListResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockGetProjectsByWorkspace(workspaceId);
     }
 
     // Sử dụng endpoint list-by-workspace với workspaceId
     const endpointsProject = (getCurrentApiConfig() as any).ENDPOINTS.PROJECT;
-    const listByWorkspace = endpointsProject.LIST_BY_WORKSPACE || endpointsProject.LIST_ALL;
+    const listByWorkspace =
+      endpointsProject.LIST_BY_WORKSPACE || endpointsProject.LIST_ALL;
     const url = buildApiUrl(`${listByWorkspace}/${workspaceId}`);
     const backendResponse = await this.request<any[]>(url, {
-        method: 'GET',
+      method: 'GET',
+    });
+
+    // Backend trả về array trực tiếp, cần wrap thành format mong đợi
+    return {
+      success: true,
+      message: 'Lấy danh sách project thành công',
+      data: backendResponse || [],
+    };
+  }
+
+  // Lấy tất cả projects của user (từ tất cả workspaces)
+  async getAllProjects(): Promise<ProjectListResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return this.mockGetAllProjects();
+    }
+
+    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.PROJECT.LIST_ALL);
+    const backendResponse = await this.request<any[]>(url, {
+      method: 'GET',
+    });
+
+    // Backend trả về array trực tiếp, cần wrap thành format mong đợi
+    return {
+      success: true,
+      message: 'Lấy danh sách project thành công',
+      data: backendResponse || [],
+    };
+  }
+
+  // Lấy tất cả projects của user (từ tất cả workspaces)
+  async getAllProjects(): Promise<ProjectListResponse> {
+    if (API_CONFIG.USE_MOCK_API) {
+      return this.mockGetAllProjects();
+    }
+
+    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.PROJECT.LIST_ALL);
+    const backendResponse = await this.request<any[]>(url, {
+      method: 'GET',
     });
 
     // Backend trả về array trực tiếp, cần wrap thành format mong đợi
@@ -121,9 +167,11 @@ class ProjectService {
       return this.mockGetProjectDetails(projectId);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.GET_DETAILS}/${projectId}`);
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.PROJECT.GET_DETAILS}/${projectId}`,
+    );
     const backendResponse = await this.request<any>(url, {
-        method: 'GET',
+      method: 'GET',
     });
 
     // Map projectRole to role for members
@@ -140,7 +188,12 @@ class ProjectService {
           ...member,
           role,
           // Normalize join date field name for UI components
-          joinedAt: member.joinedAt || member.dateJoined || member.joined_at || member.joined || null,
+          joinedAt:
+            member.joinedAt ||
+            member.dateJoined ||
+            member.joined_at ||
+            member.joined ||
+            null,
         };
       });
     }
@@ -154,12 +207,18 @@ class ProjectService {
   }
 
   // Add member directly (no accept flow, member must already be in workspace)
-  async addMemberToProject(projectId: number, userId: number, projectRoleId?: number): Promise<DeleteProjectResponse> {
+  async addMemberToProject(
+    projectId: number,
+    userId: number,
+    projectRoleId?: number,
+  ): Promise<DeleteProjectResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return { success: true, message: 'Member added (mock)' } as any;
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.ADD_MEMBER}/${projectId}`);
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.PROJECT.ADD_MEMBER}/${projectId}`,
+    );
     const body: any = { userId, projectRoleId };
     return this.request<DeleteProjectResponse>(url, {
       method: 'POST',
@@ -168,12 +227,19 @@ class ProjectService {
   }
 
   // Create a project role (used to ensure 'Member' role exists)
-  async createProjectRole(projectId: number, roleName: string, description?: string, permissionIds?: number[]): Promise<any> {
+  async createProjectRole(
+    projectId: number,
+    roleName: string,
+    description?: string,
+    permissionIds?: number[],
+  ): Promise<any> {
     if (API_CONFIG.USE_MOCK_API) {
       return { id: 2, roleName };
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.CREATE_ROLE}/${projectId}`);
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.PROJECT.CREATE_ROLE}/${projectId}`,
+    );
     return this.request<any>(url, {
       method: 'POST',
       body: JSON.stringify({ roleName, description, permissionIds }),
@@ -181,16 +247,21 @@ class ProjectService {
   }
 
   // Cập nhật project
-  async updateProject(projectId: number, updates: UpdateProjectRequest): Promise<ProjectResponse> {
+  async updateProject(
+    projectId: number,
+    updates: UpdateProjectRequest,
+  ): Promise<ProjectResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockUpdateProject(projectId, updates);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.UPDATE}/${projectId}`);
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.PROJECT.UPDATE}/${projectId}`,
+    );
     const backendResponse = await this.request<any>(url, {
       method: 'PUT',
-        body: JSON.stringify(updates),
-      });
+      body: JSON.stringify(updates),
+    });
 
     // Backend trả về object trực tiếp, cần wrap thành format mong đợi
     return {
@@ -206,7 +277,9 @@ class ProjectService {
       return this.mockDeleteProject(projectId);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.DELETE}/${projectId}`);
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.PROJECT.DELETE}/${projectId}`,
+    );
     const backendResponse = await this.request<any>(url, {
       method: 'DELETE',
     });
@@ -224,7 +297,9 @@ class ProjectService {
       return this.mockRestoreProject(projectId);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.RESTORE}/${projectId}`);
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.PROJECT.RESTORE}/${projectId}`,
+    );
     const backendResponse = await this.request<any>(url, {
       method: 'PUT',
     });
@@ -242,7 +317,9 @@ class ProjectService {
       return this.mockGetDeletedProjects();
     }
 
-    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.PROJECT.LIST_DELETED);
+    const url = buildApiUrl(
+      getCurrentApiConfig().ENDPOINTS.PROJECT.LIST_DELETED,
+    );
     const backendResponse = await this.request<any[]>(url, {
       method: 'GET',
     });
@@ -262,9 +339,12 @@ class ProjectService {
       return this.mockGetProjectMembers(projectId);
     }
 
-    const detailsUrl = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.GET_DETAILS}/${projectId}`);
+    const detailsUrl = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.PROJECT.GET_DETAILS}/${projectId}`,
+    );
     const project = await this.request<any>(detailsUrl, { method: 'GET' });
-    let members: ProjectMember[] = project?.members || project?.data?.members || [];
+    let members: ProjectMember[] =
+      project?.members || project?.data?.members || [];
 
     // Map projectRole to role for members
     members = members.map((member: any) => {
@@ -276,7 +356,7 @@ class ProjectService {
       }
       return {
         ...member,
-        role
+        role,
       };
     });
 
@@ -302,7 +382,10 @@ class ProjectService {
   }
 
   // Mời member vào project
-  async inviteMemberToProject(projectId: number, inviteData: InviteProjectMemberRequest): Promise<DeleteProjectResponse> {
+  async inviteMemberToProject(
+    projectId: number,
+    inviteData: InviteProjectMemberRequest,
+  ): Promise<DeleteProjectResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockInviteMember(projectId, inviteData);
     }
@@ -322,49 +405,79 @@ class ProjectService {
   }
 
   // Xóa member khỏi project
-  async removeMemberFromProject(projectId: number, memberId: number): Promise<DeleteProjectResponse> {
+  async removeMemberFromProject(
+    projectId: number,
+    memberId: number,
+  ): Promise<DeleteProjectResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockRemoveMember(projectId, memberId);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.REMOVE_MEMBER}/${projectId}/${memberId}`);
+    const url = buildApiUrl(
+      `${
+        getCurrentApiConfig().ENDPOINTS.PROJECT.REMOVE_MEMBER
+      }/${projectId}/${memberId}`,
+    );
     return this.request<DeleteProjectResponse>(url, {
       method: 'DELETE',
     });
   }
 
   // Cập nhật role của member
-  async updateMemberRole(projectId: number, memberId: number, roleData: UpdateMemberRoleRequest): Promise<DeleteProjectResponse> {
+  async updateMemberRole(
+    projectId: number,
+    memberId: number,
+    roleData: UpdateMemberRoleRequest,
+  ): Promise<DeleteProjectResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockUpdateMemberRole(projectId, memberId, roleData);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.PROJECT.UPDATE_MEMBER_ROLE}/${projectId}/${memberId}`);
+    const url = buildApiUrl(
+      `${
+        getCurrentApiConfig().ENDPOINTS.PROJECT.UPDATE_MEMBER_ROLE
+      }/${projectId}/${memberId}`,
+    );
     return this.request<DeleteProjectResponse>(url, {
       method: 'PUT',
       body: JSON.stringify(roleData),
     });
   }
 
-  async toggleStarProject(projectId: number): Promise<{ success: boolean; isStarred: boolean }> {
-    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.PROJECT.STAR_PROJECT.replace(':id', String(projectId)));
+  async toggleStarProject(
+    projectId: number,
+  ): Promise<{ success: boolean; isStarred: boolean }> {
+    const url = buildApiUrl(
+      getCurrentApiConfig().ENDPOINTS.PROJECT.STAR_PROJECT.replace(
+        ':id',
+        String(projectId),
+      ),
+    );
     return this.request<{ success: boolean; isStarred: boolean }>(url, {
       method: 'POST',
     });
   }
 
-  async updateProjectLastOpened(projectId: number): Promise<{ success: boolean }> {
-    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.PROJECT.UPDATE_LAST_OPENED.replace(':id', String(projectId)));  
+  async updateProjectLastOpened(
+    projectId: number,
+  ): Promise<{ success: boolean }> {
+    const url = buildApiUrl(
+      getCurrentApiConfig().ENDPOINTS.PROJECT.UPDATE_LAST_OPENED.replace(
+        ':id',
+        String(projectId),
+      ),
+    );
     return this.request<{ success: boolean }>(url, {
       method: 'POST',
     });
   }
 
   // ==================== MOCK METHODS ====================
-  
-  private async mockCreateProject(projectData: CreateProjectRequest): Promise<ProjectResponse> {
-    
-    return new Promise((resolve) => {
+
+  private async mockCreateProject(
+    projectData: CreateProjectRequest,
+  ): Promise<ProjectResponse> {
+    return new Promise(resolve => {
       setTimeout(() => {
         const newProject: Project = {
           id: Date.now(),
@@ -396,10 +509,12 @@ class ProjectService {
     });
   }
 
-  private async mockGetProjectsByWorkspace(workspaceId: number): Promise<ProjectListResponse> {
+  private async mockGetProjectsByWorkspace(
+    workspaceId: number,
+  ): Promise<ProjectListResponse> {
     console.log('Mock API: Getting projects by workspace', workspaceId);
-    
-    return new Promise((resolve) => {
+
+    return new Promise(resolve => {
       setTimeout(() => {
         const mockProjects: Project[] = [
           {
@@ -458,10 +573,26 @@ class ProjectService {
     });
   }
 
-  private async mockGetProjectDetails(projectId: number): Promise<ProjectResponse> {
+  private async mockGetAllProjects(): Promise<ProjectListResponse> {
+    console.log('Mock API: Getting all projects');
+
+    return new Promise(resolve => {
+      setTimeout(() => {
+        resolve({
+          success: true,
+          message: 'Lấy danh sách project thành công',
+          data: [],
+        });
+      }, API_CONFIG.MOCK_DELAY);
+    });
+  }
+
+  private async mockGetProjectDetails(
+    projectId: number,
+  ): Promise<ProjectResponse> {
     console.log('Mock API: Getting project details', projectId);
-    
-    return new Promise((resolve) => {
+
+    return new Promise(resolve => {
       setTimeout(() => {
         const mockProject: Project = {
           id: projectId,
@@ -493,10 +624,13 @@ class ProjectService {
     });
   }
 
-  private async mockUpdateProject(projectId: number, updates: UpdateProjectRequest): Promise<ProjectResponse> {
+  private async mockUpdateProject(
+    projectId: number,
+    updates: UpdateProjectRequest,
+  ): Promise<ProjectResponse> {
     console.log('Mock API: Updating project', projectId, updates);
-    
-    return new Promise((resolve) => {
+
+    return new Promise(resolve => {
       setTimeout(() => {
         const updatedProject: Project = {
           id: projectId,
@@ -519,10 +653,12 @@ class ProjectService {
     });
   }
 
-  private async mockDeleteProject(projectId: number): Promise<DeleteProjectResponse> {
+  private async mockDeleteProject(
+    projectId: number,
+  ): Promise<DeleteProjectResponse> {
     console.log('Mock API: Deleting project', projectId);
-    
-    return new Promise((resolve) => {
+
+    return new Promise(resolve => {
       setTimeout(() => {
         resolve({
           success: true,
@@ -532,10 +668,12 @@ class ProjectService {
     });
   }
 
-  private async mockRestoreProject(projectId: number): Promise<DeleteProjectResponse> {
+  private async mockRestoreProject(
+    projectId: number,
+  ): Promise<DeleteProjectResponse> {
     console.log('Mock API: Restoring project', projectId);
-    
-    return new Promise((resolve) => {
+
+    return new Promise(resolve => {
       setTimeout(() => {
         resolve({
           success: true,
@@ -547,8 +685,8 @@ class ProjectService {
 
   private async mockGetDeletedProjects(): Promise<ProjectListResponse> {
     console.log('Mock API: Getting deleted projects');
-    
-    return new Promise((resolve) => {
+
+    return new Promise(resolve => {
       setTimeout(() => {
         const mockProjects: Project[] = [
           {
@@ -573,10 +711,12 @@ class ProjectService {
     });
   }
 
-  private async mockGetProjectMembers(projectId: number): Promise<ProjectMemberResponse> {
+  private async mockGetProjectMembers(
+    projectId: number,
+  ): Promise<ProjectMemberResponse> {
     console.log('Mock API: Getting project members', projectId);
-    
-    return new Promise((resolve) => {
+
+    return new Promise(resolve => {
       setTimeout(() => {
         const mockMembers: ProjectMember[] = [
           {
@@ -626,10 +766,13 @@ class ProjectService {
     });
   }
 
-  private async mockInviteMember(projectId: number, inviteData: InviteProjectMemberRequest): Promise<DeleteProjectResponse> {
+  private async mockInviteMember(
+    projectId: number,
+    inviteData: InviteProjectMemberRequest,
+  ): Promise<DeleteProjectResponse> {
     console.log('Mock API: Inviting member to project', projectId, inviteData);
-    
-    return new Promise((resolve) => {
+
+    return new Promise(resolve => {
       setTimeout(() => {
         resolve({
           success: true,
@@ -639,10 +782,13 @@ class ProjectService {
     });
   }
 
-  private async mockRemoveMember(projectId: number, memberId: number): Promise<DeleteProjectResponse> {
+  private async mockRemoveMember(
+    projectId: number,
+    memberId: number,
+  ): Promise<DeleteProjectResponse> {
     console.log('Mock API: Removing member from project', projectId, memberId);
-    
-    return new Promise((resolve) => {
+
+    return new Promise(resolve => {
       setTimeout(() => {
         resolve({
           success: true,
@@ -652,10 +798,19 @@ class ProjectService {
     });
   }
 
-  private async mockUpdateMemberRole(projectId: number, memberId: number, roleData: UpdateMemberRoleRequest): Promise<DeleteProjectResponse> {
-    console.log('Mock API: Updating member role', projectId, memberId, roleData);
-    
-    return new Promise((resolve) => {
+  private async mockUpdateMemberRole(
+    projectId: number,
+    memberId: number,
+    roleData: UpdateMemberRoleRequest,
+  ): Promise<DeleteProjectResponse> {
+    console.log(
+      'Mock API: Updating member role',
+      projectId,
+      memberId,
+      roleData,
+    );
+
+    return new Promise(resolve => {
       setTimeout(() => {
         resolve({
           success: true,
@@ -665,9 +820,11 @@ class ProjectService {
     });
   }
 
-  private async mockToggleStarProject(projectId: number): Promise<{ success: boolean; isStarred: boolean }> {
+  private async mockToggleStarProject(
+    projectId: number,
+  ): Promise<{ success: boolean; isStarred: boolean }> {
     console.log('Mock API: Toggling star for project', projectId);
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       setTimeout(() => {
         const isStarred = Math.random() > 0.5;
         resolve({
@@ -678,9 +835,11 @@ class ProjectService {
     });
   }
 
-  private async mockUpdateProjectLastOpened(projectId: number): Promise<{ success: boolean }> {
+  private async mockUpdateProjectLastOpened(
+    projectId: number,
+  ): Promise<{ success: boolean }> {
     console.log('Mock API: Updating last opened for project', projectId);
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       setTimeout(() => {
         resolve({ success: true });
       }, 100);

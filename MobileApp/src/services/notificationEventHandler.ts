@@ -65,11 +65,17 @@ class NotificationEventHandler {
         type,
         notification?.body,
       );
-      console.log('[NotificationEventHandler] Notification data:', notification?.data);
+      console.log(
+        '[NotificationEventHandler] Notification data:',
+        notification?.data,
+      );
 
       if (type === EventType.PRESS) {
         // User tapped the notification
-        console.log('[NotificationEventHandler] Foreground PRESS - calling handleNotificationTap with data:', notification?.data);
+        console.log(
+          '[NotificationEventHandler] Foreground PRESS - calling handleNotificationTap with data:',
+          notification?.data,
+        );
         await this.handleNotificationTap(notification?.data);
       } else if (type === EventType.DISMISS) {
         // User dismissed the notification
@@ -85,13 +91,19 @@ class NotificationEventHandler {
   private setupBackgroundHandler() {
     notifee.onBackgroundEvent(async ({ type, notification }) => {
       console.log('[NotificationEventHandler] Background event:', type);
-      console.log('[NotificationEventHandler] Background notification data:', notification?.data);
+      console.log(
+        '[NotificationEventHandler] Background notification data:',
+        notification?.data,
+      );
 
       if (type === EventType.PRESS) {
         // User explicitly tapped notification while app was closed
         // Save state so we can handle it when app finishes opening
         if (notification?.data) {
-          console.log('[NotificationEventHandler] Background PRESS - saving state with data:', notification.data);
+          console.log(
+            '[NotificationEventHandler] Background PRESS - saving state with data:',
+            notification.data,
+          );
           await this.savePendingNotificationState(notification.data);
           // Navigation will be handled by the saved state when app becomes ready
         }
@@ -105,15 +117,23 @@ class NotificationEventHandler {
    */
   private async handleNotificationTap(data?: Record<string, string>) {
     try {
-      console.log('[NotificationEventHandler] Handling notification tap - received data:', JSON.stringify(data));
+      console.log(
+        '[NotificationEventHandler] Handling notification tap - received data:',
+        JSON.stringify(data),
+      );
 
       // Check notification type
       const notificationType = data?.type;
-      console.log('[NotificationEventHandler] Notification type:', notificationType);
+      console.log(
+        '[NotificationEventHandler] Notification type:',
+        notificationType,
+      );
 
       if (notificationType === 'task_reminder') {
         // Task reminder notification - navigate to TaskTracking screen
-        console.log('[NotificationEventHandler] Routing to handleTaskReminderTap');
+        console.log(
+          '[NotificationEventHandler] Routing to handleTaskReminderTap',
+        );
         await this.handleTaskReminderTap(data);
         return;
       }
@@ -131,8 +151,11 @@ class NotificationEventHandler {
    */
   private async handleTaskReminderTap(data?: Record<string, string>) {
     try {
-      console.log('[NotificationEventHandler] Task reminder tap - raw data:', JSON.stringify(data));
-      
+      console.log(
+        '[NotificationEventHandler] Task reminder tap - raw data:',
+        JSON.stringify(data),
+      );
+
       const taskId = data?.taskId ? parseInt(data.taskId, 10) : 0;
       const taskName = data?.taskName || '';
       const projectId = data?.projectId || '';
@@ -148,26 +171,40 @@ class NotificationEventHandler {
       });
 
       if (taskId && navigationRef.current) {
-        console.log('[NotificationEventHandler] Navigating to TaskTracking with params:', {
-          taskId: taskId.toString(),
-          projectId,
-          projectName,
-        });
-        navigationRef.current.navigate('TaskTracking' as never, {
-          taskId: taskId.toString(),
-          projectId: projectId,
-          projectName: projectName,
-        } as never);
-        console.log('[NotificationEventHandler] Navigation called successfully');
+        console.log(
+          '[NotificationEventHandler] Navigating to TaskTracking with params:',
+          {
+            taskId: taskId.toString(),
+            projectId,
+            projectName,
+          },
+        );
+        navigationRef.current.navigate(
+          'TaskTracking' as never,
+          {
+            taskId: taskId.toString(),
+            projectId: projectId,
+            projectName: projectName,
+          } as never,
+        );
+        console.log(
+          '[NotificationEventHandler] Navigation called successfully',
+        );
       } else {
-        console.warn('[NotificationEventHandler] Cannot navigate - missing taskId or navigation not ready', {
-          hasTaskId: !!taskId,
-          hasNavigation: !!navigationRef.current,
-          dataKeys: data ? Object.keys(data) : [],
-        });
+        console.warn(
+          '[NotificationEventHandler] Cannot navigate - missing taskId or navigation not ready',
+          {
+            hasTaskId: !!taskId,
+            hasNavigation: !!navigationRef.current,
+            dataKeys: data ? Object.keys(data) : [],
+          },
+        );
       }
     } catch (error) {
-      console.error('[NotificationEventHandler] Task reminder tap error:', error);
+      console.error(
+        '[NotificationEventHandler] Task reminder tap error:',
+        error,
+      );
     }
   }
 
@@ -208,12 +245,15 @@ class NotificationEventHandler {
       const taskId =
         st2?.taskId ?? (data?.taskId ? parseInt(data.taskId, 10) : 0);
       const taskTitle = st2?.taskTitle || data?.taskTitle || '';
-      
+
       if (taskId && navigationRef.current) {
-        navigationRef.current.navigate('TaskTracking' as never, {
-          task: { id: taskId, title: taskTitle },
-          showSessionCompleteDialog: showDialog,
-        } as never);
+        navigationRef.current.navigate(
+          'TaskTracking' as never,
+          {
+            task: { id: taskId, title: taskTitle },
+            showSessionCompleteDialog: showDialog,
+          } as never,
+        );
       }
     } catch (error) {
       console.error('[NotificationEventHandler] Pomodoro tap error:', error);

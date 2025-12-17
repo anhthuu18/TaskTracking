@@ -90,6 +90,48 @@ export class EmailService {
     await this.sendEmail(email, subject, html);
   }
 
+  async sendEventCreationNotification(
+    email: string,
+    eventName: string,
+    projectName: string,
+    creatorName: string,
+    startTime: Date,
+    endTime: Date,
+    description?: string
+  ): Promise<void> {
+    const subject = `📅 Event mới: ${eventName}`;
+    const html = this.generateEventCreationHTML(
+      eventName,
+      projectName,
+      creatorName,
+      startTime,
+      endTime,
+      description
+    );
+
+    await this.sendEmail(email, subject, html);
+  }
+
+  async sendEventReminder(
+    email: string,
+    eventName: string,
+    projectName: string,
+    startTime: Date,
+    endTime: Date,
+    description?: string
+  ): Promise<void> {
+    const subject = `⏰ Nhắc nhở Event: ${eventName}`;
+    const html = this.generateEventReminderHTML(
+      eventName,
+      projectName,
+      startTime,
+      endTime,
+      description
+    );
+
+    await this.sendEmail(email, subject, html);
+  }
+
   private async sendEmail(
     to: string,
     subject: string,
@@ -284,6 +326,135 @@ export class EmailService {
             </div>
             
             <p style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; font-size: 14px; color: #666;">Gửi: ${sentDate}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  private generateEventCreationHTML(
+    eventName: string,
+    projectName: string,
+    creatorName: string,
+    startTime: Date,
+    endTime: Date,
+    description?: string
+  ): string {
+    const startTimeStr = startTime.toLocaleString("vi-VN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const endTimeStr = endTime.toLocaleString("vi-VN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Event mới</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
+          .container { max-width: 600px; margin: 20px auto; background: white; border: 1px solid #ddd; }
+          .header { background: #4285f4; padding: 15px 20px; border-bottom: 2px solid #3367d6; }
+          .header h2 { margin: 0; color: white; font-size: 18px; }
+          .content { padding: 20px; }
+          .event-info { background: #e8f0fe; padding: 15px; border-left: 3px solid #4285f4; margin: 15px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2>📅 Event mới được tạo</h2>
+          </div>
+          <div class="content">
+            <p>Xin chào,</p>
+            <p><strong>${creatorName}</strong> vừa tạo event <strong>"${eventName}"</strong> trong project <strong>${projectName}</strong>.</p>
+            
+            <div class="event-info">
+              <p style="margin: 5px 0;">📋 <strong>${eventName}</strong></p>
+              <p style="margin: 5px 0;">📁 Project: ${projectName}</p>
+              <p style="margin: 5px 0;">🕐 Bắt đầu: ${startTimeStr}</p>
+              <p style="margin: 5px 0;">🕐 Kết thúc: ${endTimeStr}</p>
+              ${
+                description
+                  ? `<p style="margin: 10px 0 5px 0;">📝 Mô tả: ${description}</p>`
+                  : ""
+              }
+            </div>
+            
+            <p>Vui lòng sắp xếp thời gian tham gia.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  private generateEventReminderHTML(
+    eventName: string,
+    projectName: string,
+    startTime: Date,
+    endTime: Date,
+    description?: string
+  ): string {
+    const startTimeStr = startTime.toLocaleString("vi-VN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const endTimeStr = endTime.toLocaleString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Nhắc nhở Event</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
+          .container { max-width: 600px; margin: 20px auto; background: white; border: 1px solid #ddd; }
+          .header { background: #ffd966; padding: 15px 20px; border-bottom: 2px solid #f1c232; }
+          .header h2 { margin: 0; color: #333; font-size: 18px; }
+          .content { padding: 20px; }
+          .event-info { background: #fffbf0; padding: 15px; border-left: 3px solid #f1c232; margin: 15px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2>⏰ Nhắc nhở Event</h2>
+          </div>
+          <div class="content">
+            <p>Xin chào,</p>
+            <p>Event <strong>"${eventName}"</strong> sẽ diễn ra vào ngày mai.</p>
+            
+            <div class="event-info">
+              <p style="margin: 5px 0;">📋 <strong>${eventName}</strong></p>
+              <p style="margin: 5px 0;">📁 Project: ${projectName}</p>
+              <p style="margin: 5px 0;">🕐 Thời gian: ${startTimeStr} - ${endTimeStr}</p>
+              ${
+                description
+                  ? `<p style="margin: 10px 0 5px 0;">📝 Mô tả: ${description}</p>`
+                  : ""
+              }
+            </div>
+            
+            <p>Đừng quên tham gia nhé!</p>
           </div>
         </div>
       </body>

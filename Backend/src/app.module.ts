@@ -8,9 +8,11 @@ import { WorkspaceModule } from "./modules/workspace/workspace.module";
 import { ProjectsModule } from "./modules/projects/projects.module";
 import { NotificationModule } from "./modules/notification/notification.module";
 import { TasksModule } from "./modules/tasks/tasks.module";
+import { EventModule } from "./modules/events/event.module";
 import { EmailService } from "./services/email.service";
 import { FirebaseService } from "./services/firebase.service";
 import { TaskReminderScheduler } from "./services/task-reminder.scheduler";
+import { EventReminderScheduler } from "./services/event-reminder.scheduler";
 
 @Module({
   imports: [
@@ -26,7 +28,13 @@ import { TaskReminderScheduler } from "./services/task-reminder.scheduler";
     ProjectsModule,
     NotificationModule,
     TasksModule,
+    EventModule,
   ],
-  providers: [EmailService, FirebaseService, TaskReminderScheduler],
+  providers: [
+    EmailService,
+    FirebaseService,
+    TaskReminderScheduler,
+    EventReminderScheduler,
+  ],
 })
 export class AppModule {}

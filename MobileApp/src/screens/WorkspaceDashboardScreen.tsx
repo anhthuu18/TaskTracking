@@ -342,7 +342,12 @@ const DashboardContent = ({
                     <Text style={styles.aiScheduleButtonText}>AI Schedule</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.newTaskButton}>
-                    <Text style={styles.newTaskButtonText}>+ New Task</Text>
+                    <MaterialIcons
+                      name="add"
+                      size={16}
+                      color={Colors.neutral.white}
+                    />
+                    <Text style={styles.newTaskButtonText}>New Task</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1857,9 +1862,12 @@ const styles = StyleSheet.create({
   },
   newTaskButton: {
     backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
+    gap: 4,
   },
   newTaskButtonText: {
     color: Colors.neutral.white,

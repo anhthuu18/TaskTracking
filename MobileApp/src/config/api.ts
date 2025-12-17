@@ -4,7 +4,7 @@
 export const API_CONFIG = {
   // Set USE_MOCK_API = false khi muốn sử dụng real API
   USE_MOCK_API: false,
-  
+
   // Mock API endpoints (sẽ được simulate bằng setTimeout)
   MOCK_API: {
     BASE_URL: 'https://mock-api.tasktracking.com/api/v1',
@@ -59,7 +59,7 @@ export const API_CONFIG = {
       },
     },
   },
-  
+
   // Real API endpoints (sẽ được sử dụng khi USE_MOCK_API = false)
   REAL_API: {
     // Gợi ý: Android emulator dùng 10.0.2.2, iOS simulator dùng localhost
@@ -97,6 +97,7 @@ export const API_CONFIG = {
       },
       PROJECT: {
         CREATE: '/projects/create-project',
+        LIST_ALL: '/projects/list-all',
         LIST_BY_WORKSPACE: '/projects/list-by-workspace',
         GET_DETAILS: '/projects/get-details',
         UPDATE: '/projects/update-project',
@@ -123,10 +124,10 @@ export const API_CONFIG = {
       },
     },
   },
-  
+
   // Request timeout (ms)
-  TIMEOUT: 10000,
-  
+  TIMEOUT: 30000, // Increased to 30 seconds for slower networks
+
   // Mock API delay để simulate network latency
   MOCK_DELAY: 1500, // 1.5 seconds
 };

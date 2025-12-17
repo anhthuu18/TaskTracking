@@ -887,7 +887,10 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({
       {/* Notification Modal - Show ALL notifications (workspace invites + project notifications) */}
       <NotificationModal
         visible={showNotificationModal}
-        onClose={() => setShowNotificationModal(false)}
+        onClose={() => {
+          setShowNotificationModal(false);
+          loadNotificationCount(); // Reload count when modal closes
+        }}
         onAcceptInvitation={handleAcceptInvitation}
         onDeclineInvitation={handleDeclineInvitation}
         mode="all"

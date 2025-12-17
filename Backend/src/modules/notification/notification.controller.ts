@@ -163,6 +163,7 @@ export class NotificationController {
           isRead: n.isRead,
           receivedDate: createdAt.toLocaleDateString("vi-VN"),
           projectName: n.project?.projectName,
+          notificationType: "project_notification", // Add this for frontend to identify type
         };
       });
 

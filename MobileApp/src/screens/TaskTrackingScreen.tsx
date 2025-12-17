@@ -69,20 +69,23 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({
   // Fetch task if taskId is provided but task object is not
   useEffect(() => {
     let mounted = true;
-    
+
     if (taskIdParam && !initialTask) {
       console.log('[TaskTrackingScreen] Fetching task with ID:', taskIdParam);
       setTaskLoading(true);
-      
+
       taskService
         .getTaskById(parseInt(taskIdParam, 10))
-        .then((task) => {
+        .then(task => {
           if (mounted && task) {
-            console.log('[TaskTrackingScreen] Task fetched successfully:', task.taskName);
+            console.log(
+              '[TaskTrackingScreen] Task fetched successfully:',
+              task.taskName,
+            );
             setPassedTask(task);
           }
         })
-        .catch((error) => {
+        .catch(error => {
           console.error('[TaskTrackingScreen] Failed to fetch task:', error);
           // Show error and navigate back
           Alert.alert('Error', 'Failed to load task details');
@@ -94,7 +97,7 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({
           }
         });
     }
-    
+
     return () => {
       mounted = false;
     };
@@ -1213,7 +1216,9 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({
 
       {/* Show loading if task is being fetched */}
       {taskLoading && (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <View
+          style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+        >
           <Text style={{ color: Colors.neutral.medium }}>Loading task...</Text>
         </View>
       )}
@@ -1243,486 +1248,507 @@ const TaskTrackingScreen: React.FC<TaskTrackingScreenProps> = ({
             </TouchableOpacity>
           </View>
 
-      {/* Task Info */}
-      <View style={styles.taskInfoSection}>
-        <View style={styles.infoRowSplit}>
-          <View style={styles.infoItem}>
-            <MaterialIcons name="event" size={16} color={Colors.primary} />
-            <Text style={styles.infoLabelSmall}>Due:</Text>
-            <Text style={styles.infoValueSmall}>
-              {passedTask?.dueDate
-                ? new Date(passedTask.dueDate).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })
-                : '—'}
-            </Text>
-          </View>
-          <View style={styles.statusItem}>
-            <MaterialIcons name="flag" size={16} color={Colors.accent} />
-            <Text style={styles.infoLabelSmall}>Status:</Text>
-            <TouchableOpacity
-              style={styles.statusDropdownTrigger}
-              onPress={() => setShowStatusDropdown(v => !v)}
-            >
-              <Text style={styles.statusValue}>{taskStatus}</Text>
-              <MaterialIcons
-                name="arrow-drop-down"
-                size={18}
-                color={Colors.neutral.dark}
-              />
-            </TouchableOpacity>
-            {showStatusDropdown && (
-              <View style={styles.inlineStatusDropdown}>
-                {statusOptions.map(status => (
-                  <TouchableOpacity
-                    key={status}
-                    style={styles.inlineStatusOption}
-                    onPress={async () => {
-                      setTaskStatus(status);
-                      setShowStatusDropdown(false);
-                      try {
-                        if (passedTask?.id) {
-                          const apiStatus = (() => {
-                            const s = String(status).toLowerCase();
-                            if (s.includes('progress')) return 'In Progress';
-                            if (s.includes('review')) return 'Review';
-                            if (s.includes('done') || s.includes('complete'))
-                              return 'Done';
-                            return 'To Do';
-                          })();
-                          await taskService.updateTask(Number(passedTask.id), {
-                            status: apiStatus,
-                          } as any);
-                        }
-                      } catch {}
-                      route?.params?.onStatusChanged?.(status);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.inlineStatusOptionText,
-                        taskStatus === status &&
-                          styles.inlineStatusOptionTextActive,
-                      ]}
-                    >
-                      {status}
-                    </Text>
-                    {taskStatus === status && (
-                      <MaterialIcons
-                        name="check"
-                        size={16}
-                        color={Colors.primary}
-                      />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-        </View>
-        {!!passedTask?.description && (
-          <Text style={styles.taskDescription}>{passedTask.description}</Text>
-        )}
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'timer' && styles.tabActive]}
-          onPress={() => setActiveTab('timer')}
-        >
-          <MaterialIcons
-            name="timer"
-            size={20}
-            color={
-              activeTab === 'timer' ? Colors.primary : Colors.neutral.medium
-            }
-          />
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'timer' && styles.tabTextActive,
-            ]}
-          >
-            Timer
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'stats' && styles.tabActive]}
-          onPress={() => setActiveTab('stats')}
-        >
-          <MaterialIcons
-            name="bar-chart"
-            size={20}
-            color={
-              activeTab === 'stats' ? Colors.primary : Colors.neutral.medium
-            }
-          />
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'stats' && styles.tabTextActive,
-            ]}
-          >
-            Stats
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {activeTab === 'timer' ? (
-        <View style={styles.timerTabContainer}>
-          <View style={styles.timerFixedSection}>
-            <View style={styles.timerCircleContainer}>
-              <Svg
-                width={radius * 2 + strokeWidth * 2}
-                height={radius * 2 + strokeWidth * 2}
-              >
-                <Circle
-                  cx={radius + strokeWidth}
-                  cy={radius + strokeWidth}
-                  r={radius}
-                  stroke={Colors.neutral.light}
-                  strokeWidth={strokeWidth}
-                  fill="none"
-                />
-                <Circle
-                  cx={radius + strokeWidth}
-                  cy={radius + strokeWidth}
-                  r={radius}
-                  stroke={getSessionTypeColor(currentSession?.type || 'focus')}
-                  strokeWidth={strokeWidth}
-                  fill="none"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={strokeDashoffset}
-                  strokeLinecap="round"
-                  transform={`rotate(-90 ${radius + strokeWidth} ${
-                    radius + strokeWidth
-                  })`}
-                />
-              </Svg>
-              <View style={styles.timerContent}>
-                <Text style={styles.timerText}>
-                  {formatTime(effectiveRemaining)}
-                </Text>
-                <Text style={styles.sessionCountText}>
-                  Session{' '}
-                  {Math.min(
-                    completedFocusSessions +
-                      (currentSession?.type === 'focus' &&
-                      timeRemaining !== totalSeconds
-                        ? 1
-                        : 0),
-                    totalFocusSessions,
-                  )}{' '}
-                  of {totalFocusSessions}
+          {/* Task Info */}
+          <View style={styles.taskInfoSection}>
+            <View style={styles.infoRowSplit}>
+              <View style={styles.infoItem}>
+                <MaterialIcons name="event" size={16} color={Colors.primary} />
+                <Text style={styles.infoLabelSmall}>Due:</Text>
+                <Text style={styles.infoValueSmall}>
+                  {passedTask?.dueDate
+                    ? new Date(passedTask.dueDate).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })
+                    : '—'}
                 </Text>
               </View>
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.primaryButton,
-                {
-                  backgroundColor: isRunning ? Colors.warning : Colors.primary,
-                },
-              ]}
-              onPress={handleStartPause}
-            >
-              <Text style={styles.primaryButtonText}>
-                {isRunning
-                  ? 'Pause'
-                  : timeRemaining === 0 || timeRemaining === totalSeconds
-                  ? currentSession?.type === 'focus'
-                    ? 'Start Focus'
-                    : 'Start Break'
-                  : 'Resume'}
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.secondaryButtonsRow}>
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={handleReset}
-              >
-                <MaterialIcons
-                  name="refresh"
-                  size={20}
-                  color={Colors.neutral.dark}
-                />
-                <Text style={styles.secondaryButtonText}>Reset</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.secondaryButton,
-                  currentSession?.type === 'focus' && { opacity: 0.5 },
-                ]}
-                onPress={async () => {
-                  if (currentSession?.type !== 'focus') {
-                    // User manually skips - no notification
-                    await handleSessionComplete(true);
-                    await moveToNextSession(false, true);
-                  }
-                }}
-                disabled={currentSession?.type === 'focus'}
-              >
-                <MaterialIcons
-                  name="skip-next"
-                  size={20}
-                  color={Colors.neutral.dark}
-                />
-                <Text style={styles.secondaryButtonText}>Skip Break</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Session list */}
-          <View style={styles.sessionProgressSection}>
-            <Text style={styles.sessionProgressTitle}>Session Progress</Text>
-            <ScrollView
-              style={styles.sessionsScrollView}
-              showsVerticalScrollIndicator
-            >
-              <View style={styles.sessionsList}>
-                {sessions.map((s, i) => (
-                  <View
-                    key={s.id}
-                    style={[
-                      styles.sessionItem,
-                      i === currentIdx && styles.sessionItemActive,
-                      s.completed && styles.sessionItemCompleted,
-                    ]}
-                  >
-                    {s.completed ? (
-                      <MaterialIcons
-                        name="check-circle"
-                        size={20}
-                        color={Colors.success}
-                      />
-                    ) : i === currentIdx ? (
-                      <View
-                        style={[
-                          styles.sessionDot,
-                          { backgroundColor: getSessionTypeColor(s.type) },
-                        ]}
-                      />
-                    ) : (
-                      <View
-                        style={[
-                          styles.sessionDot,
-                          { backgroundColor: Colors.neutral.light },
-                        ]}
-                      />
-                    )}
-                    <Text
-                      style={[
-                        styles.sessionItemText,
-                        i === currentIdx && styles.sessionItemTextActive,
-                        s.completed && styles.sessionItemTextCompleted,
-                      ]}
-                    >
-                      {s.type === 'focus'
-                        ? `Focus ${Math.floor(i / 2) + 1}`
-                        : s.type === 'longBreak'
-                        ? 'Long Break'
-                        : 'Break'}
-                    </Text>
-                    <Text style={styles.sessionDuration}>{s.duration}m</Text>
-                  </View>
-                ))}
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      ) : (
-        <ScrollView
-          style={styles.statsContainerOuter}
-          contentContainerStyle={styles.statsContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {statsLoading ? (
-            <View style={{ padding: 24, alignItems: 'center' }}>
-              <Text style={{ color: Colors.neutral.medium }}>
-                Loading statistics...
-              </Text>
-            </View>
-          ) : statsError ? (
-            <View style={{ padding: 24 }}>
-              <Text style={{ color: Colors.semantic.error }}>{statsError}</Text>
-            </View>
-          ) : (
-            <View style={styles.statsCard}>
-              <View style={styles.statsGridCompact}>
-                <View
-                  style={[
-                    styles.statItemCompact,
-                    {
-                      backgroundColor: Colors.primary + '15',
-                      borderColor: Colors.primary + '30',
-                    },
-                  ]}
+              <View style={styles.statusItem}>
+                <MaterialIcons name="flag" size={16} color={Colors.accent} />
+                <Text style={styles.infoLabelSmall}>Status:</Text>
+                <TouchableOpacity
+                  style={styles.statusDropdownTrigger}
+                  onPress={() => setShowStatusDropdown(v => !v)}
                 >
+                  <Text style={styles.statusValue}>{taskStatus}</Text>
                   <MaterialIcons
-                    name="timer"
-                    size={28}
-                    color={Colors.primary}
-                  />
-                  <Text style={styles.statValue}>{completedSessionsAll}</Text>
-                  <Text style={styles.statLabel}>Completed sessions</Text>
-                </View>
-                <View
-                  style={[
-                    styles.statItemCompact,
-                    {
-                      backgroundColor: Colors.accent + '15',
-                      borderColor: Colors.accent + '30',
-                    },
-                  ]}
-                >
-                  <MaterialIcons
-                    name="access-time"
-                    size={28}
-                    color={Colors.accent}
-                  />
-                  <Text style={styles.statValue}>
-                    {formatHM(totalFocusSecondsAll)}
-                  </Text>
-                  <Text style={styles.statLabel}>Total focus</Text>
-                </View>
-              </View>
-
-              <View style={[styles.statsGridCompact, { marginTop: 12 }]}>
-                <View
-                  style={[
-                    styles.statItemCompact,
-                    {
-                      backgroundColor: Colors.success + '15',
-                      borderColor: Colors.success + '30',
-                    },
-                  ]}
-                >
-                  <MaterialIcons
-                    name="check-circle"
-                    size={28}
-                    color={Colors.success}
-                  />
-                  <Text style={styles.statValue}>
-                    {todayFocusSessionsCount}
-                  </Text>
-                  <Text style={styles.statLabel}>Today sessions</Text>
-                </View>
-                <View
-                  style={[
-                    styles.statItemCompact,
-                    {
-                      backgroundColor: Colors.neutral.light + '40',
-                      borderColor: Colors.neutral.light,
-                    },
-                  ]}
-                >
-                  <MaterialIcons
-                    name="bolt"
-                    size={28}
+                    name="arrow-drop-down"
+                    size={18}
                     color={Colors.neutral.dark}
                   />
-                  <Text style={styles.statValue}>
-                    {formatHM(todayFocusSeconds)}
-                  </Text>
-                  <Text style={styles.statLabel}>Today focus</Text>
-                </View>
-                <View
-                  style={[
-                    styles.statItemCompact,
-                    {
-                      backgroundColor: Colors.warning + '15',
-                      borderColor: Colors.warning + '30',
-                    },
-                  ]}
-                >
-                  <MaterialIcons
-                    name="free-breakfast"
-                    size={28}
-                    color={Colors.warning}
-                  />
-                  <Text style={styles.statValue}>
-                    {formatHM(todayBreakSeconds)}
-                  </Text>
-                  <Text style={styles.statLabel}>Today break</Text>
-                </View>
-              </View>
-
-              <View style={{ marginTop: 20 }}>
-                <Text style={styles.sessionProgressTitle}>
-                  Task Tracking History
-                </Text>
-                {history && history.length > 0 ? (
-                  <View style={{ gap: 10 }}>
-                    {history.map((r, idx) => (
-                      <View key={idx} style={styles.historyItem}>
-                        <View style={styles.historyDateSection}>
+                </TouchableOpacity>
+                {showStatusDropdown && (
+                  <View style={styles.inlineStatusDropdown}>
+                    {statusOptions.map(status => (
+                      <TouchableOpacity
+                        key={status}
+                        style={styles.inlineStatusOption}
+                        onPress={async () => {
+                          setTaskStatus(status);
+                          setShowStatusDropdown(false);
+                          try {
+                            if (passedTask?.id) {
+                              const apiStatus = (() => {
+                                const s = String(status).toLowerCase();
+                                if (s.includes('progress'))
+                                  return 'In Progress';
+                                if (s.includes('review')) return 'Review';
+                                if (
+                                  s.includes('done') ||
+                                  s.includes('complete')
+                                )
+                                  return 'Done';
+                                return 'To Do';
+                              })();
+                              await taskService.updateTask(
+                                Number(passedTask.id),
+                                {
+                                  status: apiStatus,
+                                } as any,
+                              );
+                            }
+                          } catch {}
+                          route?.params?.onStatusChanged?.(status);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.inlineStatusOptionText,
+                            taskStatus === status &&
+                              styles.inlineStatusOptionTextActive,
+                          ]}
+                        >
+                          {status}
+                        </Text>
+                        {taskStatus === status && (
                           <MaterialIcons
-                            name="calendar-today"
+                            name="check"
                             size={16}
                             color={Colors.primary}
                           />
-                          <Text style={styles.historyDate}>
-                            {new Date(r.date).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })}
-                          </Text>
-                        </View>
-                        <View style={styles.historyStats}>
-                          <View style={styles.historyStatItem}>
-                            <MaterialIcons
-                              name="timer"
-                              size={14}
-                              color={Colors.accent}
-                            />
-                            <Text style={styles.historyStatText}>
-                              {r.sessions} sessions
-                            </Text>
-                          </View>
-                          <View style={styles.historyStatItem}>
-                            <MaterialIcons
-                              name="bolt"
-                              size={14}
-                              color={Colors.neutral.medium}
-                            />
-                            <Text style={styles.historyStatText}>
-                              {formatHM((r.focusMinutes || 0) * 60)}
-                            </Text>
-                          </View>
-                          <View style={styles.historyStatItem}>
-                            <MaterialIcons
-                              name="free-breakfast"
-                              size={14}
-                              color={Colors.warning}
-                            />
-                            <Text style={styles.historyStatText}>
-                              {formatHM((r.breakMinutes || 0) * 60)}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
+                        )}
+                      </TouchableOpacity>
                     ))}
-                  </View>
-                ) : (
-                  <View style={{ paddingVertical: 16 }}>
-                    <Text style={{ color: Colors.neutral.medium }}>
-                      Task này chưa được tracking.
-                    </Text>
                   </View>
                 )}
               </View>
             </View>
+            {!!passedTask?.description && (
+              <Text style={styles.taskDescription}>
+                {passedTask.description}
+              </Text>
+            )}
+          </View>
+
+          {/* Tabs */}
+          <View style={styles.tabsContainer}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'timer' && styles.tabActive]}
+              onPress={() => setActiveTab('timer')}
+            >
+              <MaterialIcons
+                name="timer"
+                size={20}
+                color={
+                  activeTab === 'timer' ? Colors.primary : Colors.neutral.medium
+                }
+              />
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === 'timer' && styles.tabTextActive,
+                ]}
+              >
+                Timer
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'stats' && styles.tabActive]}
+              onPress={() => setActiveTab('stats')}
+            >
+              <MaterialIcons
+                name="bar-chart"
+                size={20}
+                color={
+                  activeTab === 'stats' ? Colors.primary : Colors.neutral.medium
+                }
+              />
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === 'stats' && styles.tabTextActive,
+                ]}
+              >
+                Stats
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {activeTab === 'timer' ? (
+            <View style={styles.timerTabContainer}>
+              <View style={styles.timerFixedSection}>
+                <View style={styles.timerCircleContainer}>
+                  <Svg
+                    width={radius * 2 + strokeWidth * 2}
+                    height={radius * 2 + strokeWidth * 2}
+                  >
+                    <Circle
+                      cx={radius + strokeWidth}
+                      cy={radius + strokeWidth}
+                      r={radius}
+                      stroke={Colors.neutral.light}
+                      strokeWidth={strokeWidth}
+                      fill="none"
+                    />
+                    <Circle
+                      cx={radius + strokeWidth}
+                      cy={radius + strokeWidth}
+                      r={radius}
+                      stroke={getSessionTypeColor(
+                        currentSession?.type || 'focus',
+                      )}
+                      strokeWidth={strokeWidth}
+                      fill="none"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={strokeDashoffset}
+                      strokeLinecap="round"
+                      transform={`rotate(-90 ${radius + strokeWidth} ${
+                        radius + strokeWidth
+                      })`}
+                    />
+                  </Svg>
+                  <View style={styles.timerContent}>
+                    <Text style={styles.timerText}>
+                      {formatTime(effectiveRemaining)}
+                    </Text>
+                    <Text style={styles.sessionCountText}>
+                      Session{' '}
+                      {Math.min(
+                        completedFocusSessions +
+                          (currentSession?.type === 'focus' &&
+                          timeRemaining !== totalSeconds
+                            ? 1
+                            : 0),
+                        totalFocusSessions,
+                      )}{' '}
+                      of {totalFocusSessions}
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.primaryButton,
+                    {
+                      backgroundColor: isRunning
+                        ? Colors.warning
+                        : Colors.primary,
+                    },
+                  ]}
+                  onPress={handleStartPause}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {isRunning
+                      ? 'Pause'
+                      : timeRemaining === 0 || timeRemaining === totalSeconds
+                      ? currentSession?.type === 'focus'
+                        ? 'Start Focus'
+                        : 'Start Break'
+                      : 'Resume'}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.secondaryButtonsRow}>
+                  <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={handleReset}
+                  >
+                    <MaterialIcons
+                      name="refresh"
+                      size={20}
+                      color={Colors.neutral.dark}
+                    />
+                    <Text style={styles.secondaryButtonText}>Reset</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.secondaryButton,
+                      currentSession?.type === 'focus' && { opacity: 0.5 },
+                    ]}
+                    onPress={async () => {
+                      if (currentSession?.type !== 'focus') {
+                        // User manually skips - no notification
+                        await handleSessionComplete(true);
+                        await moveToNextSession(false, true);
+                      }
+                    }}
+                    disabled={currentSession?.type === 'focus'}
+                  >
+                    <MaterialIcons
+                      name="skip-next"
+                      size={20}
+                      color={Colors.neutral.dark}
+                    />
+                    <Text style={styles.secondaryButtonText}>Skip Break</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Session list */}
+              <View style={styles.sessionProgressSection}>
+                <Text style={styles.sessionProgressTitle}>
+                  Session Progress
+                </Text>
+                <ScrollView
+                  style={styles.sessionsScrollView}
+                  showsVerticalScrollIndicator
+                >
+                  <View style={styles.sessionsList}>
+                    {sessions.map((s, i) => (
+                      <View
+                        key={s.id}
+                        style={[
+                          styles.sessionItem,
+                          i === currentIdx && styles.sessionItemActive,
+                          s.completed && styles.sessionItemCompleted,
+                        ]}
+                      >
+                        {s.completed ? (
+                          <MaterialIcons
+                            name="check-circle"
+                            size={20}
+                            color={Colors.success}
+                          />
+                        ) : i === currentIdx ? (
+                          <View
+                            style={[
+                              styles.sessionDot,
+                              { backgroundColor: getSessionTypeColor(s.type) },
+                            ]}
+                          />
+                        ) : (
+                          <View
+                            style={[
+                              styles.sessionDot,
+                              { backgroundColor: Colors.neutral.light },
+                            ]}
+                          />
+                        )}
+                        <Text
+                          style={[
+                            styles.sessionItemText,
+                            i === currentIdx && styles.sessionItemTextActive,
+                            s.completed && styles.sessionItemTextCompleted,
+                          ]}
+                        >
+                          {s.type === 'focus'
+                            ? `Focus ${Math.floor(i / 2) + 1}`
+                            : s.type === 'longBreak'
+                            ? 'Long Break'
+                            : 'Break'}
+                        </Text>
+                        <Text style={styles.sessionDuration}>
+                          {s.duration}m
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.statsContainerOuter}
+              contentContainerStyle={styles.statsContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {statsLoading ? (
+                <View style={{ padding: 24, alignItems: 'center' }}>
+                  <Text style={{ color: Colors.neutral.medium }}>
+                    Loading statistics...
+                  </Text>
+                </View>
+              ) : statsError ? (
+                <View style={{ padding: 24 }}>
+                  <Text style={{ color: Colors.semantic.error }}>
+                    {statsError}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.statsCard}>
+                  <View style={styles.statsGridCompact}>
+                    <View
+                      style={[
+                        styles.statItemCompact,
+                        {
+                          backgroundColor: Colors.primary + '15',
+                          borderColor: Colors.primary + '30',
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="timer"
+                        size={28}
+                        color={Colors.primary}
+                      />
+                      <Text style={styles.statValue}>
+                        {completedSessionsAll}
+                      </Text>
+                      <Text style={styles.statLabel}>Completed sessions</Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statItemCompact,
+                        {
+                          backgroundColor: Colors.accent + '15',
+                          borderColor: Colors.accent + '30',
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="access-time"
+                        size={28}
+                        color={Colors.accent}
+                      />
+                      <Text style={styles.statValue}>
+                        {formatHM(totalFocusSecondsAll)}
+                      </Text>
+                      <Text style={styles.statLabel}>Total focus</Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.statsGridCompact, { marginTop: 12 }]}>
+                    <View
+                      style={[
+                        styles.statItemCompact,
+                        {
+                          backgroundColor: Colors.success + '15',
+                          borderColor: Colors.success + '30',
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="check-circle"
+                        size={28}
+                        color={Colors.success}
+                      />
+                      <Text style={styles.statValue}>
+                        {todayFocusSessionsCount}
+                      </Text>
+                      <Text style={styles.statLabel}>Today sessions</Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statItemCompact,
+                        {
+                          backgroundColor: Colors.neutral.light + '40',
+                          borderColor: Colors.neutral.light,
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="bolt"
+                        size={28}
+                        color={Colors.neutral.dark}
+                      />
+                      <Text style={styles.statValue}>
+                        {formatHM(todayFocusSeconds)}
+                      </Text>
+                      <Text style={styles.statLabel}>Today focus</Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statItemCompact,
+                        {
+                          backgroundColor: Colors.warning + '15',
+                          borderColor: Colors.warning + '30',
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="free-breakfast"
+                        size={28}
+                        color={Colors.warning}
+                      />
+                      <Text style={styles.statValue}>
+                        {formatHM(todayBreakSeconds)}
+                      </Text>
+                      <Text style={styles.statLabel}>Today break</Text>
+                    </View>
+                  </View>
+
+                  <View style={{ marginTop: 20 }}>
+                    <Text style={styles.sessionProgressTitle}>
+                      Task Tracking History
+                    </Text>
+                    {history && history.length > 0 ? (
+                      <View style={{ gap: 10 }}>
+                        {history.map((r, idx) => (
+                          <View key={idx} style={styles.historyItem}>
+                            <View style={styles.historyDateSection}>
+                              <MaterialIcons
+                                name="calendar-today"
+                                size={16}
+                                color={Colors.primary}
+                              />
+                              <Text style={styles.historyDate}>
+                                {new Date(r.date).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                })}
+                              </Text>
+                            </View>
+                            <View style={styles.historyStats}>
+                              <View style={styles.historyStatItem}>
+                                <MaterialIcons
+                                  name="timer"
+                                  size={14}
+                                  color={Colors.accent}
+                                />
+                                <Text style={styles.historyStatText}>
+                                  {r.sessions} sessions
+                                </Text>
+                              </View>
+                              <View style={styles.historyStatItem}>
+                                <MaterialIcons
+                                  name="bolt"
+                                  size={14}
+                                  color={Colors.neutral.medium}
+                                />
+                                <Text style={styles.historyStatText}>
+                                  {formatHM((r.focusMinutes || 0) * 60)}
+                                </Text>
+                              </View>
+                              <View style={styles.historyStatItem}>
+                                <MaterialIcons
+                                  name="free-breakfast"
+                                  size={14}
+                                  color={Colors.warning}
+                                />
+                                <Text style={styles.historyStatText}>
+                                  {formatHM((r.breakMinutes || 0) * 60)}
+                                </Text>
+                              </View>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    ) : (
+                      <View style={{ paddingVertical: 16 }}>
+                        <Text style={{ color: Colors.neutral.medium }}>
+                          Task này chưa được tracking.
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+            </ScrollView>
           )}
-        </ScrollView>
-      )}
-      </>
+        </>
       )}
     </SafeAreaView>
   );

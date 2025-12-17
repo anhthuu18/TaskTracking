@@ -35,6 +35,7 @@ model User {
   accessLogs             ProjectAccessLog[]
   timeTrackingSessions   TimeTrackingSession[] @relation("TimeTrackingSessions")
   pomodoroStatistics     PomodoroStatistics[]  @relation("PomodoroStatistics")
+  createdEvents          Event[]               @relation("CreatedEvents")
 
   @@map("Users")
 }
@@ -156,6 +157,7 @@ model Project {
   taskPriorities      ProjectTaskPriority[]
   starredBy           StarredProject[]
   accessLogs          ProjectAccessLog[]
+  events              Event[]               @relation("ProjectEvents")
 
   @@map("Projects")
 }
@@ -280,6 +282,8 @@ model ProjectInvitation {
 enum NotificationType {
   PROJECT_MEMBER_ADDED
   TASK_REMINDER
+  EVENT_CREATED
+  EVENT_REMINDER
 }
 
 // In-app notifications for project events (added to project, task reminders, etc.)
@@ -518,4 +522,28 @@ model PomodoroStatistics {
   @@index([userId])
   @@index([lastTrackedDate])
   @@map("PomodoroStatistics")
+}
+
+// Events - Project-related events like meetings, deadlines
+model Event {
+  id           Int       @id @default(autoincrement()) @map("EventID")
+  eventName    String    @map("EventName") @db.VarChar(200)
+  description  String?   @map("Description") @db.Text
+  projectId    Int       @map("ProjectID")
+  creatorId    Int       @map("CreatorID")
+  startTime    DateTime  @map("StartTime")
+  endTime      DateTime  @map("EndTime")
+  dateDeleted  DateTime? @map("DateDeleted")
+  dateCreated  DateTime  @default(now()) @map("DateCreated")
+  dateModified DateTime  @updatedAt @map("DateModified")
+
+  // Relations
+  project Project @relation("ProjectEvents", fields: [projectId], references: [id], onDelete: Cascade)
+  creator User    @relation("CreatedEvents", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([creatorId])
+  @@index([startTime])
+  @@index([endTime])
+  @@map("Events")
 }

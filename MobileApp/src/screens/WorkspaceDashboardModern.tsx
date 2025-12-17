@@ -1263,7 +1263,10 @@ const WorkspaceDashboardModern: React.FC<WorkspaceDashboardModernProps> = ({
         {/* Notification Modal - Project notifications for this workspace */}
         <NotificationModal
           visible={showNotificationModal}
-          onClose={() => setShowNotificationModal(false)}
+          onClose={() => {
+            setShowNotificationModal(false);
+            loadNotificationCount(); // Reload count when modal closes
+          }}
           onAcceptInvitation={handleAcceptInvitation}
           onDeclineInvitation={handleDeclineInvitation}
           mode="project"

@@ -24,6 +24,7 @@ import {
   ProjectSettingsScreen,
   ProfileScreen,
 } from '../screens';
+import EditEventScreen from '../screens/EditEventScreen';
 import TaskTrackingScreen from '../screens/TaskTrackingScreen';
 import AcceptInvitationScreen from '../screens/AcceptInvitationScreen';
 import PersonalSettingsScreen from '../screens/PersonalSettingsScreen';
@@ -49,6 +50,7 @@ export type RootStackParamList = {
   ProjectDetail: { project: any };
   CreateTask: { projectMembers?: any[]; projectId?: string };
   CreateEvent: { projectMembers?: any[]; projectId?: string };
+  EditEvent: { eventId: number; onEventUpdated?: () => void };
   ProjectSettings: { project: any };
   AcceptInvitation: { token: string };
   TaskTracking: { task: any };
@@ -428,6 +430,13 @@ const AppNavigator: React.FC = () => {
               }}
             />
             <Stack.Screen
+              name="EditEvent"
+              component={EditEventScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="ProjectSettings"
               component={ProjectSettingsScreen}
               options={{
@@ -537,6 +546,13 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen
               name="CreateEvent"
               component={CreateEventScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="EditEvent"
+              component={EditEventScreen}
               options={{
                 headerShown: false,
               }}

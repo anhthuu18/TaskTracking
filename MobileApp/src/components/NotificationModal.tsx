@@ -268,9 +268,10 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
       }
 
       if (response.success) {
-        setNotifications([]);
-        // Notify parent component to update count
-        onAcceptInvitation(0); // Trigger refresh
+        // Reload notifications from server to get updated isRead status
+        await loadNotifications();
+        // DON'T call onAcceptInvitation here - it causes modal to close/reopen
+        // Parent will reload count when modal closes
       }
     } catch (error) {
       console.error('Error clearing notifications:', error);
@@ -389,11 +390,6 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                             <Text style={styles.workspaceName}>
                               {notification.workspaceName}
                             </Text>
-                            {notification.isRead && (
-                              <View style={styles.readBadge}>
-                                <Text style={styles.readBadgeText}>Read</Text>
-                              </View>
-                            )}
                           </View>
                           {notification.inviterName && (
                             <Text style={styles.inviterText}>
