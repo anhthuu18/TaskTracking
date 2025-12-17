@@ -23,19 +23,28 @@ export class EventReminderScheduler {
     timeZone: "Asia/Ho_Chi_Minh",
   })
   async sendEventReminders() {
-    this.logger.log("Checking for events starting in 60 minutes");
+    const now = new Date();
+    this.logger.log(`\n========================================`);
+    this.logger.log(
+      `⏰ EVENT REMINDER JOB STARTED at ${now.toLocaleString("vi-VN")}`
+    );
+    this.logger.log(`========================================\n`);
 
     try {
-      // Calculate time range: 60 minutes from now (with 1 minute tolerance)
-      const now = new Date();
-      const sixtyMinutesLater = new Date(now.getTime() + 60 * 60 * 1000);
+      // Time window: 4-6 minutes from now (for testing)
+      const reminderStart = new Date(now.getTime() + 59 * 60 * 1000);
+      const reminderEnd = new Date(now.getTime() + 61 * 60 * 1000);
 
-      // Time window: 59-61 minutes from now
-      const reminderStart = new Date(now.getTime() + 4 * 60 * 1000);
-      const reminderEnd = new Date(now.getTime() + 6 * 60 * 1000);
-
+      this.logger.log(`🔍 Searching for events starting between:`);
       this.logger.log(
-        `Checking for events between ${reminderStart.toISOString()} and ${reminderEnd.toISOString()}`
+        `   Start: ${reminderStart.toLocaleString(
+          "vi-VN"
+        )} (${reminderStart.toISOString()})`
+      );
+      this.logger.log(
+        `   End:   ${reminderEnd.toLocaleString(
+          "vi-VN"
+        )} (${reminderEnd.toISOString()})`
       );
 
       // Find all events starting in 60 minutes
@@ -110,7 +119,17 @@ export class EventReminderScheduler {
           const fcmToken = member.user.fcmToken;
 
           this.logger.log(
-            `Sending reminder to ${username} (Email: ${notifyByEmail}, Push: ${notifyByPush})`
+            `\n👤 Processing member: ${username} (ID: ${member.userId})`
+          );
+          this.logger.log(`   Email: ${email}`);
+          this.logger.log(
+            `   FCM Token: ${fcmToken ? "EXISTS ✓" : "MISSING ✗"}`
+          );
+          this.logger.log(
+            `   Notify by Email: ${notifyByEmail ? "YES ✓" : "NO ✗"}`
+          );
+          this.logger.log(
+            `   Notify by Push: ${notifyByPush ? "YES ✓" : "NO ✗"}`
           );
 
           // Check if notification already sent in the last hour
@@ -186,7 +205,7 @@ export class EventReminderScheduler {
                 fcmToken,
                 {
                   title: "⏰ Nhắc nhở Event",
-                  body: `"${event.eventName}" sẽ bắt đầu trong 60 phút nữa`,
+                  body: `"${event.eventName}" sẽ bắt đầu trong 5 phút nữa`,
                 },
                 {
                   eventId: event.id.toString(),
@@ -195,13 +214,21 @@ export class EventReminderScheduler {
                   type: "event_reminder",
                 }
               );
-              this.logger.log(`Push notification sent to ${username}`);
+              this.logger.log(`✅ Push notification sent to ${username}`);
             } catch (error) {
               this.logger.error(
-                `Failed to send push notification to ${username}:`,
+                `❌ Failed to send push notification to ${username}:`,
                 error
               );
             }
+          } else if (!fcmToken) {
+            this.logger.warn(
+              `⚠️ Skipping push notification for ${username}: No FCM token`
+            );
+          } else if (!notifyByPush) {
+            this.logger.log(
+              `ℹ️ Skipping push notification for ${username}: User disabled push notifications`
+            );
           }
         }
       }

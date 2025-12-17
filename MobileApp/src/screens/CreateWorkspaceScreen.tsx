@@ -15,7 +15,11 @@ import { TextInput } from 'react-native-paper';
 // @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
-import { ScreenLayout, ButtonStyles, Typography } from '../constants/Dimensions';
+import {
+  ScreenLayout,
+  ButtonStyles,
+  Typography,
+} from '../constants/Dimensions';
 import { workspaceService } from '../services';
 import { WorkspaceType } from '../types';
 
@@ -24,39 +28,68 @@ interface CreateWorkspaceScreenProps {
   route?: any;
 }
 
-const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigation }) => {
+const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({
+  navigation,
+}) => {
   const [workspaceName, setWorkspaceName] = useState('');
   const [description, setDescription] = useState('');
-  const [workspaceType, setWorkspaceType] = useState<'personal' | 'group'>('group');
+  const [workspaceType, setWorkspaceType] = useState<'personal' | 'group'>(
+    'group',
+  );
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // States for member invitation (only for group workspace)
-  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteEmails, setInviteEmails] = useState<string[]>([]);
+  const [currentEmail, setCurrentEmail] = useState('');
   const [inviteMessage, setInviteMessage] = useState('');
 
   const handleBack = () => {
     navigation.goBack();
   };
 
+  const handleAddEmail = () => {
+    const email = currentEmail.trim();
+    if (!email) {
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setErrors({
+        ...errors,
+        currentEmail: 'Please enter a valid email address',
+      });
+      return;
+    }
+
+    if (inviteEmails.includes(email)) {
+      setErrors({
+        ...errors,
+        currentEmail: 'This email has already been added',
+      });
+      return;
+    }
+
+    setInviteEmails([...inviteEmails, email]);
+    setCurrentEmail('');
+    setErrors({ ...errors, currentEmail: '' });
+  };
+
+  const handleRemoveEmail = (emailToRemove: string) => {
+    setInviteEmails(inviteEmails.filter(email => email !== emailToRemove));
+  };
+
   const validateForm = () => {
-    const newErrors: {[key: string]: string} = {};
-    
+    const newErrors: { [key: string]: string } = {};
+
     if (!workspaceName.trim()) {
       newErrors.workspaceName = 'Workspace name is required';
     } else if (workspaceName.trim().length < 3) {
       newErrors.workspaceName = 'Workspace name must be at least 3 characters';
     } else if (workspaceName.trim().length > 100) {
       newErrors.workspaceName = 'Workspace name must not exceed 100 characters';
-    }
-
-    // Validate email only for group workspace
-    if (workspaceType === 'group' && inviteEmail.trim()) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(inviteEmail.trim())) {
-        newErrors.inviteEmail = 'Please enter a valid email address';
-      }
     }
 
     // Validate description length
@@ -75,19 +108,25 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
 
     try {
       setIsLoading(true);
-      
+
       const workspaceData = {
         workspaceName: workspaceName.trim(),
         description: description.trim() || undefined,
-        workspaceType: workspaceType === 'group' ? WorkspaceType.GROUP : WorkspaceType.PERSONAL,
+        workspaceType:
+          workspaceType === 'group'
+            ? WorkspaceType.GROUP
+            : WorkspaceType.PERSONAL,
       };
-      
+
       const response = await workspaceService.createWorkspace(workspaceData);
-      
+
       if (response.success) {
         // Save workspace to AsyncStorage
-        await AsyncStorage.setItem('lastUsedWorkspaceId', response.data.id.toString());
-        
+        await AsyncStorage.setItem(
+          'lastUsedWorkspaceId',
+          response.data.id.toString(),
+        );
+
         // Prepare workspace object for navigation
         const workspaceForNav = {
           id: response.data.id,
@@ -96,44 +135,50 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
           memberCount: response.data.memberCount || 1,
           type: workspaceType,
         };
-        
+
         // If it's a group workspace and email is provided, send invitation
-        if (workspaceType === 'group' && inviteEmail.trim()) {
+        if (workspaceType === 'group' && inviteEmails.length > 0) {
           try {
-            await workspaceService.inviteMember(
-              response.data.id,
-              inviteEmail.trim(),
-              'MEMBER',
-              inviteMessage.trim() || undefined
+            const invitationPromises = inviteEmails.map(email =>
+              workspaceService.inviteMember(
+                response.data.id,
+                email,
+                'MEMBER',
+                inviteMessage.trim() || undefined,
+              ),
             );
-            
+
+            await Promise.all(invitationPromises);
+
             Alert.alert(
               'Success',
-              `Workspace created and invitation sent to ${inviteEmail}`,
+              `Workspace created and invitations sent to ${
+                inviteEmails.length
+              } member${inviteEmails.length > 1 ? 's' : ''}`,
               [
                 {
                   text: 'OK',
                   onPress: () => {
                     // Navigate to Main with the new workspace
                     navigation.navigate('Main', { workspace: workspaceForNav });
-                  }
-                }
-              ]
+                  },
+                },
+              ],
             );
           } catch (inviteError: any) {
             console.error('Error sending invitation:', inviteError);
             Alert.alert(
               'Workspace Created',
-              'Workspace created successfully, but failed to send invitation.',
+              'Workspace created successfully, but some invitations failed to send.',
               [
                 {
                   text: 'OK',
                   onPress: () => {
                     // Navigate to Main with the new workspace
                     navigation.navigate('Main', { workspace: workspaceForNav });
-                  }
-                }
-              ]
+                  },
+                },
+              ],
             );
           }
         } else {
@@ -142,14 +187,19 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
         }
       } else {
         console.error('Failed to create workspace:', response.message);
-        setErrors({ general: response.message || 'Failed to create workspace' });
+        setErrors({
+          general: response.message || 'Failed to create workspace',
+        });
       }
     } catch (error: any) {
       console.error('Error creating workspace:', error);
-      
+
       // Handle Unauthorized error
       const errorMessage = error?.message || '';
-      if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
+      if (
+        errorMessage.includes('Unauthorized') ||
+        errorMessage.includes('401')
+      ) {
         // Clear invalid token
         try {
           await AsyncStorage.removeItem('authToken');
@@ -157,7 +207,7 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
         } catch (e) {
           console.error('Error clearing tokens:', e);
         }
-        
+
         Alert.alert(
           'Session Expired',
           'Your session has expired. Please log in again.',
@@ -168,7 +218,7 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
                 navigation.navigate('SignIn');
               },
             },
-          ]
+          ],
         );
       } else {
         setErrors({ general: error.message || 'Failed to create workspace' });
@@ -181,7 +231,7 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor={Colors.background} barStyle="dark-content" />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -203,22 +253,32 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
             onChangeText={setWorkspaceName}
             style={[
               styles.textInput,
-              errors.workspaceName && styles.textInputError
+              errors.workspaceName && styles.textInputError,
             ]}
             outlineStyle={[
               styles.inputOutline,
-              errors.workspaceName && styles.inputOutlineError
+              errors.workspaceName && styles.inputOutlineError,
             ]}
             theme={{
               colors: {
-                primary: errors.workspaceName ? Colors.semantic.error : Colors.primary,
-                outline: errors.workspaceName ? Colors.semantic.error : Colors.neutral.light,
+                primary: errors.workspaceName
+                  ? Colors.semantic.error
+                  : Colors.primary,
+                outline: errors.workspaceName
+                  ? Colors.semantic.error
+                  : Colors.neutral.light,
                 onSurface: Colors.text,
               },
             }}
             left={
-              <TextInput.Icon 
-                icon={() => <MaterialIcons name="person" size={20} color={Colors.neutral.medium} />}
+              <TextInput.Icon
+                icon={() => (
+                  <MaterialIcons
+                    name="person"
+                    size={20}
+                    color={Colors.neutral.medium}
+                  />
+                )}
               />
             }
           />
@@ -236,12 +296,22 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
               onPress={() => setShowTypeDropdown(!showTypeDropdown)}
             >
               <View style={styles.dropdownContent}>
-                <MaterialIcons name={workspaceType === 'group' ? 'groups' : 'person'} size={20} color={Colors.neutral.medium} />
+                <MaterialIcons
+                  name={workspaceType === 'group' ? 'groups' : 'person'}
+                  size={20}
+                  color={Colors.neutral.medium}
+                />
                 <Text style={styles.dropdownText}>
                   {workspaceType === 'group' ? 'Group' : 'Personal'}
                 </Text>
               </View>
-              <MaterialIcons name={showTypeDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={24} color={Colors.neutral.medium} />
+              <MaterialIcons
+                name={
+                  showTypeDropdown ? 'keyboard-arrow-up' : 'keyboard-arrow-down'
+                }
+                size={24}
+                color={Colors.neutral.medium}
+              />
             </TouchableOpacity>
             {showTypeDropdown && (
               <View style={styles.dropdownMenu}>
@@ -252,7 +322,11 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
                     setShowTypeDropdown(false);
                   }}
                 >
-                  <MaterialIcons name="person" size={20} color={Colors.neutral.medium} />
+                  <MaterialIcons
+                    name="person"
+                    size={20}
+                    color={Colors.neutral.medium}
+                  />
                   <Text style={styles.dropdownOptionText}>Personal</Text>
                 </TouchableOpacity>
                 <View style={styles.dropdownSeparator} />
@@ -263,7 +337,11 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
                     setShowTypeDropdown(false);
                   }}
                 >
-                  <MaterialIcons name="groups" size={20} color={Colors.neutral.medium} />
+                  <MaterialIcons
+                    name="groups"
+                    size={20}
+                    color={Colors.neutral.medium}
+                  />
                   <Text style={styles.dropdownOptionText}>Group</Text>
                 </TouchableOpacity>
               </View>
@@ -271,7 +349,7 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
           </View>
         </View>
 
-        {/* Description */} 
+        {/* Description */}
         <View style={styles.inputSection}>
           <Text style={styles.sectionLabel}>Description (Optional)</Text>
           <TextInput
@@ -282,25 +360,35 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
             multiline
             numberOfLines={5}
             style={[
-              styles.textInput, 
+              styles.textInput,
               styles.multilineTextInput,
-              errors.description && styles.textInputError
+              errors.description && styles.textInputError,
             ]}
             outlineStyle={[
               styles.inputOutline,
-              errors.description && styles.inputOutlineError
+              errors.description && styles.inputOutlineError,
             ]}
             contentStyle={styles.multilineContent}
-            theme={{  
+            theme={{
               colors: {
-                primary: errors.description ? Colors.semantic.error : Colors.primary,
-                outline: errors.description ? Colors.semantic.error : Colors.neutral.light,
+                primary: errors.description
+                  ? Colors.semantic.error
+                  : Colors.primary,
+                outline: errors.description
+                  ? Colors.semantic.error
+                  : Colors.neutral.light,
                 onSurface: Colors.text,
               },
             }}
             left={
-              <TextInput.Icon 
-                icon={() => <MaterialIcons name="description" size={20} color={Colors.neutral.medium} />}
+              <TextInput.Icon
+                icon={() => (
+                  <MaterialIcons
+                    name="description"
+                    size={20}
+                    color={Colors.neutral.medium}
+                  />
+                )}
               />
             }
           />
@@ -317,39 +405,99 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
           <>
             <View style={styles.inputSection}>
               <Text style={styles.sectionLabel}>Invite Member (Optional)</Text>
-              <TextInput
-                mode="outlined"
-                placeholder="Enter email address..."
-                value={inviteEmail}
-                onChangeText={setInviteEmail}
-                style={[
-                  styles.textInput,
-                  errors.inviteEmail && styles.textInputError
-                ]}
-                outlineStyle={[
-                  styles.inputOutline,
-                  errors.inviteEmail && styles.inputOutlineError
-                ]}
-                theme={{
-                  colors: {
-                    primary: errors.inviteEmail ? Colors.semantic.error : Colors.primary,
-                    outline: errors.inviteEmail ? Colors.semantic.error : Colors.neutral.light,
-                    onSurface: Colors.text,
-                  },
-                }}
-                left={
-                  <TextInput.Icon 
-                    icon={() => <MaterialIcons name="email" size={20} color={Colors.neutral.medium} />}
+
+              {/* Email Input with Add Button */}
+              <View style={styles.emailInputRow}>
+                <View style={styles.emailInputContainer}>
+                  <TextInput
+                    mode="outlined"
+                    placeholder="Enter email address..."
+                    value={currentEmail}
+                    onChangeText={text => {
+                      setCurrentEmail(text);
+                      if (errors.currentEmail) {
+                        setErrors({ ...errors, currentEmail: '' });
+                      }
+                    }}
+                    style={[
+                      styles.textInput,
+                      styles.emailInput,
+                      errors.currentEmail && styles.textInputError,
+                    ]}
+                    outlineStyle={[
+                      styles.inputOutline,
+                      errors.currentEmail && styles.inputOutlineError,
+                    ]}
+                    theme={{
+                      colors: {
+                        primary: errors.currentEmail
+                          ? Colors.semantic.error
+                          : Colors.primary,
+                        outline: errors.currentEmail
+                          ? Colors.semantic.error
+                          : Colors.neutral.light,
+                        onSurface: Colors.text,
+                      },
+                    }}
+                    left={
+                      <TextInput.Icon
+                        icon={() => (
+                          <MaterialIcons
+                            name="email"
+                            size={20}
+                            color={Colors.neutral.medium}
+                          />
+                        )}
+                      />
+                    }
+                    onSubmitEditing={handleAddEmail}
                   />
-                }
-              />
-              {errors.inviteEmail && (
-                <Text style={styles.errorText}>{errors.inviteEmail}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.addEmailButton}
+                  onPress={handleAddEmail}
+                >
+                  <MaterialIcons
+                    name="add"
+                    size={24}
+                    color={Colors.neutral.white}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {errors.currentEmail && (
+                <Text style={styles.errorText}>{errors.currentEmail}</Text>
+              )}
+
+              {/* List of Added Emails */}
+              {inviteEmails.length > 0 && (
+                <View style={styles.emailListContainer}>
+                  <Text style={styles.emailListTitle}>
+                    Invited Members ({inviteEmails.length})
+                  </Text>
+                  {inviteEmails.map((email, index) => (
+                    <View key={index} style={styles.emailChip}>
+                      <Text style={styles.emailChipText}>{email}</Text>
+                      <TouchableOpacity
+                        onPress={() => handleRemoveEmail(email)}
+                        style={styles.removeEmailButton}
+                      >
+                        <MaterialIcons
+                          name="close"
+                          size={18}
+                          color={Colors.neutral.medium}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
               )}
             </View>
 
             <View style={styles.inputSection}>
-              <Text style={styles.sectionLabel}>Invitation Message (Optional)</Text>
+              <Text style={styles.sectionLabel}>
+                Invitation Message (Optional)
+              </Text>
               <TextInput
                 mode="outlined"
                 placeholder="Add a personal message..."
@@ -368,8 +516,14 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
                   },
                 }}
                 left={
-                  <TextInput.Icon 
-                    icon={() => <MaterialIcons name="message" size={20} color={Colors.neutral.medium} />}
+                  <TextInput.Icon
+                    icon={() => (
+                      <MaterialIcons
+                        name="message"
+                        size={20}
+                        color={Colors.neutral.medium}
+                      />
+                    )}
                   />
                 }
               />
@@ -378,25 +532,31 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({ navigatio
         )}
       </ScrollView>
 
-
       {/* Create Button */}
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={[styles.createButton, isLoading && styles.createButtonDisabled]}
+        <TouchableOpacity
+          style={[
+            styles.createButton,
+            isLoading && styles.createButtonDisabled,
+          ]}
           onPress={handleCreateWorkspace}
           disabled={isLoading}
         >
-          <Text style={[styles.createButtonText, isLoading && styles.createButtonTextDisabled]}>
+          <Text
+            style={[
+              styles.createButtonText,
+              isLoading && styles.createButtonTextDisabled,
+            ]}
+          >
             {isLoading ? 'Creating...' : 'Create'}
           </Text>
         </TouchableOpacity>
-        
+
         {/* Error Message */}
         {errors.general && (
           <Text style={styles.errorText}>{errors.general}</Text>
         )}
       </View>
-
     </SafeAreaView>
   );
 };
@@ -562,6 +722,59 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginLeft: 12,
     textAlign: 'right',
+  },
+  emailInputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  emailInputContainer: {
+    flex: 1,
+  },
+  emailInput: {
+    flex: 1,
+  },
+  addEmailButton: {
+    backgroundColor: Colors.primary,
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 0,
+  },
+  emailListContainer: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: Colors.neutral.ultraLight,
+    borderRadius: 12,
+  },
+  emailListTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 12,
+  },
+  emailChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.background,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutral.light,
+  },
+  emailChipText: {
+    fontSize: 14,
+    color: Colors.text,
+    flex: 1,
+  },
+  removeEmailButton: {
+    padding: 4,
+    marginLeft: 8,
   },
 });
 

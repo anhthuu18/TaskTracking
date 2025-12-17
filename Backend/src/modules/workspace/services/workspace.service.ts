@@ -1,14 +1,24 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { CreateWorkspaceDto } from '../dtos/create-workspace.dto';
-import { WorkspaceResponseDto } from '../dtos/workspace-response.dto';
-import { InviteMemberDto } from '../dtos/invite-member.dto';
-import { AddMemberDto } from '../dtos/add-member.dto';
-import { WorkspaceMemberResponseDto } from '../dtos/workspace-member-response.dto';
-import { InvitationResponseDto } from '../dtos/invitation.dto';
-import { EmailService } from '../../../services/email.service';
-import { WorkspaceType, MemberRole, InvitationStatus, InviteType } from '@prisma/client';
-import * as crypto from 'crypto';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from "@nestjs/common";
+import { PrismaService } from "../../../prisma/prisma.service";
+import { CreateWorkspaceDto } from "../dtos/create-workspace.dto";
+import { WorkspaceResponseDto } from "../dtos/workspace-response.dto";
+import { InviteMemberDto } from "../dtos/invite-member.dto";
+import { AddMemberDto } from "../dtos/add-member.dto";
+import { WorkspaceMemberResponseDto } from "../dtos/workspace-member-response.dto";
+import { InvitationResponseDto } from "../dtos/invitation.dto";
+import { EmailService } from "../../../services/email.service";
+import {
+  WorkspaceType,
+  MemberRole,
+  InvitationStatus,
+  InviteType,
+} from "@prisma/client";
+import * as crypto from "crypto";
 
 @Injectable()
 export class WorkspaceService {
@@ -17,7 +27,10 @@ export class WorkspaceService {
     private emailService: EmailService
   ) {}
 
-  async create(createWorkspaceDto: CreateWorkspaceDto, userId: number): Promise<WorkspaceResponseDto> {
+  async create(
+    createWorkspaceDto: CreateWorkspaceDto,
+    userId: number
+  ): Promise<WorkspaceResponseDto> {
     const { workspaceName, description, workspaceType } = createWorkspaceDto;
 
     // Create workspace
@@ -60,7 +73,8 @@ export class WorkspaceService {
       dateModified: workspace.dateModified,
       user: workspace.user,
       memberCount: workspaceType === WorkspaceType.GROUP ? 1 : undefined,
-      userRole: workspaceType === WorkspaceType.GROUP ? MemberRole.OWNER : undefined,
+      userRole:
+        workspaceType === WorkspaceType.GROUP ? MemberRole.OWNER : undefined,
     };
   }
 
@@ -130,8 +144,10 @@ export class WorkspaceService {
     const allWorkspaces = [...ownedWorkspaces, ...memberWorkspaces];
 
     return allWorkspaces.map((workspace) => {
-      const userMember = workspace.workspaceMembers.find(member => member.userId === userId);
-      
+      const userMember = workspace.workspaceMembers.find(
+        (member) => member.userId === userId
+      );
+
       return {
         id: workspace.id,
         workspaceName: workspace.workspaceName,
@@ -141,8 +157,12 @@ export class WorkspaceService {
         dateCreated: workspace.dateCreated,
         dateModified: workspace.dateModified,
         user: workspace.user,
-        memberCount: workspace.workspaceType === WorkspaceType.GROUP ? workspace.workspaceMembers.length : undefined,
-        userRole: workspace.userId === userId ? MemberRole.OWNER : userMember?.role,
+        memberCount:
+          workspace.workspaceType === WorkspaceType.GROUP
+            ? workspace.workspaceMembers.length
+            : undefined,
+        userRole:
+          workspace.userId === userId ? MemberRole.OWNER : userMember?.role,
       };
     });
   }
@@ -182,10 +202,14 @@ export class WorkspaceService {
     });
 
     if (!workspace) {
-      throw new NotFoundException('Không tìm thấy workspace hoặc bạn không có quyền truy cập');
+      throw new NotFoundException(
+        "Không tìm thấy workspace hoặc bạn không có quyền truy cập"
+      );
     }
 
-    const userMember = workspace.workspaceMembers.find(member => member.userId === userId);
+    const userMember = workspace.workspaceMembers.find(
+      (member) => member.userId === userId
+    );
 
     return {
       id: workspace.id,
@@ -196,8 +220,12 @@ export class WorkspaceService {
       dateCreated: workspace.dateCreated,
       dateModified: workspace.dateModified,
       user: workspace.user,
-      memberCount: workspace.workspaceType === WorkspaceType.GROUP ? workspace.workspaceMembers.length : undefined,
-      userRole: workspace.userId === userId ? MemberRole.OWNER : userMember?.role,
+      memberCount:
+        workspace.workspaceType === WorkspaceType.GROUP
+          ? workspace.workspaceMembers.length
+          : undefined,
+      userRole:
+        workspace.userId === userId ? MemberRole.OWNER : userMember?.role,
     };
   }
 
@@ -210,12 +238,12 @@ export class WorkspaceService {
     });
 
     if (!workspace) {
-      throw new NotFoundException('Không tìm thấy workspace');
+      throw new NotFoundException("Không tìm thấy workspace");
     }
 
     // Only owner can delete workspace
     if (workspace.userId !== userId) {
-      throw new ForbiddenException('Chỉ owner mới có thể xóa workspace');
+      throw new ForbiddenException("Chỉ owner mới có thể xóa workspace");
     }
 
     // Soft delete workspace
@@ -266,7 +294,7 @@ export class WorkspaceService {
         },
       },
       orderBy: {
-        dateCreated: 'desc',
+        dateCreated: "desc",
       },
     });
 
@@ -315,13 +343,15 @@ export class WorkspaceService {
         },
       },
       orderBy: {
-        dateCreated: 'desc',
+        dateCreated: "desc",
       },
     });
 
     return workspaces.map((workspace) => {
-      const userMember = workspace.workspaceMembers.find(member => member.userId === userId);
-      
+      const userMember = workspace.workspaceMembers.find(
+        (member) => member.userId === userId
+      );
+
       return {
         id: workspace.id,
         workspaceName: workspace.workspaceName,
@@ -332,7 +362,8 @@ export class WorkspaceService {
         dateModified: workspace.dateModified,
         user: workspace.user,
         memberCount: workspace.workspaceMembers.length,
-        userRole: workspace.userId === userId ? MemberRole.OWNER : userMember?.role,
+        userRole:
+          workspace.userId === userId ? MemberRole.OWNER : userMember?.role,
       };
     });
   }
@@ -346,12 +377,12 @@ export class WorkspaceService {
     });
 
     if (!workspace) {
-      throw new NotFoundException('Không tìm thấy workspace đã bị xóa');
+      throw new NotFoundException("Không tìm thấy workspace đã bị xóa");
     }
 
     // Only owner can restore workspace
     if (workspace.userId !== userId) {
-      throw new ForbiddenException('Chỉ owner mới có thể khôi phục workspace');
+      throw new ForbiddenException("Chỉ owner mới có thể khôi phục workspace");
     }
 
     // Restore workspace
@@ -406,7 +437,7 @@ export class WorkspaceService {
         },
       },
       orderBy: {
-        dateDeleted: 'desc',
+        dateDeleted: "desc",
       },
     });
 
@@ -419,13 +450,20 @@ export class WorkspaceService {
       dateCreated: workspace.dateCreated,
       dateModified: workspace.dateModified,
       user: workspace.user,
-      memberCount: workspace.workspaceType === WorkspaceType.GROUP ? workspace.workspaceMembers.length : undefined,
+      memberCount:
+        workspace.workspaceType === WorkspaceType.GROUP
+          ? workspace.workspaceMembers.length
+          : undefined,
       userRole: MemberRole.OWNER,
     }));
   }
 
   // Invite member to workspace via email or in-app (Hierarchical Approach - Step 1)
-  async inviteMember(workspaceId: number, inviteMemberDto: InviteMemberDto, inviterId: number): Promise<InvitationResponseDto> {
+  async inviteMember(
+    workspaceId: number,
+    inviteMemberDto: InviteMemberDto,
+    inviterId: number
+  ): Promise<InvitationResponseDto> {
     const { email, inviteType, message } = inviteMemberDto;
 
     // Check if user has permission to invite (must be owner or admin)
@@ -446,12 +484,14 @@ export class WorkspaceService {
     });
 
     if (!workspace) {
-      throw new NotFoundException('Workspace không tồn tại');
+      throw new NotFoundException("Workspace không tồn tại");
     }
 
     // Only GROUP workspaces can have invitations
     if (workspace.workspaceType !== WorkspaceType.GROUP) {
-      throw new BadRequestException('Chỉ có thể mời thành viên vào GROUP workspace');
+      throw new BadRequestException(
+        "Chỉ có thể mời thành viên vào GROUP workspace"
+      );
     }
 
     // Check permission: owner or admin can invite
@@ -460,7 +500,21 @@ export class WorkspaceService {
     const canInvite = isOwner || memberRole === MemberRole.ADMIN;
 
     if (!canInvite) {
-      throw new ForbiddenException('Chỉ owner hoặc admin mới có thể mời thành viên');
+      throw new ForbiddenException(
+        "Chỉ owner hoặc admin mới có thể mời thành viên"
+      );
+    }
+
+    // Prevent inviting yourself (the inviter)
+    const inviter = await this.prisma.user.findUnique({
+      where: { id: inviterId },
+      select: { email: true },
+    });
+
+    if (inviter && inviter.email.toLowerCase() === email.toLowerCase()) {
+      throw new BadRequestException(
+        "Bạn không thể mời chính mình vào workspace"
+      );
     }
 
     // Check if user is already a member
@@ -473,7 +527,9 @@ export class WorkspaceService {
     });
 
     if (existingMember) {
-      throw new BadRequestException('Người dùng đã là thành viên của workspace');
+      throw new BadRequestException(
+        "Người dùng đã là thành viên của workspace"
+      );
     }
 
     // Check for any pending invitation, regardless of expiry
@@ -488,14 +544,16 @@ export class WorkspaceService {
     if (existingInvitation) {
       // If invitation is not expired, prevent sending a new one
       if (existingInvitation.expiresAt > new Date()) {
-        throw new BadRequestException(`An active invitation for this email already exists and will expire on ${existingInvitation.expiresAt.toLocaleDateString()}.`);
+        throw new BadRequestException(
+          `An active invitation for this email already exists and will expire on ${existingInvitation.expiresAt.toLocaleDateString()}.`
+        );
       }
       // If it's expired, we can proceed to create a new one.
       // Optionally, you can delete or mark the old one as EXPIRED here.
     }
 
     // Generate unique token
-    const token = crypto.randomBytes(32).toString('hex');
+    const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
 
@@ -570,7 +628,7 @@ export class WorkspaceService {
     });
 
     if (!invitation) {
-      throw new NotFoundException('Lời mời không hợp lệ hoặc đã hết hạn');
+      throw new NotFoundException("Lời mời không hợp lệ hoặc đã hết hạn");
     }
 
     // Check if user exists
@@ -579,7 +637,7 @@ export class WorkspaceService {
     });
 
     if (!user) {
-      throw new BadRequestException('Người dùng chưa đăng ký tài khoản');
+      throw new BadRequestException("Người dùng chưa đăng ký tài khoản");
     }
 
     // Check if already a member
@@ -592,7 +650,7 @@ export class WorkspaceService {
     });
 
     if (existingMember) {
-      throw new BadRequestException('Bạn đã là thành viên của workspace này');
+      throw new BadRequestException("Bạn đã là thành viên của workspace này");
     }
 
     // Add user as member and update invitation status
@@ -633,7 +691,11 @@ export class WorkspaceService {
   }
 
   // Add member directly (for existing workspace members)
-  async addMember(workspaceId: number, addMemberDto: AddMemberDto, requesterId: number): Promise<WorkspaceMemberResponseDto> {
+  async addMember(
+    workspaceId: number,
+    addMemberDto: AddMemberDto,
+    requesterId: number
+  ): Promise<WorkspaceMemberResponseDto> {
     const { userId, role = MemberRole.MEMBER } = addMemberDto;
 
     // Check workspace and permissions
@@ -653,11 +715,13 @@ export class WorkspaceService {
     });
 
     if (!workspace) {
-      throw new NotFoundException('Workspace không tồn tại');
+      throw new NotFoundException("Workspace không tồn tại");
     }
 
     if (workspace.workspaceType !== WorkspaceType.GROUP) {
-      throw new BadRequestException('Chỉ có thể thêm thành viên vào GROUP workspace');
+      throw new BadRequestException(
+        "Chỉ có thể thêm thành viên vào GROUP workspace"
+      );
     }
 
     // Check permission
@@ -666,7 +730,9 @@ export class WorkspaceService {
     const canAdd = isOwner || memberRole === MemberRole.ADMIN;
 
     if (!canAdd) {
-      throw new ForbiddenException('Chỉ owner hoặc admin mới có thể thêm thành viên');
+      throw new ForbiddenException(
+        "Chỉ owner hoặc admin mới có thể thêm thành viên"
+      );
     }
 
     // Check if user exists
@@ -675,7 +741,7 @@ export class WorkspaceService {
     });
 
     if (!user) {
-      throw new NotFoundException('Người dùng không tồn tại');
+      throw new NotFoundException("Người dùng không tồn tại");
     }
 
     // Check if already a member
@@ -688,7 +754,9 @@ export class WorkspaceService {
     });
 
     if (existingMember) {
-      throw new BadRequestException('Người dùng đã là thành viên của workspace');
+      throw new BadRequestException(
+        "Người dùng đã là thành viên của workspace"
+      );
     }
 
     // Add member
@@ -720,7 +788,11 @@ export class WorkspaceService {
   }
 
   // Remove member from workspace
-  async removeMember(workspaceId: number, memberId: number, requesterId: number): Promise<void> {
+  async removeMember(
+    workspaceId: number,
+    memberId: number,
+    requesterId: number
+  ): Promise<void> {
     // Check workspace and permissions
     const workspace = await this.prisma.workspace.findFirst({
       where: {
@@ -738,14 +810,14 @@ export class WorkspaceService {
     });
 
     if (!workspace) {
-      throw new NotFoundException('Workspace không tồn tại');
+      throw new NotFoundException("Workspace không tồn tại");
     }
 
     // Check permission - Only owner can remove members
     const isOwner = workspace.userId === requesterId;
 
     if (!isOwner) {
-      throw new ForbiddenException('Chỉ owner mới có thể xóa thành viên');
+      throw new ForbiddenException("Chỉ owner mới có thể xóa thành viên");
     }
 
     // Find member to remove
@@ -758,12 +830,12 @@ export class WorkspaceService {
     });
 
     if (!member) {
-      throw new NotFoundException('Thành viên không tồn tại');
+      throw new NotFoundException("Thành viên không tồn tại");
     }
 
     // Cannot remove owner
     if (member.userId === workspace.userId) {
-      throw new ForbiddenException('Không thể xóa owner khỏi workspace');
+      throw new ForbiddenException("Không thể xóa owner khỏi workspace");
     }
 
     // Soft delete member
@@ -774,11 +846,14 @@ export class WorkspaceService {
   }
 
   // Get workspace members
-  async getMembers(workspaceId: number, requesterId: number): Promise<WorkspaceMemberResponseDto[]> {
+  async getMembers(
+    workspaceId: number,
+    requesterId: number
+  ): Promise<WorkspaceMemberResponseDto[]> {
     // Check access to workspace
     const hasAccess = await this.checkWorkspaceAccess(workspaceId, requesterId);
     if (!hasAccess) {
-      throw new ForbiddenException('Bạn không có quyền truy cập workspace này');
+      throw new ForbiddenException("Bạn không có quyền truy cập workspace này");
     }
 
     const members = await this.prisma.workspaceMember.findMany({
@@ -796,12 +871,12 @@ export class WorkspaceService {
         },
       },
       orderBy: [
-        { role: 'asc' }, // Owner first, then Admin, then Member
-        { joinedAt: 'asc' },
+        { role: "asc" }, // Owner first, then Admin, then Member
+        { joinedAt: "asc" },
       ],
     });
 
-    return members.map(member => ({
+    return members.map((member) => ({
       id: member.id,
       workspaceId: member.workspaceId,
       userId: member.userId,
@@ -812,11 +887,14 @@ export class WorkspaceService {
   }
 
   // Get pending invitations for workspace
-  async getPendingInvitations(workspaceId: number, requesterId: number): Promise<InvitationResponseDto[]> {
+  async getPendingInvitations(
+    workspaceId: number,
+    requesterId: number
+  ): Promise<InvitationResponseDto[]> {
     // Check access to workspace (all members can view invitations)
     const hasAccess = await this.checkWorkspaceAccess(workspaceId, requesterId);
     if (!hasAccess) {
-      throw new ForbiddenException('Bạn không có quyền truy cập workspace này');
+      throw new ForbiddenException("Bạn không có quyền truy cập workspace này");
     }
 
     const invitations = await this.prisma.workspaceInvitation.findMany({
@@ -841,10 +919,10 @@ export class WorkspaceService {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
 
-    return invitations.map(invitation => ({
+    return invitations.map((invitation) => ({
       id: invitation.id,
       workspaceId: invitation.workspaceId,
       email: invitation.email,
@@ -861,7 +939,10 @@ export class WorkspaceService {
   }
 
   // Cancel invitation
-  async cancelInvitation(invitationId: number, requesterId: number): Promise<void> {
+  async cancelInvitation(
+    invitationId: number,
+    requesterId: number
+  ): Promise<void> {
     const invitation = await this.prisma.workspaceInvitation.findFirst({
       where: {
         id: invitationId,
@@ -882,7 +963,7 @@ export class WorkspaceService {
     });
 
     if (!invitation) {
-      throw new NotFoundException('Lời mời không tồn tại');
+      throw new NotFoundException("Lời mời không tồn tại");
     }
 
     // Check permission
@@ -892,7 +973,7 @@ export class WorkspaceService {
     const canCancel = isOwner || isInviter || memberRole === MemberRole.ADMIN;
 
     if (!canCancel) {
-      throw new ForbiddenException('Bạn không có quyền hủy lời mời này');
+      throw new ForbiddenException("Bạn không có quyền hủy lời mời này");
     }
 
     await this.prisma.workspaceInvitation.update({
@@ -902,7 +983,10 @@ export class WorkspaceService {
   }
 
   // Helper method to check workspace access
-  private async checkWorkspaceAccess(workspaceId: number, userId: number): Promise<boolean> {
+  private async checkWorkspaceAccess(
+    workspaceId: number,
+    userId: number
+  ): Promise<boolean> {
     const workspace = await this.prisma.workspace.findFirst({
       where: {
         id: workspaceId,
@@ -926,7 +1010,10 @@ export class WorkspaceService {
   }
 
   // Helper method to check if user is workspace member by email
-  async checkWorkspaceMembershipByEmail(workspaceId: number, email: string): Promise<boolean> {
+  async checkWorkspaceMembershipByEmail(
+    workspaceId: number,
+    email: string
+  ): Promise<boolean> {
     const member = await this.prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
@@ -939,7 +1026,13 @@ export class WorkspaceService {
   }
 
   // Helper method to get workspace info
-  async getWorkspaceInfo(workspaceId: number): Promise<{ id: number; workspaceName: string; workspaceType: WorkspaceType } | null> {
+  async getWorkspaceInfo(
+    workspaceId: number
+  ): Promise<{
+    id: number;
+    workspaceName: string;
+    workspaceType: WorkspaceType;
+  } | null> {
     const workspace = await this.prisma.workspace.findFirst({
       where: {
         id: workspaceId,
@@ -956,7 +1049,11 @@ export class WorkspaceService {
   }
 
   // Promote member to admin
-  async promoteMember(workspaceId: number, memberId: number, requesterId: number): Promise<WorkspaceMemberResponseDto> {
+  async promoteMember(
+    workspaceId: number,
+    memberId: number,
+    requesterId: number
+  ): Promise<WorkspaceMemberResponseDto> {
     // Check if requester has permission (must be owner)
     const requesterMember = await this.prisma.workspaceMember.findFirst({
       where: {
@@ -967,7 +1064,7 @@ export class WorkspaceService {
     });
 
     if (!requesterMember || requesterMember.role !== MemberRole.OWNER) {
-      throw new ForbiddenException('Chỉ owner mới có thể thăng cấp thành viên');
+      throw new ForbiddenException("Chỉ owner mới có thể thăng cấp thành viên");
     }
 
     // Check if target member exists and is a regular member
@@ -983,11 +1080,13 @@ export class WorkspaceService {
     });
 
     if (!targetMember) {
-      throw new NotFoundException('Thành viên không tồn tại trong workspace');
+      throw new NotFoundException("Thành viên không tồn tại trong workspace");
     }
 
     if (targetMember.role !== MemberRole.MEMBER) {
-      throw new BadRequestException('Chỉ có thể thăng cấp thành viên thường lên admin');
+      throw new BadRequestException(
+        "Chỉ có thể thăng cấp thành viên thường lên admin"
+      );
     }
 
     // Update member role to admin

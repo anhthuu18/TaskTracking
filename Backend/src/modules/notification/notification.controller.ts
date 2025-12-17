@@ -347,4 +347,66 @@ export class NotificationController {
       };
     }
   }
+
+  // Test endpoint to manually trigger task reminder job
+  @Post("test/trigger-task-reminders")
+  async testTriggerTaskReminders() {
+    try {
+      const { TaskReminderScheduler } = await import(
+        "../../services/task-reminder.scheduler"
+      );
+      const scheduler = this.notificationService["taskReminderScheduler"];
+
+      if (!scheduler) {
+        return {
+          success: false,
+          message: "Task reminder scheduler not found",
+        };
+      }
+
+      await scheduler.sendTaskReminders();
+
+      return {
+        success: true,
+        message:
+          "Task reminder job triggered successfully. Check backend logs for details.",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || "Failed to trigger task reminder job",
+      };
+    }
+  }
+
+  // Test endpoint to manually trigger event reminder job
+  @Post("test/trigger-event-reminders")
+  async testTriggerEventReminders() {
+    try {
+      const { EventReminderScheduler } = await import(
+        "../../services/event-reminder.scheduler"
+      );
+      const scheduler = this.notificationService["eventReminderScheduler"];
+
+      if (!scheduler) {
+        return {
+          success: false,
+          message: "Event reminder scheduler not found",
+        };
+      }
+
+      await scheduler.sendEventReminders();
+
+      return {
+        success: true,
+        message:
+          "Event reminder job triggered successfully. Check backend logs for details.",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || "Failed to trigger event reminder job",
+      };
+    }
+  }
 }

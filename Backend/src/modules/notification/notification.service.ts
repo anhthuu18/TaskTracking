@@ -16,7 +16,6 @@ export class NotificationService {
             // This is a simplified approach - in real app, you'd join with User table
             // For now, we'll get invitations by checking if user exists with that email
           },
-          status: "PENDING",
           expiresAt: {
             gt: new Date(), // Only non-expired invitations
           },
@@ -57,7 +56,6 @@ export class NotificationService {
       const notifications = await this.prisma.workspaceInvitation.findMany({
         where: {
           email: userEmail,
-          status: "PENDING",
           expiresAt: {
             gt: new Date(), // Only non-expired invitations
           },

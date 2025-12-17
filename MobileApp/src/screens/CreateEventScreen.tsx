@@ -401,14 +401,13 @@ const CreateEventScreen: React.FC<CreateEventScreenProps> = ({
 
   const renderProjectDropdownMenu = () => {
     if (!showProjectDropdown) return null;
+
     return (
       <View style={styles.dropdownMenu}>
         <ScrollView
           style={styles.projectsScrollView}
           nestedScrollEnabled={true}
           showsVerticalScrollIndicator={true}
-          keyboardShouldPersistTaps="handled"
-          persistentScrollbar={true}
         >
           {projects.length > 0 ? (
             projects.map(project => (
@@ -938,14 +937,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.neutral.light,
     marginTop: 4,
-    maxHeight: 250,
+    maxHeight: 300,
     elevation: 12,
     zIndex: 9999,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    maxHeight: 300,
   },
 
   dateTimeRow: {
@@ -1134,7 +1132,7 @@ const styles = StyleSheet.create({
 
   // Project Modal Styles - Changed to dropdown
   projectsScrollView: {
-    maxHeight: 200,
+    maxHeight: 280,
   },
   projectOption: {
     flexDirection: 'row',
