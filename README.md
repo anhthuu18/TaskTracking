@@ -160,8 +160,8 @@ cd Backend
 npm install
 
 # Cấu hình environment variables
-cp env.example .env
-# Chỉnh sửa file .env với thông tin database và các services của bạn
+# Tạo file .env và cấu hình các biến môi trường cần thiết
+# Ví dụ: DATABASE_URL, JWT_SECRET, FIREBASE_CONFIG, etc.
 
 # Generate Prisma client
 npm run prisma:generate
@@ -186,8 +186,8 @@ cd Backend
 npm install
 
 # Configure environment variables
-cp env.example .env
-# Edit .env file with your database and service credentials
+# Create .env file and configure required environment variables
+# Example: DATABASE_URL, JWT_SECRET, FIREBASE_CONFIG, etc.
 
 # Generate Prisma client
 npm run prisma:generate
@@ -364,7 +364,7 @@ cd ..
 npm run android
 ```
 
-Xem thêm: [MobileApp Troubleshooting](./MobileApp/README.md#troubleshooting)
+Xem thêm chi tiết trong [MobileApp README](./MobileApp/README.md)
 
 ---
 
