@@ -1,16 +1,16 @@
 // Workspace Service - Kết nối với Backend workspace APIs
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { 
-  Workspace, 
-  WorkspaceMember, 
-  CreateWorkspaceRequest, 
+import {
+  Workspace,
+  WorkspaceMember,
+  CreateWorkspaceRequest,
   UpdateWorkspaceRequest,
   InviteMemberRequest,
   WorkspaceResponse,
   WorkspaceListResponse,
   WorkspaceMemberResponse,
   DeleteWorkspaceResponse,
-  WorkspaceType 
+  WorkspaceType,
 } from '../types/Workspace';
 import { API_CONFIG, buildApiUrl, getCurrentApiConfig } from '../config/api';
 
@@ -27,32 +27,37 @@ class WorkspaceService {
   private async request<T>(url: string, options: RequestInit): Promise<T> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
-    
+
     try {
       const token = await this.getAuthToken();
-      
+
       // Log token info (without exposing full token for security)
       if (token) {
-        console.log(`[WorkspaceService] Token found: ${token.substring(0, 20)}... (length: ${token.length})`);
+        console.log(
+          `[WorkspaceService] Token found: ${token.substring(
+            0,
+            20,
+          )}... (length: ${token.length})`,
+        );
       } else {
         console.warn('[WorkspaceService] No auth token found!');
       }
-      
+
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
-        ...(options.headers as Record<string, string> || {}),
+        ...((options.headers as Record<string, string>) || {}),
       };
 
       // Log request details for debugging
-      console.log(`[WorkspaceService] Making request to: ${url}`, { 
+      console.log(`[WorkspaceService] Making request to: ${url}`, {
         hasToken: !!token,
         tokenLength: token?.length || 0,
         method: options.method || 'GET',
-        headers: { 
+        headers: {
           'Content-Type': headers['Content-Type'],
-          Authorization: token ? `Bearer ${token.substring(0, 10)}...` : 'none' 
-        }
+          Authorization: token ? `Bearer ${token.substring(0, 10)}...` : 'none',
+        },
       });
 
       const response = await fetch(url, {
@@ -61,37 +66,48 @@ class WorkspaceService {
         signal: controller.signal,
       });
 
-      console.log(`[WorkspaceService] Response status: ${response.status} ${response.statusText}`);
+      console.log(
+        `[WorkspaceService] Response status: ${response.status} ${response.statusText}`,
+      );
 
       // Get response text first to check if it's JSON
       const responseText = await response.text();
       let data: any = {};
-      
+
       try {
         data = responseText ? JSON.parse(responseText) : {};
       } catch (parseError) {
-        console.warn('[WorkspaceService] Response is not JSON:', responseText.substring(0, 100));
+        console.warn(
+          '[WorkspaceService] Response is not JSON:',
+          responseText.substring(0, 100),
+        );
         // If status is 401, create appropriate error message
         if (response.status === 401) {
           data = { message: 'Unauthorized', success: false };
         } else {
-          data = { message: responseText || response.statusText, success: false };
+          data = {
+            message: responseText || response.statusText,
+            success: false,
+          };
         }
       }
 
-      console.log(`[WorkspaceService] Response data:`, { 
-        success: data.success, 
-        message: data.message, 
+      console.log(`[WorkspaceService] Response data:`, {
+        success: data.success,
+        message: data.message,
         dataType: Array.isArray(data.data) ? 'array' : typeof data.data,
-        dataLength: Array.isArray(data.data) ? data.data.length : 'N/A'
+        dataLength: Array.isArray(data.data) ? data.data.length : 'N/A',
       });
-      
+
       if (!response.ok) {
-        const errorMessage = data.message || `HTTP ${response.status}: ${response.statusText}`;
-        
+        const errorMessage =
+          data.message || `HTTP ${response.status}: ${response.statusText}`;
+
         // If unauthorized, clear invalid token and provide better error message
         if (response.status === 401) {
-          console.warn('[WorkspaceService] Unauthorized - clearing invalid token');
+          console.warn(
+            '[WorkspaceService] Unauthorized - clearing invalid token',
+          );
           try {
             await AsyncStorage.removeItem('authToken');
             await AsyncStorage.removeItem('user');
@@ -104,7 +120,7 @@ class WorkspaceService {
           (unauthorizedError as any).originalMessage = errorMessage;
           throw unauthorizedError;
         }
-        
+
         // For other HTTP errors, throw with the error message
         const httpError = new Error(errorMessage);
         (httpError as any).status = response.status;
@@ -113,19 +129,25 @@ class WorkspaceService {
 
       return data as T;
     } catch (error: any) {
+      // Handle AbortError (timeout) silently if it's expected
+      const isAbort = error?.name === 'AbortError';
+      if (isAbort) {
+        console.warn(`[WorkspaceService] Request timeout for ${url}`);
+        throw new Error('Request timeout - please check your connection');
+      }
+
       // If error is already an Error instance from above, re-throw it directly
       if (error instanceof Error && error.message) {
         // Don't re-wrap errors that are already Error instances with messages
         // Only log if it's not a known error type
-        if (!error.status) {
+        if (!error.status && error.name !== 'AbortError') {
           console.error(`[WorkspaceService] Unexpected error:`, error);
         }
         throw error;
       }
-      
-      // Handle network errors, timeouts, etc.
-      const isAbort = error?.name === 'AbortError';
-      const errorMessage = isAbort ? 'Request timeout' : (error?.message || 'Network error');
+
+      // Handle other network errors
+      const errorMessage = error?.message || 'Network error';
       console.error(`[WorkspaceService] Error: ${errorMessage}`, error);
       throw new Error(errorMessage);
     } finally {
@@ -134,7 +156,9 @@ class WorkspaceService {
   }
 
   // Tạo workspace mới
-  async createWorkspace(workspaceData: CreateWorkspaceRequest): Promise<WorkspaceResponse> {
+  async createWorkspace(
+    workspaceData: CreateWorkspaceRequest,
+  ): Promise<WorkspaceResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockCreateWorkspace(workspaceData);
     }
@@ -164,7 +188,9 @@ class WorkspaceService {
       return this.mockGetPersonalWorkspaces();
     }
 
-    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.WORKSPACE.LIST_PERSONAL);
+    const url = buildApiUrl(
+      getCurrentApiConfig().ENDPOINTS.WORKSPACE.LIST_PERSONAL,
+    );
     return this.request<WorkspaceListResponse>(url, {
       method: 'GET',
     });
@@ -176,7 +202,9 @@ class WorkspaceService {
       return this.mockGetGroupWorkspaces();
     }
 
-    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.WORKSPACE.LIST_GROUP);
+    const url = buildApiUrl(
+      getCurrentApiConfig().ENDPOINTS.WORKSPACE.LIST_GROUP,
+    );
     return this.request<WorkspaceListResponse>(url, {
       method: 'GET',
     });
@@ -188,19 +216,26 @@ class WorkspaceService {
       return this.mockGetWorkspaceDetails(workspaceId);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.WORKSPACE.GET_DETAILS}/${workspaceId}`);
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.WORKSPACE.GET_DETAILS}/${workspaceId}`,
+    );
     return this.request<WorkspaceResponse>(url, {
       method: 'GET',
     });
   }
 
   // Cập nhật workspace
-  async updateWorkspace(workspaceId: number, updates: UpdateWorkspaceRequest): Promise<WorkspaceResponse> {
+  async updateWorkspace(
+    workspaceId: number,
+    updates: UpdateWorkspaceRequest,
+  ): Promise<WorkspaceResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockUpdateWorkspace(workspaceId, updates);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.WORKSPACE.GET_DETAILS}/${workspaceId}`);
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.WORKSPACE.GET_DETAILS}/${workspaceId}`,
+    );
     return this.request<WorkspaceResponse>(url, {
       method: 'PUT',
       body: JSON.stringify(updates),
@@ -213,19 +248,25 @@ class WorkspaceService {
       return this.mockDeleteWorkspace(workspaceId);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.WORKSPACE.DELETE}/${workspaceId}`);
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.WORKSPACE.DELETE}/${workspaceId}`,
+    );
     return this.request<DeleteWorkspaceResponse>(url, {
       method: 'DELETE',
     });
   }
 
   // Khôi phục workspace
-  async restoreWorkspace(workspaceId: number): Promise<DeleteWorkspaceResponse> {
+  async restoreWorkspace(
+    workspaceId: number,
+  ): Promise<DeleteWorkspaceResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockRestoreWorkspace(workspaceId);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.WORKSPACE.RESTORE}/${workspaceId}`);
+    const url = buildApiUrl(
+      `${getCurrentApiConfig().ENDPOINTS.WORKSPACE.RESTORE}/${workspaceId}`,
+    );
     return this.request<DeleteWorkspaceResponse>(url, {
       method: 'PUT',
     });
@@ -237,26 +278,37 @@ class WorkspaceService {
       return this.mockGetDeletedWorkspaces();
     }
 
-    const url = buildApiUrl(getCurrentApiConfig().ENDPOINTS.WORKSPACE.LIST_DELETED);
+    const url = buildApiUrl(
+      getCurrentApiConfig().ENDPOINTS.WORKSPACE.LIST_DELETED,
+    );
     return this.request<WorkspaceListResponse>(url, {
       method: 'GET',
     });
   }
 
   // Lấy members của workspace
-  async getWorkspaceMembers(workspaceId: number): Promise<WorkspaceMemberResponse> {
+  async getWorkspaceMembers(
+    workspaceId: number,
+  ): Promise<WorkspaceMemberResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockGetWorkspaceMembers(workspaceId);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.WORKSPACE.GET_MEMBERS}/${workspaceId}/members`);
+    const url = buildApiUrl(
+      `${
+        getCurrentApiConfig().ENDPOINTS.WORKSPACE.GET_MEMBERS
+      }/${workspaceId}/members`,
+    );
     return this.request<WorkspaceMemberResponse>(url, {
       method: 'GET',
     });
   }
 
   // Mời member vào workspace
-  async inviteMemberToWorkspace(workspaceId: number, inviteData: InviteMemberRequest): Promise<DeleteWorkspaceResponse> {
+  async inviteMemberToWorkspace(
+    workspaceId: number,
+    inviteData: InviteMemberRequest,
+  ): Promise<DeleteWorkspaceResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockInviteMember(workspaceId, inviteData);
     }
@@ -274,25 +326,38 @@ class WorkspaceService {
       return this.mockGetWorkspaceInvitations(workspaceId);
     }
 
-    const url = buildApiUrl(`${getCurrentApiConfig().ENDPOINTS.WORKSPACE.GET_MEMBERS}/${workspaceId}/invitations`);
+    const url = buildApiUrl(
+      `${
+        getCurrentApiConfig().ENDPOINTS.WORKSPACE.GET_MEMBERS
+      }/${workspaceId}/invitations`,
+    );
     return this.request<any>(url, {
       method: 'GET',
     });
   }
 
   // Gửi lời mời member
-  async inviteMember(workspaceId: number, email: string, role: string, message?: string): Promise<any> {
+  async inviteMember(
+    workspaceId: number,
+    email: string,
+    role: string,
+    message?: string,
+  ): Promise<any> {
     if (API_CONFIG.USE_MOCK_API) {
-      return this.mockInviteMember(workspaceId, { email, inviteType: 'EMAIL', message });
+      return this.mockInviteMember(workspaceId, {
+        email,
+        inviteType: 'EMAIL',
+        message,
+      });
     }
 
     const url = buildApiUrl(`/workspace/${workspaceId}/invite-member`);
     return this.request<any>(url, {
       method: 'POST',
-      body: JSON.stringify({ 
-        email, 
-        inviteType: 'EMAIL', 
-        message 
+      body: JSON.stringify({
+        email,
+        inviteType: 'EMAIL',
+        message,
       }),
     });
   }
@@ -310,10 +375,11 @@ class WorkspaceService {
   }
 
   // ==================== MOCK METHODS ====================
-  
-  private async mockCreateWorkspace(workspaceData: CreateWorkspaceRequest): Promise<WorkspaceResponse> {
-    
-    return new Promise((resolve) => {
+
+  private async mockCreateWorkspace(
+    workspaceData: CreateWorkspaceRequest,
+  ): Promise<WorkspaceResponse> {
+    return new Promise(resolve => {
       setTimeout(() => {
         const newWorkspace: Workspace = {
           id: Date.now(),
@@ -342,8 +408,7 @@ class WorkspaceService {
   }
 
   private async mockGetAllWorkspaces(): Promise<WorkspaceListResponse> {
-    
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       setTimeout(() => {
         const mockWorkspaces: Workspace[] = [
           {
@@ -391,8 +456,7 @@ class WorkspaceService {
   }
 
   private async mockGetPersonalWorkspaces(): Promise<WorkspaceListResponse> {
-    
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       setTimeout(() => {
         const mockWorkspaces: Workspace[] = [
           {
@@ -418,8 +482,7 @@ class WorkspaceService {
   }
 
   private async mockGetGroupWorkspaces(): Promise<WorkspaceListResponse> {
-    
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       setTimeout(() => {
         const mockWorkspaces: Workspace[] = [
           {
@@ -455,9 +518,10 @@ class WorkspaceService {
     });
   }
 
-  private async mockGetWorkspaceDetails(workspaceId: number): Promise<WorkspaceResponse> {
-    
-    return new Promise((resolve) => {
+  private async mockGetWorkspaceDetails(
+    workspaceId: number,
+  ): Promise<WorkspaceResponse> {
+    return new Promise(resolve => {
       setTimeout(() => {
         const mockWorkspace: Workspace = {
           id: workspaceId,
@@ -485,9 +549,11 @@ class WorkspaceService {
     });
   }
 
-  private async mockUpdateWorkspace(workspaceId: number, updates: UpdateWorkspaceRequest): Promise<WorkspaceResponse> {
-    
-    return new Promise((resolve) => {
+  private async mockUpdateWorkspace(
+    workspaceId: number,
+    updates: UpdateWorkspaceRequest,
+  ): Promise<WorkspaceResponse> {
+    return new Promise(resolve => {
       setTimeout(() => {
         const updatedWorkspace: Workspace = {
           id: workspaceId,
@@ -510,9 +576,10 @@ class WorkspaceService {
     });
   }
 
-  private async mockDeleteWorkspace(workspaceId: number): Promise<DeleteWorkspaceResponse> {
-    
-    return new Promise((resolve) => {
+  private async mockDeleteWorkspace(
+    workspaceId: number,
+  ): Promise<DeleteWorkspaceResponse> {
+    return new Promise(resolve => {
       setTimeout(() => {
         resolve({
           success: true,
@@ -522,9 +589,10 @@ class WorkspaceService {
     });
   }
 
-  private async mockRestoreWorkspace(workspaceId: number): Promise<DeleteWorkspaceResponse> {
-    
-    return new Promise((resolve) => {
+  private async mockRestoreWorkspace(
+    workspaceId: number,
+  ): Promise<DeleteWorkspaceResponse> {
+    return new Promise(resolve => {
       setTimeout(() => {
         resolve({
           success: true,
@@ -535,8 +603,7 @@ class WorkspaceService {
   }
 
   private async mockGetDeletedWorkspaces(): Promise<WorkspaceListResponse> {
-    
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       setTimeout(() => {
         const mockWorkspaces: Workspace[] = [
           {
@@ -561,9 +628,10 @@ class WorkspaceService {
     });
   }
 
-  private async mockGetWorkspaceMembers(workspaceId: number): Promise<WorkspaceMemberResponse> {
-    
-    return new Promise((resolve) => {
+  private async mockGetWorkspaceMembers(
+    workspaceId: number,
+  ): Promise<WorkspaceMemberResponse> {
+    return new Promise(resolve => {
       setTimeout(() => {
         const mockMembers: WorkspaceMember[] = [
           {
@@ -619,11 +687,15 @@ class WorkspaceService {
     });
   }
 
-  private async mockInviteMember(workspaceId: number, inviteData: InviteMemberRequest): Promise<DeleteWorkspaceResponse> {
-    
-    return new Promise((resolve) => {
+  private async mockInviteMember(
+    workspaceId: number,
+    inviteData: InviteMemberRequest,
+  ): Promise<DeleteWorkspaceResponse> {
+    return new Promise(resolve => {
       setTimeout(() => {
-        const message = inviteData.message ? ` với tin nhắn: "${inviteData.message}"` : '';
+        const message = inviteData.message
+          ? ` với tin nhắn: "${inviteData.message}"`
+          : '';
         resolve({
           success: true,
           message: `Đã gửi lời mời đến ${inviteData.email}${message}`,
@@ -633,8 +705,7 @@ class WorkspaceService {
   }
 
   private async mockGetWorkspaceInvitations(workspaceId: number): Promise<any> {
-    
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       setTimeout(() => {
         const mockInvitations = [
           {
@@ -666,9 +737,10 @@ class WorkspaceService {
     });
   }
 
-  private async mockAcceptInvitation(token: string): Promise<DeleteWorkspaceResponse> {
-    
-    return new Promise((resolve) => {
+  private async mockAcceptInvitation(
+    token: string,
+  ): Promise<DeleteWorkspaceResponse> {
+    return new Promise(resolve => {
       setTimeout(() => {
         resolve({
           success: true,
@@ -679,7 +751,10 @@ class WorkspaceService {
   }
 
   // Remove member from workspace
-  async removeMemberFromWorkspace(workspaceId: number, memberId: number): Promise<DeleteWorkspaceResponse> {
+  async removeMemberFromWorkspace(
+    workspaceId: number,
+    memberId: number,
+  ): Promise<DeleteWorkspaceResponse> {
     if (API_CONFIG.USE_MOCK_API) {
       return this.mockRemoveMemberFromWorkspace(memberId);
     }
@@ -690,13 +765,16 @@ class WorkspaceService {
         throw new Error('No auth token found');
       }
 
-      const response = await fetch(`${API_CONFIG.REAL_API.BASE_URL}/workspace/${workspaceId}/remove-member/${memberId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+      const response = await fetch(
+        `${API_CONFIG.REAL_API.BASE_URL}/workspace/${workspaceId}/remove-member/${memberId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       const data = await response.json();
 
@@ -712,14 +790,16 @@ class WorkspaceService {
       console.error('Error removing member:', error);
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to remove member',
+        message:
+          error instanceof Error ? error.message : 'Failed to remove member',
       };
     }
   }
 
-  private async mockRemoveMemberFromWorkspace(memberId: number): Promise<DeleteWorkspaceResponse> {
-    
-    return new Promise((resolve) => {
+  private async mockRemoveMemberFromWorkspace(
+    memberId: number,
+  ): Promise<DeleteWorkspaceResponse> {
+    return new Promise(resolve => {
       setTimeout(() => {
         resolve({
           success: true,

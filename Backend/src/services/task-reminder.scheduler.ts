@@ -18,11 +18,16 @@ export class TaskReminderScheduler {
    * Chạy lúc 5h chiều mỗi ngày (timezone: Asia/Ho_Chi_Minh)
    * Tìm tasks có due date = ngày mai và gửi thông báo
    */
-  @Cron("20 12 * * *", {
+  @Cron("53 21 * * *", {
     timeZone: "Asia/Ho_Chi_Minh",
   })
   async sendTaskReminders() {
-    this.logger.log("Starting task reminder job...");
+    const now = new Date();
+    this.logger.log(`\n========================================`);
+    this.logger.log(
+      `⏰ TASK REMINDER JOB STARTED at ${now.toLocaleString("vi-VN")}`
+    );
+    this.logger.log(`========================================\n`);
 
     try {
       // Lấy ngày mai (midnight)
@@ -35,7 +40,7 @@ export class TaskReminderScheduler {
       dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
 
       this.logger.log(
-        `Finding tasks due on ${tomorrow.toLocaleDateString("vi-VN")}`
+        `🔍 Searching for tasks due on ${tomorrow.toLocaleDateString("vi-VN")}`
       );
 
       // Tìm tasks có due date vào ngày mai và có assignee

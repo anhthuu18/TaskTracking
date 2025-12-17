@@ -141,6 +141,7 @@ class LocalNotificationService {
   private async checkForNewNotifications() {
     try {
       if (!this.currentWorkspaceId) {
+        console.log('⚠️ No workspace context, skipping notification check');
         return; // No workspace context
       }
 
@@ -148,14 +149,22 @@ class LocalNotificationService {
       const lastCheckStr = await AsyncStorage.getItem(LAST_CHECK_KEY);
       const lastCheck = lastCheckStr ? new Date(lastCheckStr) : new Date(0);
 
+      console.log(
+        `🔍 Checking notifications for workspace ${this.currentWorkspaceId}`,
+      );
+      console.log(`   Last check: ${lastCheck.toLocaleString('vi-VN')}`);
+
       // Fetch project notifications for current workspace
       const response = await notificationService.getProjectNotifications(
         this.currentWorkspaceId,
       );
 
       if (!response.success || !response.data) {
+        console.log('❌ No notifications or API error');
         return;
       }
+
+      console.log(`   Total notifications from API: ${response.data.length}`);
 
       // Filter notifications created after last check
       const newNotifications = response.data.filter((n: any) => {
@@ -163,8 +172,16 @@ class LocalNotificationService {
         return createdAt > lastCheck;
       });
 
+      console.log(
+        `   New notifications (after ${lastCheck.toLocaleString('vi-VN')}): ${
+          newNotifications.length
+        }`,
+      );
+
       if (newNotifications.length > 0) {
-        console.log(`📬 Found ${newNotifications.length} new notifications`);
+        console.log(
+          `📬 Found ${newNotifications.length} new notifications to display`,
+        );
 
         // Display local notifications
         for (const notification of newNotifications) {
@@ -242,6 +259,14 @@ class LocalNotificationService {
       },
     });
     console.log('✅ Test notification sent');
+  }
+
+  /**
+   * Force check notifications now (for testing/debugging)
+   */
+  async forceCheckNow() {
+    console.log('🔔 Force checking notifications...');
+    await this.checkForNewNotifications();
   }
 
   /**
