@@ -22,6 +22,7 @@ import {
 } from '../constants/Dimensions';
 import { workspaceService } from '../services';
 import { WorkspaceType } from '../types';
+import { useToastContext } from '../context/ToastContext';
 
 interface CreateWorkspaceScreenProps {
   navigation: any;
@@ -39,6 +40,7 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState(false);
+  const { showSuccess, showError } = useToastContext();
 
   // States for member invitation (only for group workspace)
   const [inviteEmails, setInviteEmails] = useState<string[]>([]);
@@ -109,6 +111,18 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({
     try {
       setIsLoading(true);
 
+      // Auto-add current email to the list if it's not empty and valid
+      let emailsToInvite = [...inviteEmails];
+      if (currentEmail.trim()) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (emailRegex.test(currentEmail.trim())) {
+          // Check if email is not already in the list
+          if (!emailsToInvite.includes(currentEmail.trim())) {
+            emailsToInvite.push(currentEmail.trim());
+          }
+        }
+      }
+
       const workspaceData = {
         workspaceName: workspaceName.trim(),
         description: description.trim() || undefined,
@@ -137,9 +151,9 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({
         };
 
         // If it's a group workspace and email is provided, send invitation
-        if (workspaceType === 'group' && inviteEmails.length > 0) {
+        if (workspaceType === 'group' && emailsToInvite.length > 0) {
           try {
-            const invitationPromises = inviteEmails.map(email =>
+            const invitationPromises = emailsToInvite.map(email =>
               workspaceService.inviteMember(
                 response.data.id,
                 email,
@@ -150,36 +164,22 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({
 
             await Promise.all(invitationPromises);
 
-            Alert.alert(
-              'Success',
+            showSuccess(
               `Workspace created and invitations sent to ${
-                inviteEmails.length
-              } member${inviteEmails.length > 1 ? 's' : ''}`,
-              [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    // Navigate to Main with the new workspace
-                    navigation.navigate('Main', { workspace: workspaceForNav });
-                  },
-                },
-              ],
+                emailsToInvite.length
+              } member${emailsToInvite.length > 1 ? 's' : ''}`,
             );
+
+            // Navigate to Main with the new workspace
+            navigation.navigate('Main', { workspace: workspaceForNav });
           } catch (inviteError: any) {
             console.error('Error sending invitation:', inviteError);
-            Alert.alert(
-              'Workspace Created',
+            showError(
               'Workspace created successfully, but some invitations failed to send.',
-              [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    // Navigate to Main with the new workspace
-                    navigation.navigate('Main', { workspace: workspaceForNav });
-                  },
-                },
-              ],
             );
+
+            // Navigate to Main with the new workspace
+            navigation.navigate('Main', { workspace: workspaceForNav });
           }
         } else {
           // Navigate directly to Main with the new workspace

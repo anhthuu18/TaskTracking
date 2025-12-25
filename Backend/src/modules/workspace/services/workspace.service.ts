@@ -12,6 +12,7 @@ import { AddMemberDto } from "../dtos/add-member.dto";
 import { WorkspaceMemberResponseDto } from "../dtos/workspace-member-response.dto";
 import { InvitationResponseDto } from "../dtos/invitation.dto";
 import { EmailService } from "../../../services/email.service";
+import { FirebaseService } from "../../../services/firebase.service";
 import {
   WorkspaceType,
   MemberRole,
@@ -24,7 +25,8 @@ import * as crypto from "crypto";
 export class WorkspaceService {
   constructor(
     private prisma: PrismaService,
-    private emailService: EmailService
+    private emailService: EmailService,
+    private firebaseService: FirebaseService
   ) {}
 
   async create(
@@ -598,6 +600,46 @@ export class WorkspaceService {
       );
     }
 
+    // Send push notification if invited user exists and has FCM token
+    // Only send to invited user, NOT the creator
+    const invitedUser = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        fcmToken: true,
+        userSettings: {
+          select: {
+            notifyByPush: true,
+          },
+        },
+      },
+    });
+
+    if (
+      invitedUser &&
+      invitedUser.id !== inviterId && // Don't send notification to the inviter
+      invitedUser.fcmToken &&
+      invitedUser.userSettings?.notifyByPush !== false
+    ) {
+      try {
+        await this.firebaseService.sendPushNotification(
+          invitedUser.fcmToken,
+          {
+            title: "Lời mời workspace",
+            body: `${invitation.inviter.username} đã mời bạn tham gia workspace "${workspace.workspaceName}"`,
+          },
+          {
+            type: "workspace_invitation",
+            workspaceId: workspaceId.toString(),
+            invitationId: invitation.id.toString(),
+          }
+        );
+      } catch (error) {
+        console.error("Failed to send push notification:", error);
+        // Don't fail the invitation if push notification fails
+      }
+    }
+
     return {
       id: invitation.id,
       workspaceId: invitation.workspaceId,
@@ -1026,9 +1068,7 @@ export class WorkspaceService {
   }
 
   // Helper method to get workspace info
-  async getWorkspaceInfo(
-    workspaceId: number
-  ): Promise<{
+  async getWorkspaceInfo(workspaceId: number): Promise<{
     id: number;
     workspaceName: string;
     workspaceType: WorkspaceType;

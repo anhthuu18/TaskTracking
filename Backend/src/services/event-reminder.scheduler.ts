@@ -15,10 +15,10 @@ export class EventReminderScheduler {
   ) {}
 
   /**
-   * Event Reminder Job - Runs every minute
+   * Event Reminder Job - Runs every 60 minutes (every hour)
    * Sends reminders for events starting in 60 minutes
    */
-  @Cron("* * * * *", {
+  @Cron("0 * * * *", {
     name: "event-reminder",
     timeZone: "Asia/Ho_Chi_Minh",
   })

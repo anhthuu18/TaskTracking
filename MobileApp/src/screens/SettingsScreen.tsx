@@ -20,6 +20,7 @@ import { workspaceService } from '../services/workspaceService';
 import { useToastContext } from '../context/ToastContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MemberRole, WorkspaceMember } from '../types/Workspace';
+import { CommonActions } from '@react-navigation/native';
 
 interface SettingsScreenProps {
   navigation?: any;
@@ -72,7 +73,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const isOwner = useMemo(() => {
     // Check if user is owner via member role
-    if (meMember?.role === MemberRole.OWNER || meMember?.role === 'OWNER') {
+    if (meMember?.role === MemberRole.OWNER) {
       return true;
     }
     // Fallback: check if current user is the workspace creator
@@ -89,10 +90,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const isAdmin = useMemo(
     () =>
-      meMember?.role === MemberRole.ADMIN ||
       meMember?.role === MemberRole.OWNER ||
-      meMember?.role === 'ADMIN' ||
-      meMember?.role === 'OWNER' ||
       isOwner,
     [meMember, isOwner],
   );
@@ -106,7 +104,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const ownerName = useMemo(() => {
     const ownerMember = members.find(
-      m => m.role === MemberRole.OWNER || m.role === 'OWNER',
+      m => m.role === MemberRole.OWNER,
     );
     return (
       ownerMember?.user?.username || workspaceDetails?.creator?.username || ''
@@ -205,7 +203,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           setMembers(apiMembers);
           setWorkspaceName(
-            details.data.workspaceName || details.data.name || '',
+            details.data.workspaceName || '',
           );
           setWorkspaceDescription(details.data.description || '');
         }
@@ -362,20 +360,52 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   workspace.id,
                 );
                 if (res.success) {
-                  showSuccess(res.message || 'Workspace deleted successfully');
-                  // Navigate back to workspace list
+                  // Clear workspace from AsyncStorage
+                  await AsyncStorage.removeItem('lastUsedWorkspaceId');
+
+                  // Navigate back to workspace selection
+                  // Try multiple navigation methods to ensure it works
                   if (navigation) {
-                    navigation.reset({
-                      index: 0,
-                      routes: [{ name: 'WorkspaceSelection' }],
-                    });
+                    try {
+                      // Method 1: Try to get root navigator
+                      const rootNav =
+                        navigation.getParent?.()?.getParent?.() ||
+                        navigation.getParent?.() ||
+                        navigation;
+
+                      // Method 2: Use replace to go to WorkspaceSelection
+                      if (rootNav.navigate) {
+                        rootNav.navigate('WorkspaceSelection');
+                      } else if (rootNav.replace) {
+                        rootNav.replace('WorkspaceSelection');
+                      } else {
+                        // Method 3: Use CommonActions as fallback
+                        rootNav.dispatch(
+                          CommonActions.reset({
+                            index: 0,
+                            routes: [{ name: 'WorkspaceSelection' }],
+                          }),
+                        );
+                      }
+                    } catch (navError) {
+                      console.error('Navigation error:', navError);
+                      // Last resort: try direct navigation
+                      navigation.navigate?.('WorkspaceSelection');
+                    }
                   }
+
+                  // Show success message after navigation
+                  setTimeout(() => {
+                    showSuccess(
+                      res.message || 'Workspace deleted successfully',
+                    );
+                  }, 500);
                 } else {
-                  Alert.alert('Error', res.message || 'Delete failed');
+                  showError(res.message || 'Delete failed');
                 }
               }
             } catch (e: any) {
-              Alert.alert('Error', e?.message || 'Delete failed');
+              showError(e?.message || 'Delete failed');
             }
           },
         },

@@ -18,7 +18,7 @@ export class TaskReminderScheduler {
    * Chạy lúc 5h chiều mỗi ngày (timezone: Asia/Ho_Chi_Minh)
    * Tìm tasks có due date = ngày mai và gửi thông báo
    */
-  @Cron("53 21 * * *", {
+  @Cron("0 9 * * *", {
     timeZone: "Asia/Ho_Chi_Minh",
   })
   async sendTaskReminders() {

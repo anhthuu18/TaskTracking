@@ -22,9 +22,12 @@ export class NotificationController {
       const userId = req.user.id;
       const userEmail = req.user.email;
 
-      // Get workspace invitations
+      // Get workspace invitations (exclude invitations created by self)
       const wsInvitations =
-        await this.notificationService.getNotificationsByEmail(userEmail);
+        await this.notificationService.getNotificationsByEmail(
+          userEmail,
+          userId
+        );
 
       const invitations = wsInvitations.map((invitation: any) => {
         const now = new Date();
@@ -93,10 +96,14 @@ export class NotificationController {
   async getUserNotifications(@Request() req) {
     try {
       const userEmail = req.user.email;
+      const userId = req.user.id;
 
-      // Workspace invitations (by email)
+      // Workspace invitations (by email, exclude self-created)
       const wsInvitations =
-        await this.notificationService.getNotificationsByEmail(userEmail);
+        await this.notificationService.getNotificationsByEmail(
+          userEmail,
+          userId
+        );
 
       // Return with expiry calculation
       const notifications = wsInvitations.map((invitation: any) => {
