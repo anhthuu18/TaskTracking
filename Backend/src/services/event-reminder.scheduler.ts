@@ -18,7 +18,7 @@ export class EventReminderScheduler {
    * Event Reminder Job - Runs every 60 minutes (every hour)
    * Sends reminders for events starting in 60 minutes
    */
-  @Cron("0 * * * *", {
+  @Cron("*/1 * * * *", {
     name: "event-reminder",
     timeZone: "Asia/Ho_Chi_Minh",
   })
@@ -32,8 +32,8 @@ export class EventReminderScheduler {
 
     try {
       // Time window: 4-6 minutes from now (for testing)
-      const reminderStart = new Date(now.getTime() + 59 * 60 * 1000);
-      const reminderEnd = new Date(now.getTime() + 61 * 60 * 1000);
+      const reminderStart = new Date(now.getTime() + 4 * 60 * 1000);
+      const reminderEnd = new Date(now.getTime() + 6 * 60 * 1000);
 
       this.logger.log(`🔍 Searching for events starting between:`);
       this.logger.log(
@@ -214,20 +214,20 @@ export class EventReminderScheduler {
                   type: "event_reminder",
                 }
               );
-              this.logger.log(`✅ Push notification sent to ${username}`);
+              this.logger.log(`Push notification sent to ${username}`);
             } catch (error) {
               this.logger.error(
-                `❌ Failed to send push notification to ${username}:`,
+                `Failed to send push notification to ${username}:`,
                 error
               );
             }
           } else if (!fcmToken) {
             this.logger.warn(
-              `⚠️ Skipping push notification for ${username}: No FCM token`
+              `Skipping push notification for ${username}: No FCM token`
             );
           } else if (!notifyByPush) {
             this.logger.log(
-              `ℹ️ Skipping push notification for ${username}: User disabled push notifications`
+              `Skipping push notification for ${username}: User disabled push notifications`
             );
           }
         }

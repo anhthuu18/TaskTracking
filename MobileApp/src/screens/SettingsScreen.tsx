@@ -62,36 +62,25 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const meMember = useMemo(() => {
     if (!currentUserId) return null;
     const member = members.find(m => m.userId === currentUserId) || null;
-    console.log(
-      '[SettingsScreen] meMember:',
-      member,
-      'currentUserId:',
-      currentUserId,
-    );
     return member;
   }, [members, currentUserId]);
 
   const isOwner = useMemo(() => {
-    // Check if user is owner via member role
     if (meMember?.role === MemberRole.OWNER) {
       return true;
     }
-    // Fallback: check if current user is the workspace creator
     if (
       currentUserId &&
       (workspaceDetails?.userId === currentUserId ||
         workspace?.userId === currentUserId)
     ) {
-      console.log('[SettingsScreen] User is owner (creator)');
       return true;
     }
     return false;
   }, [meMember, currentUserId, workspaceDetails, workspace]);
 
   const isAdmin = useMemo(
-    () =>
-      meMember?.role === MemberRole.OWNER ||
-      isOwner,
+    () => meMember?.role === MemberRole.OWNER || isOwner,
     [meMember, isOwner],
   );
 
@@ -103,9 +92,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   }, [isOwner, meMember]);
 
   const ownerName = useMemo(() => {
-    const ownerMember = members.find(
-      m => m.role === MemberRole.OWNER,
-    );
+    const ownerMember = members.find(m => m.role === MemberRole.OWNER);
     return (
       ownerMember?.user?.username || workspaceDetails?.creator?.username || ''
     );
@@ -136,54 +123,28 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         const u = JSON.parse(stored);
         userId = Number(u?.id);
         setCurrentUserId(userId);
-        console.log('[SettingsScreen] Current user ID:', userId);
       }
 
       if (workspace?.id) {
-        console.log(
-          '[SettingsScreen] Loading workspace details for ID:',
-          workspace.id,
-        );
-
-        // Load workspace details
         const details = await workspaceService.getWorkspaceDetails(
           workspace.id,
         );
-        console.log('[SettingsScreen] Workspace details response:', details);
 
-        // Load workspace members separately
         const membersResponse = await workspaceService.getWorkspaceMembers(
           workspace.id,
         );
-        console.log('[SettingsScreen] Members response:', membersResponse);
 
         if (details.success && details.data) {
           setWorkspaceDetails(details.data);
 
-          // Get members from separate API call
           let apiMembers = [];
           if (membersResponse.success && membersResponse.data) {
             apiMembers = membersResponse.data;
-            console.log(
-              '[SettingsScreen] Members from API:',
-              apiMembers.length,
-            );
           } else {
-            // Fallback: try to get from workspace details
             apiMembers = (details.data as any).members || [];
-            console.log(
-              '[SettingsScreen] Members from details:',
-              apiMembers.length,
-            );
           }
 
-          // If no members but we have workspace data, create owner member from workspace info
           if (apiMembers.length === 0) {
-            console.log(
-              '[SettingsScreen] No members from API, checking workspace userId:',
-              details.data.userId,
-            );
-            // If current user is the creator, add them as owner
             if (userId && details.data.userId === userId) {
               const ownerMember = {
                 userId: userId,
@@ -194,22 +155,16 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 },
               };
               apiMembers = [ownerMember as any];
-              console.log(
-                '[SettingsScreen] Created owner member:',
-                ownerMember,
-              );
             }
           }
 
           setMembers(apiMembers);
-          setWorkspaceName(
-            details.data.workspaceName || '',
-          );
+          setWorkspaceName(details.data.workspaceName || '');
           setWorkspaceDescription(details.data.description || '');
         }
       }
     } catch (error) {
-      console.error('[SettingsScreen] Error loading workspace details:', error);
+      showError('Failed to load workspace details');
     } finally {
       setLoading(false);
     }
@@ -227,7 +182,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         setNotificationPush(push === 'true');
       }
     } catch (error) {
-      console.error('Error loading notification settings:', error);
+      // Silent fail for notification settings
     }
   };
 
@@ -245,7 +200,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       }
       showSuccess('Notification settings updated');
     } catch (error) {
-      console.error('Error saving notification settings:', error);
       showError('Failed to save notification settings');
     }
   };
@@ -281,7 +235,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         showError(response.message || 'Failed to update workspace');
       }
     } catch (error) {
-      console.error('Error updating workspace:', error);
       showError('Failed to update workspace. Please try again.');
     } finally {
       setRenameLoading(false);
@@ -332,7 +285,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         showError(response.message || 'Failed to send invitation');
       }
     } catch (error) {
-      console.error('Error sending invitation:', error);
       showError('Failed to send invitation. Please try again.');
     } finally {
       setInviteLoading(false);
@@ -388,8 +340,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         );
                       }
                     } catch (navError) {
-                      console.error('Navigation error:', navError);
-                      // Last resort: try direct navigation
                       navigation.navigate?.('WorkspaceSelection');
                     }
                   }

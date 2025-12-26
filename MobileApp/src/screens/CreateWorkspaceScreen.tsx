@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TextInput } from 'react-native-paper';
-// @ts-ignore
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../constants/Colors';
 import {
@@ -173,12 +172,10 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({
             // Navigate to Main with the new workspace
             navigation.navigate('Main', { workspace: workspaceForNav });
           } catch (inviteError: any) {
-            console.error('Error sending invitation:', inviteError);
             showError(
               'Workspace created successfully, but some invitations failed to send.',
             );
 
-            // Navigate to Main with the new workspace
             navigation.navigate('Main', { workspace: workspaceForNav });
           }
         } else {
@@ -186,26 +183,21 @@ const CreateWorkspaceScreen: React.FC<CreateWorkspaceScreenProps> = ({
           navigation.navigate('Main', { workspace: workspaceForNav });
         }
       } else {
-        console.error('Failed to create workspace:', response.message);
         setErrors({
           general: response.message || 'Failed to create workspace',
         });
       }
     } catch (error: any) {
-      console.error('Error creating workspace:', error);
-
-      // Handle Unauthorized error
       const errorMessage = error?.message || '';
       if (
         errorMessage.includes('Unauthorized') ||
         errorMessage.includes('401')
       ) {
-        // Clear invalid token
         try {
           await AsyncStorage.removeItem('authToken');
           await AsyncStorage.removeItem('user');
         } catch (e) {
-          console.error('Error clearing tokens:', e);
+          // Silent fail
         }
 
         Alert.alert(

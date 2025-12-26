@@ -40,9 +40,8 @@ export class TaskReminderScheduler {
       dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
 
       this.logger.log(
-        `🔍 Searching for tasks due on ${tomorrow.toLocaleDateString("vi-VN")}`
+        `Searching for tasks due on ${tomorrow.toLocaleDateString("vi-VN")}`
       );
-
       // Tìm tasks có due date vào ngày mai và có assignee
       const tasks = await this.prisma.task.findMany({
         where: {
@@ -129,13 +128,9 @@ export class TaskReminderScheduler {
         if (alreadyNotified) {
           continue;
         }
-
-        // CREATE IN-APP NOTIFICATION FIRST as a "lock" to prevent race condition
-        // This prevents duplicate notifications if scheduler runs multiple times concurrently
-        // We create in-app notification first, then send email/push
-        // If in-app creation fails (duplicate), we skip everything to avoid duplicates
         let notificationCreated = false;
         if (projectId) {
+          // Create in-app notification
           try {
             await this.prisma.projectNotification.create({
               data: {
@@ -170,11 +165,7 @@ export class TaskReminderScheduler {
           );
           continue;
         }
-
-        // At this point, in-app notification was created successfully
-        // Now send email and push notifications based on user preferences
-
-        // Gửi email notification
+        // Send email notification
         if (notifyByEmail && email) {
           try {
             await this.emailService.sendTaskReminder(
@@ -191,7 +182,7 @@ export class TaskReminderScheduler {
           }
         }
 
-        // Gửi push notification
+        // Send push notification
         if (notifyByPush && fcmToken) {
           try {
             await this.firebaseService.sendPushNotification(

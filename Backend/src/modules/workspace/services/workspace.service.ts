@@ -635,7 +635,6 @@ export class WorkspaceService {
           }
         );
       } catch (error) {
-        console.error("Failed to send push notification:", error);
         // Don't fail the invitation if push notification fails
       }
     }
