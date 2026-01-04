@@ -17,6 +17,7 @@ import { Colors } from '../constants/Colors';
 import { Workspace, MemberRole, WorkspaceMember } from '../types/Workspace';
 import { workspaceService } from '../services';
 import { useToastContext } from '../context/ToastContext';
+import { CommonActions } from '@react-navigation/native';
 
 interface WorkspaceSettingsScreenProps {
   navigation: any;
@@ -157,17 +158,27 @@ const WorkspaceSettingsScreen: React.FC<WorkspaceSettingsScreenProps> = ({
             try {
               const res = await workspaceService.deleteWorkspace(workspace.id);
               if (res.success) {
-                showSuccess(res.message || 'Workspace deleted successfully');
-                // Navigate back to home or workspace list
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'WorkspacesList' }],
-                });
+                // Clear workspace from AsyncStorage
+                await AsyncStorage.removeItem('lastUsedWorkspaceId');
+
+                // Navigate back to workspace selection (use getParent to access root navigator)
+                const rootNavigation = navigation.getParent() || navigation;
+                rootNavigation.dispatch(
+                  CommonActions.reset({
+                    index: 0,
+                    routes: [{ name: 'WorkspaceSelection' }],
+                  }),
+                );
+
+                // Show success message after navigation
+                setTimeout(() => {
+                  showSuccess(res.message || 'Workspace deleted successfully');
+                }, 500);
               } else {
-                Alert.alert('Error', res.message || 'Delete failed');
+                showError(res.message || 'Delete failed');
               }
             } catch (e: any) {
-              Alert.alert('Error', e?.message || 'Delete failed');
+              showError(e?.message || 'Delete failed');
             }
           },
         },

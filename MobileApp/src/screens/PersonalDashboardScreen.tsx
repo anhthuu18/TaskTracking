@@ -271,16 +271,12 @@ const PersonalDashboardScreen: React.FC<PersonalDashboardScreenProps> = ({
               (task.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
             );
             if (daysUntilDue < 0) {
-              // Overdue tasks get highest priority
               score += 15;
             } else if (daysUntilDue === 0) {
-              // Due today
               score += 12;
             } else if (daysUntilDue <= 3) {
-              // Due within 3 days
               score += 8;
             } else if (daysUntilDue <= 7) {
-              // Due within a week
               score += 5;
             }
           }

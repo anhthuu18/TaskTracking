@@ -50,16 +50,26 @@ export class NotificationService {
 
   // Get notifications by user email (since invitations are sent to email)
   async getNotificationsByEmail(
-    userEmail: string
+    userEmail: string,
+    userId?: number
   ): Promise<WorkspaceInvitation[]> {
     try {
-      const notifications = await this.prisma.workspaceInvitation.findMany({
-        where: {
-          email: userEmail,
-          expiresAt: {
-            gt: new Date(), // Only non-expired invitations
-          },
+      const whereClause: any = {
+        email: userEmail,
+        expiresAt: {
+          gt: new Date(), // Only non-expired invitations
         },
+      };
+
+      // Exclude invitations created by the user themselves
+      if (userId) {
+        whereClause.invitedBy = {
+          not: userId,
+        };
+      }
+
+      const notifications = await this.prisma.workspaceInvitation.findMany({
+        where: whereClause,
         include: {
           workspace: {
             select: {

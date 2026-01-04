@@ -159,7 +159,7 @@ const MainNavigator: React.FC<MainNavigatorProps> = ({
           />
         );
       case 'settings':
-        return <SettingsScreen workspace={workspace} />;
+        return <SettingsScreen workspace={workspace} navigation={navigation} />;
       default:
         return (
           <WorkspaceDashboardModern
